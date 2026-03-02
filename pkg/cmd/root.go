@@ -19,23 +19,19 @@
 package cmd
 
 import (
-	"os"
-
 	"github.com/spf13/cobra"
 )
 
-var rootCmd = &cobra.Command{
-	Use:   "kortex-cli",
-	Short: "Launch and manage AI agent workspaces with custom configurations",
-}
-
-func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		os.Exit(1)
+func NewRootCmd() *cobra.Command {
+	rootCmd := &cobra.Command{
+		Use:   "kortex-cli",
+		Short: "Launch and manage AI agent workspaces with custom configurations",
 	}
-}
 
-func init() {
-	// Global flags can be added here
+	// Add subcommands
 	rootCmd.AddCommand(NewVersionCmd())
+
+	// Global flags can be added here
+
+	return rootCmd
 }

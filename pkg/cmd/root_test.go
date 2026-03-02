@@ -25,6 +25,7 @@ import (
 )
 
 func TestRootCmd_Initialization(t *testing.T) {
+	rootCmd := NewRootCmd()
 	if rootCmd.Use != "kortex-cli" {
 		t.Errorf("Expected Use to be 'kortex-cli', got '%s'", rootCmd.Use)
 	}
@@ -43,13 +44,12 @@ func TestExecute_WithHelp(t *testing.T) {
 	os.Args = []string{"kortex-cli", "--help"}
 
 	// Redirect output to avoid cluttering test output
-	oldStdout := rootCmd.OutOrStdout()
+	rootCmd := NewRootCmd()
 	buf := new(bytes.Buffer)
 	rootCmd.SetOut(buf)
-	defer rootCmd.SetOut(oldStdout)
 
 	// Call Execute() - test passes if it doesn't panic
-	Execute()
+	_ = rootCmd.Execute()
 }
 
 func TestExecute_NoArgs(t *testing.T) {
@@ -61,11 +61,10 @@ func TestExecute_NoArgs(t *testing.T) {
 	os.Args = []string{"kortex-cli"}
 
 	// Redirect output to avoid cluttering test output
-	oldStdout := rootCmd.OutOrStdout()
+	rootCmd := NewRootCmd()
 	buf := new(bytes.Buffer)
 	rootCmd.SetOut(buf)
-	defer rootCmd.SetOut(oldStdout)
 
 	// Call Execute() - test passes if it doesn't panic
-	Execute()
+	_ = rootCmd.Execute()
 }

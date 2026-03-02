@@ -18,8 +18,14 @@
 
 package main
 
-import "github.com/kortex-hub/kortex-cli/pkg/cmd"
+import (
+	"os"
+
+	"github.com/kortex-hub/kortex-cli/pkg/cmd"
+)
 
 func main() {
-	cmd.Execute()
+	if err := cmd.NewRootCmd().Execute(); err != nil {
+		os.Exit(1)
+	}
 }

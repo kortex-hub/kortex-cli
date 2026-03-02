@@ -25,6 +25,7 @@ import (
 )
 
 func TestRootCmd_HasVersionCommand(t *testing.T) {
+	rootCmd := NewRootCmd()
 	versionCmd := rootCmd.Commands()
 	found := false
 	for _, cmd := range versionCmd {
@@ -47,11 +48,10 @@ func TestExecute_WithVersion(t *testing.T) {
 	os.Args = []string{"kortex-cli", "version"}
 
 	// Redirect output to avoid cluttering test output
-	oldStdout := rootCmd.OutOrStdout()
+	rootCmd := NewRootCmd()
 	buf := new(bytes.Buffer)
 	rootCmd.SetOut(buf)
-	defer rootCmd.SetOut(oldStdout)
 
 	// Call Execute() - test passes if it doesn't panic
-	Execute()
+	_ = rootCmd.Execute()
 }
