@@ -1,0 +1,148 @@
+// Copyright 2026 Red Hat, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package instances
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+)
+
+var (
+	// ErrInstanceNotFound is returned when an instance is not found
+	ErrInstanceNotFound = errors.New("instance not found")
+	// ErrInstanceExists is returned when trying to add a duplicate instance
+	ErrInstanceExists = errors.New("instance already exists")
+	// ErrInvalidPath is returned when a path is invalid or empty
+	ErrInvalidPath = errors.New("invalid path")
+)
+
+// InstanceData represents the serializable data of an instance
+type InstanceData struct {
+	// SourceDir is the directory containing source files (absolute path)
+	SourceDir string `json:"source_dir"`
+	// ConfigDir is the directory containing workspace configuration (absolute path)
+	ConfigDir string `json:"config_dir"`
+}
+
+// Instance represents a workspace instance with source and configuration directories.
+// The SourceDir serves as the unique identifier for each instance.
+// Instances must be created using NewInstance to ensure proper validation and path normalization.
+type Instance interface {
+	// GetSourceDir returns the source directory (unique key).
+	// The path is always absolute.
+	GetSourceDir() string
+	// GetConfigDir returns the configuration directory.
+	// The path is always absolute.
+	GetConfigDir() string
+	// IsAccessible checks if both source and config directories are accessible
+	IsAccessible() bool
+	// Dump returns the serializable data of the instance
+	Dump() InstanceData
+}
+
+// instance is the internal implementation of Instance
+type instance struct {
+	// SourceDir is the directory containing source files.
+	// This is the unique key for the instance and is always stored as an absolute path.
+	SourceDir string
+	// ConfigDir is the directory containing workspace configuration.
+	// This is always stored as an absolute path.
+	ConfigDir string
+}
+
+// Compile-time check to ensure instance implements Instance interface
+var _ Instance = (*instance)(nil)
+
+// GetSourceDir returns the source directory
+func (i *instance) GetSourceDir() string {
+	return i.SourceDir
+}
+
+// GetConfigDir returns the configuration directory
+func (i *instance) GetConfigDir() string {
+	return i.ConfigDir
+}
+
+// IsAccessible checks if both source and config directories are accessible
+func (i *instance) IsAccessible() bool {
+	if !isDirAccessible(i.SourceDir) {
+		return false
+	}
+	if !isDirAccessible(i.ConfigDir) {
+		return false
+	}
+	return true
+}
+
+// Dump returns the serializable data of the instance
+func (i *instance) Dump() InstanceData {
+	return InstanceData{
+		SourceDir: i.SourceDir,
+		ConfigDir: i.ConfigDir,
+	}
+}
+
+// NewInstance creates a new Instance with validated and normalized paths.
+// Both sourceDir and configDir are converted to absolute paths.
+func NewInstance(sourceDir, configDir string) (Instance, error) {
+	if sourceDir == "" {
+		return nil, ErrInvalidPath
+	}
+	if configDir == "" {
+		return nil, ErrInvalidPath
+	}
+
+	// Convert to absolute paths
+	absSourceDir, err := filepath.Abs(sourceDir)
+	if err != nil {
+		return nil, err
+	}
+
+	absConfigDir, err := filepath.Abs(configDir)
+	if err != nil {
+		return nil, err
+	}
+
+	return &instance{
+		SourceDir: absSourceDir,
+		ConfigDir: absConfigDir,
+	}, nil
+}
+
+// NewInstanceFromData creates a new Instance from InstanceData.
+// The paths in InstanceData are assumed to be already validated and absolute.
+func NewInstanceFromData(data InstanceData) (Instance, error) {
+	if data.SourceDir == "" {
+		return nil, ErrInvalidPath
+	}
+	if data.ConfigDir == "" {
+		return nil, ErrInvalidPath
+	}
+
+	return &instance{
+		SourceDir: data.SourceDir,
+		ConfigDir: data.ConfigDir,
+	}, nil
+}
+
+// isDirAccessible checks if a directory exists and is accessible
+func isDirAccessible(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return info.IsDir()
+}

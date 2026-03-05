@@ -110,6 +110,25 @@ func NewExampleCmd() *cobra.Command {
 
 **Important**: Never hardcode paths with `~` as it's not cross-platform. Always use `os.UserHomeDir()` and `filepath.Join()` for path construction.
 
+### Module Design Pattern
+
+All modules (packages outside of `cmd/`) MUST follow the interface-based design pattern to ensure proper encapsulation, testability, and API safety.
+
+**Required Pattern:**
+1. **Public types are interfaces** - All public types must be declared as interfaces
+2. **Implementations are unexported** - Concrete struct implementations must be unexported (lowercase names)
+3. **Compile-time interface checks** - Add unnamed variable declarations to verify interface implementation at compile time
+4. **Factory functions** - Provide `New*()` functions that return the interface type
+
+**Benefits:**
+- Prevents direct struct instantiation (compile-time enforcement)
+- Forces usage of factory functions for proper validation and initialization
+- Enables easy mocking in tests
+- Clear API boundaries
+- Better encapsulation
+
+**This pattern is MANDATORY for all new modules in `pkg/`.**
+
 ### Skills System
 Skills are reusable capabilities that can be discovered and executed by AI agents:
 - **Location**: `skills/<skill-name>/SKILL.md`
@@ -177,6 +196,24 @@ func TestExample(t *testing.T) {
     // Test code here...
 }
 ```
+
+### Testing with Fake Objects
+
+When testing code that uses interfaces (following the Module Design Pattern), **use fake implementations instead of real implementations or mocks**.
+
+**Pattern:**
+1. Create unexported fake structs that implement the interface
+2. Use factory injection to provide fakes to the code under test
+3. Control fake behavior through constructor parameters or fields
+
+**Benefits:**
+- **No external dependencies** - Fakes are simple structs with no framework requirements
+- **Full control** - Control exact behavior through fields/parameters
+- **Type-safe** - Compile-time verification that fakes implement interfaces
+- **Easy to understand** - Fakes are just plain Go code
+- **Flexible** - Can create different factories for different test scenarios
+
+**Reference:** See `pkg/instances/manager_test.go` for a complete implementation of this pattern with factory injection.
 
 ## GitHub Actions
 
