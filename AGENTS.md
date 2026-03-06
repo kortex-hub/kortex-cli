@@ -129,6 +129,63 @@ All modules (packages outside of `cmd/`) MUST follow the interface-based design 
 
 **This pattern is MANDATORY for all new modules in `pkg/`.**
 
+### JSON Storage Structure
+
+When designing JSON storage structures for persistent data, use **nested objects with subfields** instead of flat structures with naming conventions.
+
+**Preferred Pattern (nested structure):**
+```json
+{
+  "id": "dc610bffa75f21b5b043f98aff12b157fb16fae6c0ac3139c28f85d6defbe017",
+  "paths": {
+    "source": "/Users/user/project",
+    "configuration": "/Users/user/project/.kortex"
+  }
+}
+```
+
+**Avoid (flat structure with snake_case or camelCase):**
+```json
+{
+  "id": "...",
+  "source_dir": "/Users/user/project",      // Don't use snake_case
+  "config_dir": "/Users/user/project/.kortex"
+}
+```
+
+```json
+{
+  "id": "...",
+  "sourceDir": "/Users/user/project",       // Don't use camelCase
+  "configDir": "/Users/user/project/.kortex"
+}
+```
+
+**Benefits:**
+- **Better organization** - Related fields are grouped together
+- **Clarity** - Field relationships are explicit through nesting
+- **Extensibility** - Easy to add new subfields without polluting the top level
+- **No naming conflicts** - Avoids debates about snake_case vs camelCase
+- **Self-documenting** - Structure communicates intent
+
+**Implementation:**
+- Create nested structs with `json` tags
+- Use lowercase field names in JSON (Go convention for exported fields + json tags)
+- Group related fields under descriptive parent keys
+
+**Example:**
+```go
+type InstancePaths struct {
+    Source        string `json:"source"`
+    Configuration string `json:"configuration"`
+}
+
+type InstanceData struct {
+    ID    string        `json:"id"`
+    Paths InstancePaths `json:"paths"`
+}
+```
+
 ### Skills System
 Skills are reusable capabilities that can be discovered and executed by AI agents:
 - **Location**: `skills/<skill-name>/SKILL.md`

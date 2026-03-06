@@ -29,14 +29,20 @@ var (
 	ErrInvalidPath = errors.New("invalid path")
 )
 
+// InstancePaths represents the paths in an instance
+type InstancePaths struct {
+	// Source is the directory containing source files (absolute path)
+	Source string `json:"source"`
+	// Configuration is the directory containing workspace configuration (absolute path)
+	Configuration string `json:"configuration"`
+}
+
 // InstanceData represents the serializable data of an instance
 type InstanceData struct {
 	// ID is the unique identifier for the instance
 	ID string `json:"id"`
-	// SourceDir is the directory containing source files (absolute path)
-	SourceDir string `json:"source_dir"`
-	// ConfigDir is the directory containing workspace configuration (absolute path)
-	ConfigDir string `json:"config_dir"`
+	// Paths contains the source and configuration directories
+	Paths InstancePaths `json:"paths"`
 }
 
 // Instance represents a workspace instance with source and configuration directories.
@@ -101,9 +107,11 @@ func (i *instance) IsAccessible() bool {
 // Dump returns the serializable data of the instance
 func (i *instance) Dump() InstanceData {
 	return InstanceData{
-		ID:        i.ID,
-		SourceDir: i.SourceDir,
-		ConfigDir: i.ConfigDir,
+		ID: i.ID,
+		Paths: InstancePaths{
+			Source:        i.SourceDir,
+			Configuration: i.ConfigDir,
+		},
 	}
 }
 
@@ -142,17 +150,17 @@ func NewInstanceFromData(data InstanceData) (Instance, error) {
 	if data.ID == "" {
 		return nil, errors.New("instance ID cannot be empty")
 	}
-	if data.SourceDir == "" {
+	if data.Paths.Source == "" {
 		return nil, ErrInvalidPath
 	}
-	if data.ConfigDir == "" {
+	if data.Paths.Configuration == "" {
 		return nil, ErrInvalidPath
 	}
 
 	return &instance{
 		ID:        data.ID,
-		SourceDir: data.SourceDir,
-		ConfigDir: data.ConfigDir,
+		SourceDir: data.Paths.Source,
+		ConfigDir: data.Paths.Configuration,
 	}, nil
 }
 

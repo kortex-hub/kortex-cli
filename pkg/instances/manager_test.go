@@ -53,9 +53,11 @@ func (f *fakeInstance) IsAccessible() bool {
 
 func (f *fakeInstance) Dump() InstanceData {
 	return InstanceData{
-		ID:        f.id,
-		SourceDir: f.sourceDir,
-		ConfigDir: f.configDir,
+		ID: f.id,
+		Paths: InstancePaths{
+			Source:        f.sourceDir,
+			Configuration: f.configDir,
+		},
 	}
 }
 
@@ -74,18 +76,18 @@ func fakeInstanceFactory(data InstanceData) (Instance, error) {
 	if data.ID == "" {
 		return nil, errors.New("instance ID cannot be empty")
 	}
-	if data.SourceDir == "" {
+	if data.Paths.Source == "" {
 		return nil, ErrInvalidPath
 	}
-	if data.ConfigDir == "" {
+	if data.Paths.Configuration == "" {
 		return nil, ErrInvalidPath
 	}
 	// For testing, we assume instances are accessible by default
 	// Tests can verify accessibility behavior separately
 	return &fakeInstance{
 		id:         data.ID,
-		sourceDir:  data.SourceDir,
-		configDir:  data.ConfigDir,
+		sourceDir:  data.Paths.Source,
+		configDir:  data.Paths.Configuration,
 		accessible: true,
 	}, nil
 }
@@ -557,13 +559,13 @@ func TestManager_Reconcile(t *testing.T) {
 			if data.ID == "" {
 				return nil, errors.New("instance ID cannot be empty")
 			}
-			if data.SourceDir == "" || data.ConfigDir == "" {
+			if data.Paths.Source == "" || data.Paths.Configuration == "" {
 				return nil, ErrInvalidPath
 			}
 			return &fakeInstance{
 				id:         data.ID,
-				sourceDir:  data.SourceDir,
-				configDir:  data.ConfigDir,
+				sourceDir:  data.Paths.Source,
+				configDir:  data.Paths.Configuration,
 				accessible: false, // Always inaccessible for this test
 			}, nil
 		}
@@ -593,13 +595,13 @@ func TestManager_Reconcile(t *testing.T) {
 			if data.ID == "" {
 				return nil, errors.New("instance ID cannot be empty")
 			}
-			if data.SourceDir == "" || data.ConfigDir == "" {
+			if data.Paths.Source == "" || data.Paths.Configuration == "" {
 				return nil, ErrInvalidPath
 			}
 			return &fakeInstance{
 				id:         data.ID,
-				sourceDir:  data.SourceDir,
-				configDir:  data.ConfigDir,
+				sourceDir:  data.Paths.Source,
+				configDir:  data.Paths.Configuration,
 				accessible: false, // Always inaccessible for this test
 			}, nil
 		}
@@ -629,13 +631,13 @@ func TestManager_Reconcile(t *testing.T) {
 			if data.ID == "" {
 				return nil, errors.New("instance ID cannot be empty")
 			}
-			if data.SourceDir == "" || data.ConfigDir == "" {
+			if data.Paths.Source == "" || data.Paths.Configuration == "" {
 				return nil, ErrInvalidPath
 			}
 			return &fakeInstance{
 				id:         data.ID,
-				sourceDir:  data.SourceDir,
-				configDir:  data.ConfigDir,
+				sourceDir:  data.Paths.Source,
+				configDir:  data.Paths.Configuration,
 				accessible: false, // Always inaccessible for this test
 			}, nil
 		}
@@ -672,14 +674,14 @@ func TestManager_Reconcile(t *testing.T) {
 			if data.ID == "" {
 				return nil, errors.New("instance ID cannot be empty")
 			}
-			if data.SourceDir == "" || data.ConfigDir == "" {
+			if data.Paths.Source == "" || data.Paths.Configuration == "" {
 				return nil, ErrInvalidPath
 			}
-			accessible := data.SourceDir == accessibleSource
+			accessible := data.Paths.Source == accessibleSource
 			return &fakeInstance{
 				id:         data.ID,
-				sourceDir:  data.SourceDir,
-				configDir:  data.ConfigDir,
+				sourceDir:  data.Paths.Source,
+				configDir:  data.Paths.Configuration,
 				accessible: accessible,
 			}, nil
 		}
@@ -823,11 +825,11 @@ func TestManager_Persistence(t *testing.T) {
 		if instances[0].ID != generatedID {
 			t.Errorf("JSON ID = %v, want %v", instances[0].ID, generatedID)
 		}
-		if instances[0].SourceDir != expectedSource {
-			t.Errorf("JSON SourceDir = %v, want %v", instances[0].SourceDir, expectedSource)
+		if instances[0].Paths.Source != expectedSource {
+			t.Errorf("JSON Paths.Source = %v, want %v", instances[0].Paths.Source, expectedSource)
 		}
-		if instances[0].ConfigDir != expectedConfig {
-			t.Errorf("JSON ConfigDir = %v, want %v", instances[0].ConfigDir, expectedConfig)
+		if instances[0].Paths.Configuration != expectedConfig {
+			t.Errorf("JSON Paths.Configuration = %v, want %v", instances[0].Paths.Configuration, expectedConfig)
 		}
 	})
 }
