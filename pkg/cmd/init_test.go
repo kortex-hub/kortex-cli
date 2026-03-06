@@ -254,14 +254,6 @@ func TestInitCmd_E2E(t *testing.T) {
 			t.Fatalf("Execute() failed: %v", err)
 		}
 
-		output := buf.String()
-		if !strings.Contains(output, "Registered workspace:") {
-			t.Errorf("Expected output to contain 'Registered workspace:', got: %s", output)
-		}
-		if !strings.Contains(output, "ID:") {
-			t.Errorf("Expected output to contain 'ID:', got: %s", output)
-		}
-
 		// Verify instance was created
 		manager, err := instances.NewManager(storageDir)
 		if err != nil {
@@ -282,6 +274,12 @@ func TestInitCmd_E2E(t *testing.T) {
 		// Verify instance has a non-empty ID
 		if inst.GetID() == "" {
 			t.Error("Expected instance to have a non-empty ID")
+		}
+
+		// Verify output contains only the ID (default non-verbose output)
+		output := strings.TrimSpace(buf.String())
+		if output != inst.GetID() {
+			t.Errorf("Expected output to be just the ID %s, got: %s", inst.GetID(), output)
 		}
 
 		// Verify sources directory is current directory (absolute)
@@ -321,11 +319,6 @@ func TestInitCmd_E2E(t *testing.T) {
 			t.Fatalf("Execute() failed: %v", err)
 		}
 
-		output := buf.String()
-		if !strings.Contains(output, sourcesDir) {
-			t.Errorf("Expected output to contain sources directory %s, got: %s", sourcesDir, output)
-		}
-
 		// Verify instance was created with correct paths
 		manager, err := instances.NewManager(storageDir)
 		if err != nil {
@@ -346,6 +339,12 @@ func TestInitCmd_E2E(t *testing.T) {
 		// Verify instance has a non-empty ID
 		if inst.GetID() == "" {
 			t.Error("Expected instance to have a non-empty ID")
+		}
+
+		// Verify output contains only the ID (default non-verbose output)
+		output := strings.TrimSpace(buf.String())
+		if output != inst.GetID() {
+			t.Errorf("Expected output to be just the ID %s, got: %s", inst.GetID(), output)
 		}
 
 		expectedAbsSourcesDir, _ := filepath.Abs(sourcesDir)
@@ -365,11 +364,6 @@ func TestInitCmd_E2E(t *testing.T) {
 		if !filepath.IsAbs(inst.GetConfigDir()) {
 			t.Errorf("Expected config dir to be absolute, got %s", inst.GetConfigDir())
 		}
-
-		// Verify output contains the instance ID
-		if !strings.Contains(output, inst.GetID()) {
-			t.Errorf("Expected output to contain instance ID %s, got: %s", inst.GetID(), output)
-		}
 	})
 
 	t.Run("registers workspace with custom configuration directory", func(t *testing.T) {
@@ -386,11 +380,6 @@ func TestInitCmd_E2E(t *testing.T) {
 		err := rootCmd.Execute()
 		if err != nil {
 			t.Fatalf("Execute() failed: %v", err)
-		}
-
-		output := buf.String()
-		if !strings.Contains(output, configDir) {
-			t.Errorf("Expected output to contain config directory %s, got: %s", configDir, output)
 		}
 
 		// Verify instance was created with correct paths
@@ -413,6 +402,12 @@ func TestInitCmd_E2E(t *testing.T) {
 		// Verify instance has a non-empty ID
 		if inst.GetID() == "" {
 			t.Error("Expected instance to have a non-empty ID")
+		}
+
+		// Verify output contains only the ID (default non-verbose output)
+		output := strings.TrimSpace(buf.String())
+		if output != inst.GetID() {
+			t.Errorf("Expected output to be just the ID %s, got: %s", inst.GetID(), output)
 		}
 
 		// Verify sources directory defaults to current directory
@@ -433,11 +428,6 @@ func TestInitCmd_E2E(t *testing.T) {
 		if !filepath.IsAbs(inst.GetConfigDir()) {
 			t.Errorf("Expected config dir to be absolute, got %s", inst.GetConfigDir())
 		}
-
-		// Verify output contains the instance ID
-		if !strings.Contains(output, inst.GetID()) {
-			t.Errorf("Expected output to contain instance ID %s, got: %s", inst.GetID(), output)
-		}
 	})
 
 	t.Run("registers workspace with both custom directories", func(t *testing.T) {
@@ -455,14 +445,6 @@ func TestInitCmd_E2E(t *testing.T) {
 		err := rootCmd.Execute()
 		if err != nil {
 			t.Fatalf("Execute() failed: %v", err)
-		}
-
-		output := buf.String()
-		if !strings.Contains(output, sourcesDir) {
-			t.Errorf("Expected output to contain sources directory %s, got: %s", sourcesDir, output)
-		}
-		if !strings.Contains(output, configDir) {
-			t.Errorf("Expected output to contain config directory %s, got: %s", configDir, output)
 		}
 
 		// Verify instance was created with correct paths
@@ -487,6 +469,12 @@ func TestInitCmd_E2E(t *testing.T) {
 			t.Error("Expected instance to have a non-empty ID")
 		}
 
+		// Verify output contains only the ID (default non-verbose output)
+		output := strings.TrimSpace(buf.String())
+		if output != inst.GetID() {
+			t.Errorf("Expected output to be just the ID %s, got: %s", inst.GetID(), output)
+		}
+
 		expectedAbsSourcesDir, _ := filepath.Abs(sourcesDir)
 		if inst.GetSourceDir() != expectedAbsSourcesDir {
 			t.Errorf("Expected source dir %s, got %s", expectedAbsSourcesDir, inst.GetSourceDir())
@@ -503,11 +491,6 @@ func TestInitCmd_E2E(t *testing.T) {
 		}
 		if !filepath.IsAbs(inst.GetConfigDir()) {
 			t.Errorf("Expected config dir to be absolute, got %s", inst.GetConfigDir())
-		}
-
-		// Verify output contains the instance ID
-		if !strings.Contains(output, inst.GetID()) {
-			t.Errorf("Expected output to contain instance ID %s, got: %s", inst.GetID(), output)
 		}
 	})
 
@@ -601,6 +584,71 @@ func TestInitCmd_E2E(t *testing.T) {
 		}
 		if !foundDir2 {
 			t.Errorf("Expected to find instance with source dir %s", expectedAbsSourcesDir2)
+		}
+	})
+
+	t.Run("registers workspace with verbose flag", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		rootCmd := NewRootCmd()
+		buf := new(bytes.Buffer)
+		rootCmd.SetOut(buf)
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", sourcesDir, "--verbose"})
+
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		output := buf.String()
+
+		// Verify verbose output contains expected strings
+		if !strings.Contains(output, "Registered workspace:") {
+			t.Errorf("Expected verbose output to contain 'Registered workspace:', got: %s", output)
+		}
+		if !strings.Contains(output, "ID:") {
+			t.Errorf("Expected verbose output to contain 'ID:', got: %s", output)
+		}
+		if !strings.Contains(output, "Sources directory:") {
+			t.Errorf("Expected verbose output to contain 'Sources directory:', got: %s", output)
+		}
+		if !strings.Contains(output, "Configuration directory:") {
+			t.Errorf("Expected verbose output to contain 'Configuration directory:', got: %s", output)
+		}
+
+		// Verify instance was created with correct paths
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		instancesList, err := manager.List()
+		if err != nil {
+			t.Fatalf("Failed to list instances: %v", err)
+		}
+
+		if len(instancesList) != 1 {
+			t.Fatalf("Expected 1 instance, got %d", len(instancesList))
+		}
+
+		inst := instancesList[0]
+
+		// Verify verbose output contains the actual values
+		expectedAbsSourcesDir, _ := filepath.Abs(sourcesDir)
+		if !strings.Contains(output, expectedAbsSourcesDir) {
+			t.Errorf("Expected verbose output to contain sources directory %s, got: %s", expectedAbsSourcesDir, output)
+		}
+
+		expectedConfigDir := filepath.Join(expectedAbsSourcesDir, ".kortex")
+		if !strings.Contains(output, expectedConfigDir) {
+			t.Errorf("Expected verbose output to contain config directory %s, got: %s", expectedConfigDir, output)
+		}
+
+		if !strings.Contains(output, inst.GetID()) {
+			t.Errorf("Expected verbose output to contain instance ID %s, got: %s", inst.GetID(), output)
 		}
 	})
 }

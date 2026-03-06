@@ -33,6 +33,7 @@ type initCmd struct {
 	absSourcesDir      string
 	absConfigDir       string
 	manager            instances.Manager
+	verbose            bool
 }
 
 // preRun validates the parameters and flags
@@ -92,10 +93,14 @@ func (i *initCmd) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to add instance: %w", err)
 	}
 
-	cmd.Printf("Registered workspace:\n")
-	cmd.Printf("  ID: %s\n", addedInstance.GetID())
-	cmd.Printf("  Sources directory: %s\n", addedInstance.GetSourceDir())
-	cmd.Printf("  Configuration directory: %s\n", addedInstance.GetConfigDir())
+	if i.verbose {
+		cmd.Printf("Registered workspace:\n")
+		cmd.Printf("  ID: %s\n", addedInstance.GetID())
+		cmd.Printf("  Sources directory: %s\n", addedInstance.GetSourceDir())
+		cmd.Printf("  Configuration directory: %s\n", addedInstance.GetConfigDir())
+	} else {
+		cmd.Println(addedInstance.GetID())
+	}
 
 	return nil
 }
@@ -117,6 +122,9 @@ The workspace configuration directory defaults to .kortex/ inside the sources di
 
 	// Add workspace-configuration flag
 	cmd.Flags().StringVar(&c.workspaceConfigDir, "workspace-configuration", "", "Directory for workspace configuration (default: <sources-directory>/.kortex)")
+
+	// Add verbose flag
+	cmd.Flags().BoolVarP(&c.verbose, "verbose", "v", false, "Show detailed output")
 
 	return cmd
 }
