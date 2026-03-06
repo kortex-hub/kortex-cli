@@ -15,6 +15,7 @@
 package instances
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"sync"
@@ -705,19 +706,23 @@ func TestManager_Persistence(t *testing.T) {
 			t.Fatalf("Failed to read storage file: %v", err)
 		}
 
-		content := string(data)
-		// Verify JSON contains expected fields
-		if !contains(content, "source_dir") {
-			t.Error("JSON does not contain 'source_dir' field")
+		// Unmarshal JSON data
+		var instances []InstanceData
+		if err := json.Unmarshal(data, &instances); err != nil {
+			t.Fatalf("Failed to unmarshal JSON: %v", err)
 		}
-		if !contains(content, "config_dir") {
-			t.Error("JSON does not contain 'config_dir' field")
+
+		// Verify we have exactly one instance
+		if len(instances) != 1 {
+			t.Fatalf("Expected 1 instance in JSON, got %d", len(instances))
 		}
-		if !contains(content, expectedSource) {
-			t.Error("JSON does not contain source directory value")
+
+		// Verify the instance values
+		if instances[0].SourceDir != expectedSource {
+			t.Errorf("JSON SourceDir = %v, want %v", instances[0].SourceDir, expectedSource)
 		}
-		if !contains(content, expectedConfig) {
-			t.Error("JSON does not contain config directory value")
+		if instances[0].ConfigDir != expectedConfig {
+			t.Errorf("JSON ConfigDir = %v, want %v", instances[0].ConfigDir, expectedConfig)
 		}
 	})
 }
@@ -789,18 +794,4 @@ func TestManager_ConcurrentAccess(t *testing.T) {
 			t.Errorf("After concurrent reads, List() returned %d instances, want 5", len(instances))
 		}
 	})
-}
-
-// Helper function for string contains check
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 || findSubstring(s, substr))
-}
-
-func findSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
