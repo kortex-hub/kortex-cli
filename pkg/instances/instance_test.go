@@ -38,6 +38,9 @@ func TestNewInstance(t *testing.T) {
 			t.Fatal("NewInstance() returned nil instance")
 		}
 
+		if inst.GetID() != "" {
+			t.Errorf("GetID() = %v, want empty string (ID should be set by Manager)", inst.GetID())
+		}
 		if inst.GetSourceDir() != sourceDir {
 			t.Errorf("GetSourceDir() = %v, want %v", inst.GetSourceDir(), sourceDir)
 		}

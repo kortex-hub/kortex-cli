@@ -20,6 +20,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/kortex-hub/kortex-cli/pkg/generator"
 )
 
 const (
@@ -32,16 +34,16 @@ type InstanceFactory func(InstanceData) (Instance, error)
 
 // Manager handles instance storage and operations
 type Manager interface {
-	// Add registers a new instance
-	Add(inst Instance) error
+	// Add registers a new instance and returns the instance with its generated ID
+	Add(inst Instance) (Instance, error)
 	// List returns all registered instances
 	List() ([]Instance, error)
-	// Get retrieves a specific instance by source directory (unique key)
-	Get(sourceDir string) (Instance, error)
-	// Delete unregisters an instance by source directory (unique key)
-	Delete(sourceDir string) error
+	// Get retrieves a specific instance by ID
+	Get(id string) (Instance, error)
+	// Delete unregisters an instance by ID
+	Delete(id string) error
 	// Reconcile removes instances with inaccessible directories
-	// Returns the list of removed instance source directories
+	// Returns the list of removed instance IDs
 	Reconcile() ([]string, error)
 }
 
@@ -50,6 +52,7 @@ type manager struct {
 	storageFile string
 	mu          sync.RWMutex
 	factory     InstanceFactory
+	generator   generator.Generator
 }
 
 // Compile-time check to ensure manager implements Manager interface
@@ -57,17 +60,20 @@ var _ Manager = (*manager)(nil)
 
 // NewManager creates a new instance manager with the given storage directory.
 func NewManager(storageDir string) (Manager, error) {
-	return newManagerWithFactory(storageDir, NewInstanceFromData)
+	return newManagerWithFactory(storageDir, NewInstanceFromData, generator.New())
 }
 
-// newManagerWithFactory creates a new instance manager with a custom instance factory.
-// This is unexported and primarily useful for testing with fake instances.
-func newManagerWithFactory(storageDir string, factory InstanceFactory) (Manager, error) {
+// newManagerWithFactory creates a new instance manager with a custom instance factory and generator.
+// This is unexported and primarily useful for testing with fake instances and generators.
+func newManagerWithFactory(storageDir string, factory InstanceFactory, gen generator.Generator) (Manager, error) {
 	if storageDir == "" {
 		return nil, errors.New("storage directory cannot be empty")
 	}
 	if factory == nil {
 		return nil, errors.New("factory cannot be nil")
+	}
+	if gen == nil {
+		return nil, errors.New("generator cannot be nil")
 	}
 
 	// Ensure storage directory exists
@@ -79,14 +85,17 @@ func newManagerWithFactory(storageDir string, factory InstanceFactory) (Manager,
 	return &manager{
 		storageFile: storageFile,
 		factory:     factory,
+		generator:   gen,
 	}, nil
 }
 
 // Add registers a new instance.
 // The instance must be created using NewInstance to ensure proper validation.
-func (m *manager) Add(inst Instance) error {
+// A unique ID is generated for the instance when it's added to storage.
+// Returns the instance with its generated ID.
+func (m *manager) Add(inst Instance) (Instance, error) {
 	if inst == nil {
-		return errors.New("instance cannot be nil")
+		return nil, errors.New("instance cannot be nil")
 	}
 
 	m.mu.Lock()
@@ -94,18 +103,39 @@ func (m *manager) Add(inst Instance) error {
 
 	instances, err := m.loadInstances()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// Check for duplicate source directory (unique key)
-	for _, existing := range instances {
-		if existing.GetSourceDir() == inst.GetSourceDir() {
-			return ErrInstanceExists
+	// Generate a unique ID for the instance
+	var uniqueID string
+	for {
+		uniqueID = m.generator.Generate()
+		// Check if this ID is already in use
+		duplicate := false
+		for _, existing := range instances {
+			if existing.GetID() == uniqueID {
+				duplicate = true
+				break
+			}
+		}
+		if !duplicate {
+			break
 		}
 	}
 
-	instances = append(instances, inst)
-	return m.saveInstances(instances)
+	// Create a new instance with the unique ID
+	instanceWithID := &instance{
+		ID:        uniqueID,
+		SourceDir: inst.GetSourceDir(),
+		ConfigDir: inst.GetConfigDir(),
+	}
+
+	instances = append(instances, instanceWithID)
+	if err := m.saveInstances(instances); err != nil {
+		return nil, err
+	}
+
+	return instanceWithID, nil
 }
 
 // List returns all registered instances
@@ -116,25 +146,19 @@ func (m *manager) List() ([]Instance, error) {
 	return m.loadInstances()
 }
 
-// Get retrieves a specific instance by source directory (unique key)
-func (m *manager) Get(sourceDir string) (Instance, error) {
+// Get retrieves a specific instance by ID
+func (m *manager) Get(id string) (Instance, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-
-	// Convert to absolute path for comparison
-	absSourceDir, err := filepath.Abs(sourceDir)
-	if err != nil {
-		return nil, err
-	}
 
 	instances, err := m.loadInstances()
 	if err != nil {
 		return nil, err
 	}
 
-	// Look up by source directory (unique key)
+	// Look up by ID
 	for _, instance := range instances {
-		if instance.GetSourceDir() == absSourceDir {
+		if instance.GetID() == id {
 			return instance, nil
 		}
 	}
@@ -142,27 +166,21 @@ func (m *manager) Get(sourceDir string) (Instance, error) {
 	return nil, ErrInstanceNotFound
 }
 
-// Delete unregisters an instance by source directory (unique key)
-func (m *manager) Delete(sourceDir string) error {
+// Delete unregisters an instance by ID
+func (m *manager) Delete(id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
-	// Convert to absolute path for comparison
-	absSourceDir, err := filepath.Abs(sourceDir)
-	if err != nil {
-		return err
-	}
 
 	instances, err := m.loadInstances()
 	if err != nil {
 		return err
 	}
 
-	// Find and remove by source directory (unique key)
+	// Find and remove by ID
 	found := false
 	filtered := make([]Instance, 0, len(instances))
 	for _, instance := range instances {
-		if instance.GetSourceDir() != absSourceDir {
+		if instance.GetID() != id {
 			filtered = append(filtered, instance)
 		} else {
 			found = true
@@ -177,7 +195,7 @@ func (m *manager) Delete(sourceDir string) error {
 }
 
 // Reconcile removes instances with inaccessible directories
-// Returns the list of removed instance source directories
+// Returns the list of removed instance IDs
 func (m *manager) Reconcile() ([]string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -194,7 +212,7 @@ func (m *manager) Reconcile() ([]string, error) {
 		if instance.IsAccessible() {
 			accessible = append(accessible, instance)
 		} else {
-			removed = append(removed, instance.GetSourceDir())
+			removed = append(removed, instance.GetID())
 		}
 	}
 
