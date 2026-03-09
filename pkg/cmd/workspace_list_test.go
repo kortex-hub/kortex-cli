@@ -195,14 +195,21 @@ func TestWorkspaceListCmd_E2E(t *testing.T) {
 		}
 
 		result := output.String()
-		if !strings.Contains(result, addedInstance.GetID()) {
-			t.Errorf("Expected output to contain ID %s, got: %s", addedInstance.GetID(), result)
+		expectedID := "ID: " + addedInstance.GetID()
+		if !strings.Contains(result, expectedID) {
+			t.Errorf("Expected output to contain %q, got: %s", expectedID, result)
 		}
-		if !strings.Contains(result, addedInstance.GetName()) {
-			t.Errorf("Expected output to contain name %s, got: %s", addedInstance.GetName(), result)
+		expectedName := "  Name: " + addedInstance.GetName()
+		if !strings.Contains(result, expectedName) {
+			t.Errorf("Expected output to contain %q, got: %s", expectedName, result)
 		}
-		if !strings.Contains(result, sourcesDir) {
-			t.Errorf("Expected output to contain sources dir %s, got: %s", sourcesDir, result)
+		expectedSources := "  Sources: " + sourcesDir
+		if !strings.Contains(result, expectedSources) {
+			t.Errorf("Expected output to contain %q, got: %s", expectedSources, result)
+		}
+		expectedConfig := "  Configuration: " + filepath.Join(sourcesDir, ".kortex")
+		if !strings.Contains(result, expectedConfig) {
+			t.Errorf("Expected output to contain %q, got: %s", expectedConfig, result)
 		}
 	})
 
@@ -258,23 +265,37 @@ func TestWorkspaceListCmd_E2E(t *testing.T) {
 		}
 
 		result := output.String()
-		if !strings.Contains(result, addedInstance1.GetID()) {
-			t.Errorf("Expected output to contain ID %s, got: %s", addedInstance1.GetID(), result)
+		expectedID1 := "ID: " + addedInstance1.GetID()
+		if !strings.Contains(result, expectedID1) {
+			t.Errorf("Expected output to contain %q, got: %s", expectedID1, result)
 		}
-		if !strings.Contains(result, addedInstance1.GetName()) {
-			t.Errorf("Expected output to contain name %s, got: %s", addedInstance1.GetName(), result)
+		expectedName1 := "  Name: " + addedInstance1.GetName()
+		if !strings.Contains(result, expectedName1) {
+			t.Errorf("Expected output to contain %q, got: %s", expectedName1, result)
 		}
-		if !strings.Contains(result, addedInstance2.GetID()) {
-			t.Errorf("Expected output to contain ID %s, got: %s", addedInstance2.GetID(), result)
+		expectedSources1 := "  Sources: " + sourcesDir1
+		if !strings.Contains(result, expectedSources1) {
+			t.Errorf("Expected output to contain %q, got: %s", expectedSources1, result)
 		}
-		if !strings.Contains(result, addedInstance2.GetName()) {
-			t.Errorf("Expected output to contain name %s, got: %s", addedInstance2.GetName(), result)
+		expectedConfig1 := "  Configuration: " + filepath.Join(sourcesDir1, ".kortex")
+		if !strings.Contains(result, expectedConfig1) {
+			t.Errorf("Expected output to contain %q, got: %s", expectedConfig1, result)
 		}
-		if !strings.Contains(result, sourcesDir1) {
-			t.Errorf("Expected output to contain sources dir %s, got: %s", sourcesDir1, result)
+		expectedID2 := "ID: " + addedInstance2.GetID()
+		if !strings.Contains(result, expectedID2) {
+			t.Errorf("Expected output to contain %q, got: %s", expectedID2, result)
 		}
-		if !strings.Contains(result, sourcesDir2) {
-			t.Errorf("Expected output to contain sources dir %s, got: %s", sourcesDir2, result)
+		expectedName2 := "  Name: " + addedInstance2.GetName()
+		if !strings.Contains(result, expectedName2) {
+			t.Errorf("Expected output to contain %q, got: %s", expectedName2, result)
+		}
+		expectedSources2 := "  Sources: " + sourcesDir2
+		if !strings.Contains(result, expectedSources2) {
+			t.Errorf("Expected output to contain %q, got: %s", expectedSources2, result)
+		}
+		expectedConfig2 := "  Configuration: " + filepath.Join(sourcesDir2, ".kortex")
+		if !strings.Contains(result, expectedConfig2) {
+			t.Errorf("Expected output to contain %q, got: %s", expectedConfig2, result)
 		}
 	})
 
@@ -316,11 +337,21 @@ func TestWorkspaceListCmd_E2E(t *testing.T) {
 		}
 
 		result := output.String()
-		if !strings.Contains(result, addedInstance.GetID()) {
-			t.Errorf("Expected output to contain ID %s, got: %s", addedInstance.GetID(), result)
+		expectedID := "ID: " + addedInstance.GetID()
+		if !strings.Contains(result, expectedID) {
+			t.Errorf("Expected output to contain %q, got: %s", expectedID, result)
 		}
-		if !strings.Contains(result, addedInstance.GetName()) {
-			t.Errorf("Expected output to contain name %s, got: %s", addedInstance.GetName(), result)
+		expectedName := "  Name: " + addedInstance.GetName()
+		if !strings.Contains(result, expectedName) {
+			t.Errorf("Expected output to contain %q, got: %s", expectedName, result)
+		}
+		expectedSources := "  Sources: " + sourcesDir
+		if !strings.Contains(result, expectedSources) {
+			t.Errorf("Expected output to contain %q, got: %s", expectedSources, result)
+		}
+		expectedConfig := "  Configuration: " + filepath.Join(sourcesDir, ".kortex")
+		if !strings.Contains(result, expectedConfig) {
+			t.Errorf("Expected output to contain %q, got: %s", expectedConfig, result)
 		}
 	})
 
