@@ -28,6 +28,7 @@ import (
 // workspaceListCmd contains the configuration for the workspace list command
 type workspaceListCmd struct {
 	manager instances.Manager
+	output  string
 }
 
 // preRun validates the parameters and flags
@@ -37,6 +38,18 @@ func (w *workspaceListCmd) preRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to read --storage flag: %w", err)
 	}
+
+	// Get output format flag
+	output, err := cmd.Flags().GetString("output")
+	if err != nil {
+		return fmt.Errorf("failed to read --output flag: %w", err)
+	}
+
+	// Validate output format if specified
+	if output != "" && output != "json" {
+		return fmt.Errorf("unsupported output format: %s (supported: json)", output)
+	}
+	w.output = output
 
 	// Create manager
 	manager, err := instances.NewManager(storageDir)
@@ -83,7 +96,7 @@ func NewWorkspaceListCmd() *cobra.Command {
 		RunE:    c.run,
 	}
 
-	// TODO: Add flags as needed
+	cmd.Flags().StringP("output", "o", "", "Output format (supported: json)")
 
 	return cmd
 }

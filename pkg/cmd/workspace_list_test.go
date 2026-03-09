@@ -56,6 +56,79 @@ func TestWorkspaceListCmd_PreRun(t *testing.T) {
 			t.Fatalf("Expected no error, got %v", err)
 		}
 	})
+
+	t.Run("accepts no output flag", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		rootCmd := NewRootCmd()
+		rootCmd.SetArgs([]string{"workspace", "list", "--storage", storageDir})
+
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error with no output flag, got %v", err)
+		}
+	})
+
+	t.Run("accepts valid output flag with json", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		rootCmd := NewRootCmd()
+		rootCmd.SetArgs([]string{"workspace", "list", "--storage", storageDir, "--output", "json"})
+
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error with --output json, got %v", err)
+		}
+	})
+
+	t.Run("accepts valid output flag with -o json", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		rootCmd := NewRootCmd()
+		rootCmd.SetArgs([]string{"workspace", "list", "--storage", storageDir, "-o", "json"})
+
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error with -o json, got %v", err)
+		}
+	})
+
+	t.Run("rejects invalid output format", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		rootCmd := NewRootCmd()
+		rootCmd.SetArgs([]string{"workspace", "list", "--storage", storageDir, "--output", "xml"})
+
+		err := rootCmd.Execute()
+		if err == nil {
+			t.Fatal("Expected error with invalid output format, got nil")
+		}
+
+		if !strings.Contains(err.Error(), "unsupported output format") {
+			t.Errorf("Expected error to contain 'unsupported output format', got: %v", err)
+		}
+	})
+
+	t.Run("rejects invalid output format with short flag", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		rootCmd := NewRootCmd()
+		rootCmd.SetArgs([]string{"workspace", "list", "--storage", storageDir, "-o", "yaml"})
+
+		err := rootCmd.Execute()
+		if err == nil {
+			t.Fatal("Expected error with invalid output format, got nil")
+		}
+
+		if !strings.Contains(err.Error(), "unsupported output format") {
+			t.Errorf("Expected error to contain 'unsupported output format', got: %v", err)
+		}
+	})
 }
 
 func TestWorkspaceListCmd_E2E(t *testing.T) {
