@@ -30,6 +30,7 @@ import (
 type initCmd struct {
 	sourcesDir         string
 	workspaceConfigDir string
+	name               string
 	absSourcesDir      string
 	absConfigDir       string
 	manager            instances.Manager
@@ -82,7 +83,7 @@ func (i *initCmd) preRun(cmd *cobra.Command, args []string) error {
 // run executes the init command logic
 func (i *initCmd) run(cmd *cobra.Command, args []string) error {
 	// Create a new instance
-	instance, err := instances.NewInstance(i.absSourcesDir, i.absConfigDir)
+	instance, err := instances.NewInstance(i.absSourcesDir, i.absConfigDir, i.name)
 	if err != nil {
 		return fmt.Errorf("failed to create instance: %w", err)
 	}
@@ -96,6 +97,7 @@ func (i *initCmd) run(cmd *cobra.Command, args []string) error {
 	if i.verbose {
 		cmd.Printf("Registered workspace:\n")
 		cmd.Printf("  ID: %s\n", addedInstance.GetID())
+		cmd.Printf("  Name: %s\n", addedInstance.GetName())
 		cmd.Printf("  Sources directory: %s\n", addedInstance.GetSourceDir())
 		cmd.Printf("  Configuration directory: %s\n", addedInstance.GetConfigDir())
 	} else {
@@ -122,6 +124,9 @@ The workspace configuration directory defaults to .kortex/ inside the sources di
 
 	// Add workspace-configuration flag
 	cmd.Flags().StringVar(&c.workspaceConfigDir, "workspace-configuration", "", "Directory for workspace configuration (default: <sources-directory>/.kortex)")
+
+	// Add name flag
+	cmd.Flags().StringVarP(&c.name, "name", "n", "", "Name for the workspace (default: generated from sources directory)")
 
 	// Add verbose flag
 	cmd.Flags().BoolVarP(&c.verbose, "verbose", "v", false, "Show detailed output")

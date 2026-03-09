@@ -17,6 +17,7 @@ package instances
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -92,7 +93,8 @@ func newManagerWithFactory(storageDir string, factory InstanceFactory, gen gener
 // Add registers a new instance.
 // The instance must be created using NewInstance to ensure proper validation.
 // A unique ID is generated for the instance when it's added to storage.
-// Returns the instance with its generated ID.
+// If the instance name is empty, a unique name is generated from the source directory.
+// Returns the instance with its generated ID and name.
 func (m *manager) Add(inst Instance) (Instance, error) {
 	if inst == nil {
 		return nil, errors.New("instance cannot be nil")
@@ -123,9 +125,19 @@ func (m *manager) Add(inst Instance) (Instance, error) {
 		}
 	}
 
-	// Create a new instance with the unique ID
+	// Generate a unique name if not provided
+	name := inst.GetName()
+	if name == "" {
+		name = m.generateUniqueName(inst.GetSourceDir(), instances)
+	} else {
+		// Ensure the provided name is unique
+		name = m.ensureUniqueName(name, instances)
+	}
+
+	// Create a new instance with the unique ID and name
 	instanceWithID := &instance{
 		ID:        uniqueID,
+		Name:      name,
 		SourceDir: inst.GetSourceDir(),
 		ConfigDir: inst.GetConfigDir(),
 	}
@@ -223,6 +235,42 @@ func (m *manager) Reconcile() ([]string, error) {
 	}
 
 	return removed, nil
+}
+
+// generateUniqueName generates a unique name from the source directory
+// by extracting the last component of the path and adding an increment if needed
+func (m *manager) generateUniqueName(sourceDir string, instances []Instance) string {
+	// Extract the last component of the source directory
+	baseName := filepath.Base(sourceDir)
+	return m.ensureUniqueName(baseName, instances)
+}
+
+// ensureUniqueName ensures the name is unique by adding an increment if needed
+func (m *manager) ensureUniqueName(name string, instances []Instance) string {
+	// Check if the name is already in use
+	nameExists := func(checkName string) bool {
+		for _, inst := range instances {
+			if inst.GetName() == checkName {
+				return true
+			}
+		}
+		return false
+	}
+
+	// If the name is not in use, return it
+	if !nameExists(name) {
+		return name
+	}
+
+	// Find a unique name by adding an increment
+	counter := 2
+	for {
+		uniqueName := fmt.Sprintf("%s-%d", name, counter)
+		if !nameExists(uniqueName) {
+			return uniqueName
+		}
+		counter++
+	}
 }
 
 // loadInstances reads instances from the storage file

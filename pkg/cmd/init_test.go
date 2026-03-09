@@ -276,6 +276,11 @@ func TestInitCmd_E2E(t *testing.T) {
 			t.Error("Expected instance to have a non-empty ID")
 		}
 
+		// Verify instance has a non-empty Name
+		if inst.GetName() == "" {
+			t.Error("Expected instance to have a non-empty Name")
+		}
+
 		// Verify output contains only the ID (default non-verbose output)
 		output := strings.TrimSpace(buf.String())
 		if output != inst.GetID() {
@@ -649,6 +654,188 @@ func TestInitCmd_E2E(t *testing.T) {
 
 		if !strings.Contains(output, inst.GetID()) {
 			t.Errorf("Expected verbose output to contain instance ID %s, got: %s", inst.GetID(), output)
+		}
+	})
+
+	t.Run("generates default name from source directory", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		rootCmd := NewRootCmd()
+		buf := new(bytes.Buffer)
+		rootCmd.SetOut(buf)
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", sourcesDir})
+
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		// Verify instance name is generated from source directory
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		instancesList, err := manager.List()
+		if err != nil {
+			t.Fatalf("Failed to list instances: %v", err)
+		}
+
+		if len(instancesList) != 1 {
+			t.Fatalf("Expected 1 instance, got %d", len(instancesList))
+		}
+
+		inst := instancesList[0]
+		expectedName := filepath.Base(sourcesDir)
+
+		if inst.GetName() != expectedName {
+			t.Errorf("Expected name %s, got %s", expectedName, inst.GetName())
+		}
+	})
+
+	t.Run("uses custom name from flag", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+		customName := "my-workspace"
+
+		rootCmd := NewRootCmd()
+		buf := new(bytes.Buffer)
+		rootCmd.SetOut(buf)
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", sourcesDir, "--name", customName})
+
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		// Verify instance name is the custom name
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		instancesList, err := manager.List()
+		if err != nil {
+			t.Fatalf("Failed to list instances: %v", err)
+		}
+
+		if len(instancesList) != 1 {
+			t.Fatalf("Expected 1 instance, got %d", len(instancesList))
+		}
+
+		inst := instancesList[0]
+
+		if inst.GetName() != customName {
+			t.Errorf("Expected name %s, got %s", customName, inst.GetName())
+		}
+	})
+
+	t.Run("generates unique names with increments", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		// Create three temp directories with the same base name pattern
+		parentDir := t.TempDir()
+		sourcesDir1 := filepath.Join(parentDir, "project")
+		sourcesDir2 := filepath.Join(parentDir, "project-other")
+		sourcesDir3 := filepath.Join(parentDir, "project-another")
+
+		// Register first workspace with name "project"
+		rootCmd1 := NewRootCmd()
+		buf1 := new(bytes.Buffer)
+		rootCmd1.SetOut(buf1)
+		rootCmd1.SetArgs([]string{"--storage", storageDir, "init", sourcesDir1})
+
+		err := rootCmd1.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed for first workspace: %v", err)
+		}
+
+		// Register second workspace with the same name "project" (should become "project-2")
+		rootCmd2 := NewRootCmd()
+		buf2 := new(bytes.Buffer)
+		rootCmd2.SetOut(buf2)
+		rootCmd2.SetArgs([]string{"--storage", storageDir, "init", sourcesDir2, "--name", "project"})
+
+		err = rootCmd2.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed for second workspace: %v", err)
+		}
+
+		// Register third workspace with the same name "project" (should become "project-3")
+		rootCmd3 := NewRootCmd()
+		buf3 := new(bytes.Buffer)
+		rootCmd3.SetOut(buf3)
+		rootCmd3.SetArgs([]string{"--storage", storageDir, "init", sourcesDir3, "--name", "project"})
+
+		err = rootCmd3.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed for third workspace: %v", err)
+		}
+
+		// Verify all three instances have unique names
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		instancesList, err := manager.List()
+		if err != nil {
+			t.Fatalf("Failed to list instances: %v", err)
+		}
+
+		if len(instancesList) != 3 {
+			t.Fatalf("Expected 3 instances, got %d", len(instancesList))
+		}
+
+		// Verify names are unique
+		names := make(map[string]bool)
+		for _, inst := range instancesList {
+			if names[inst.GetName()] {
+				t.Errorf("Duplicate name found: %s", inst.GetName())
+			}
+			names[inst.GetName()] = true
+		}
+
+		// Verify expected names are present
+		expectedNames := []string{"project", "project-2", "project-3"}
+		for _, expectedName := range expectedNames {
+			if !names[expectedName] {
+				t.Errorf("Expected name %s not found in instances", expectedName)
+			}
+		}
+	})
+
+	t.Run("verbose output includes name", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+		customName := "my-workspace"
+
+		rootCmd := NewRootCmd()
+		buf := new(bytes.Buffer)
+		rootCmd.SetOut(buf)
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", sourcesDir, "--name", customName, "--verbose"})
+
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		output := buf.String()
+
+		// Verify verbose output contains the name
+		if !strings.Contains(output, "Name:") {
+			t.Errorf("Expected verbose output to contain 'Name:', got: %s", output)
+		}
+		if !strings.Contains(output, customName) {
+			t.Errorf("Expected verbose output to contain name %s, got: %s", customName, output)
 		}
 	})
 }
