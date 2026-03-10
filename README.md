@@ -247,7 +247,7 @@ kortex-cli remove a1b2c3d4e5f6...
 kortex-cli remove invalid-id
 ```
 Output:
-```
+```text
 Error: workspace not found: invalid-id
 Use 'workspace list' to see available workspaces
 ```
