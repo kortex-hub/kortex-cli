@@ -198,3 +198,63 @@ kortex-cli list -o json
 - When no workspaces are registered, the command displays "No workspaces registered"
 - The JSON output format is useful for scripting and automation
 - All paths are displayed as absolute paths for consistency
+
+### `workspace remove` - Remove a Workspace
+
+Removes a registered workspace by its ID. Also available as the shorter alias `remove`.
+
+#### Usage
+
+```bash
+kortex-cli workspace remove ID [flags]
+kortex-cli remove ID [flags]
+```
+
+#### Arguments
+
+- `ID` - The unique identifier of the workspace to remove (required)
+
+#### Flags
+
+- `--storage <path>` - Storage directory for kortex-cli data (default: `$HOME/.kortex-cli`)
+
+#### Examples
+
+**Remove a workspace by ID:**
+```bash
+kortex-cli workspace remove a1b2c3d4e5f6...
+```
+Output: `a1b2c3d4e5f6...` (ID of removed workspace)
+
+**Use the short alias:**
+```bash
+kortex-cli remove a1b2c3d4e5f6...
+```
+
+**View workspace IDs before removing:**
+```bash
+# First, list all workspaces to find the ID
+kortex-cli list
+
+# Then remove the desired workspace
+kortex-cli remove a1b2c3d4e5f6...
+```
+
+#### Error Handling
+
+**Workspace not found:**
+```bash
+kortex-cli remove invalid-id
+```
+Output:
+```text
+Error: workspace not found: invalid-id
+Use 'workspace list' to see available workspaces
+```
+
+#### Notes
+
+- The workspace ID is required and can be obtained using the `workspace list` or `list` command
+- Removing a workspace only unregisters it from kortex-cli; it does not delete any files from the sources or configuration directories
+- If the workspace ID is not found, the command will fail with a helpful error message
+- Upon successful removal, the command outputs the ID of the removed workspace

@@ -362,6 +362,45 @@ tempDir := t.TempDir()  // Automatic cleanup
 sourcesDir := t.TempDir()
 ```
 
+## Documentation Standards
+
+### Markdown Best Practices
+
+All markdown files (*.md) in this repository must follow these standards:
+
+**Fenced Code Blocks:**
+- **ALWAYS** include a language tag in fenced code blocks
+- Use the appropriate language identifier (`bash`, `go`, `json`, `yaml`, `text`, etc.)
+- For output examples or plain text content, use `text` as the language tag
+- This ensures markdown linters (markdownlint MD040) pass and improves syntax highlighting
+
+**Examples:**
+
+````markdown
+<!-- CORRECT: Language tag specified -->
+```bash
+make build
+```
+
+```text
+Error: workspace not found: invalid-id
+Use 'workspace list' to see available workspaces
+```
+
+<!-- INCORRECT: Missing language tag -->
+```
+make build
+```
+````
+
+**Common Language Tags:**
+- `bash` - Shell commands and scripts
+- `go` - Go source code
+- `json` - JSON data structures
+- `yaml` - YAML configuration files
+- `text` - Plain text output, error messages, or generic content
+- `markdown` - Markdown examples
+
 ## Copyright Headers
 
 All source files must include Apache License 2.0 copyright headers with Red Hat copyright. Use the `/copyright-headers` skill to add or update headers automatically. The current year is 2026.
