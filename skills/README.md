@@ -12,6 +12,7 @@ Each skill is contained in its own subdirectory with a `SKILL.md` file that defi
 
 ## Available Skills
 
+- **commit**: Generate conventional commit messages based on staged changes
 - **copyright-headers**: Add or update Apache License 2.0 copyright headers to source files
 
 ## Usage
