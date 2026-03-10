@@ -20,6 +20,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/kortex-hub/kortex-cli/pkg/instances"
@@ -70,6 +71,17 @@ func (i *initCmd) preRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to resolve sources directory path: %w", err)
 	}
 	i.absSourcesDir = absSourcesDir
+
+	// Verify that the sources directory exists and is a directory
+	fileInfo, err := os.Stat(i.absSourcesDir)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("sources directory does not exist: %s", i.absSourcesDir)
+	} else if err != nil {
+		return fmt.Errorf("failed to check sources directory: %w", err)
+	}
+	if !fileInfo.IsDir() {
+		return fmt.Errorf("sources path is not a directory: %s", i.absSourcesDir)
+	}
 
 	// If workspace-configuration flag was not explicitly set, default to .kortex/ inside sources directory
 	if !cmd.Flags().Changed("workspace-configuration") {

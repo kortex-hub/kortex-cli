@@ -20,6 +20,7 @@ package cmd
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -199,19 +200,43 @@ func TestInitCmd_PreRun(t *testing.T) {
 	})
 
 	t.Run("relative sources directory", func(t *testing.T) {
-		t.Parallel()
+		// Note: Not using t.Parallel() because this test changes the working directory,
+		// which affects the entire process and could interfere with other parallel tests.
 
-		tempDir := t.TempDir()
+		storageDir := t.TempDir()
+		workDir := t.TempDir()
 		relativePath := filepath.Join(".", "relative", "path")
+
+		// Save current working directory
+		origWd, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("Failed to get current working directory: %v", err)
+		}
+
+		// Change to temp directory
+		if err := os.Chdir(workDir); err != nil {
+			t.Fatalf("Failed to change to temp directory: %v", err)
+		}
+		defer func() {
+			// Restore original working directory
+			if err := os.Chdir(origWd); err != nil {
+				t.Errorf("Failed to restore working directory: %v", err)
+			}
+		}()
+
+		// Create the relative directory in the temp working directory
+		if err := os.MkdirAll(relativePath, 0755); err != nil {
+			t.Fatalf("Failed to create relative directory: %v", err)
+		}
 
 		c := &initCmd{}
 		cmd := &cobra.Command{}
 		cmd.Flags().String("workspace-configuration", "", "test flag")
-		cmd.Flags().String("storage", tempDir, "test storage flag")
+		cmd.Flags().String("storage", storageDir, "test storage flag")
 
 		args := []string{relativePath}
 
-		err := c.preRun(cmd, args)
+		err = c.preRun(cmd, args)
 		if err != nil {
 			t.Fatalf("preRun() failed: %v", err)
 		}
@@ -232,6 +257,57 @@ func TestInitCmd_PreRun(t *testing.T) {
 		expectedConfigDir := filepath.Join(relativePath, ".kortex")
 		if c.workspaceConfigDir != expectedConfigDir {
 			t.Errorf("Expected workspaceConfigDir to be %s, got %s", expectedConfigDir, c.workspaceConfigDir)
+		}
+	})
+
+	t.Run("fails when sources directory does not exist", func(t *testing.T) {
+		t.Parallel()
+
+		tempDir := t.TempDir()
+		nonExistentDir := filepath.Join(tempDir, "does-not-exist")
+
+		c := &initCmd{}
+		cmd := &cobra.Command{}
+		cmd.Flags().String("workspace-configuration", "", "test flag")
+		cmd.Flags().String("storage", tempDir, "test storage flag")
+
+		args := []string{nonExistentDir}
+
+		err := c.preRun(cmd, args)
+		if err == nil {
+			t.Fatal("Expected preRun() to fail with non-existent directory")
+		}
+
+		if !strings.Contains(err.Error(), "sources directory does not exist") {
+			t.Errorf("Expected error to contain 'sources directory does not exist', got: %v", err)
+		}
+	})
+
+	t.Run("fails when sources path is a file not a directory", func(t *testing.T) {
+		t.Parallel()
+
+		tempDir := t.TempDir()
+		regularFile := filepath.Join(tempDir, "regular-file.txt")
+
+		// Create a regular file
+		if err := os.WriteFile(regularFile, []byte("test content"), 0644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+
+		c := &initCmd{}
+		cmd := &cobra.Command{}
+		cmd.Flags().String("workspace-configuration", "", "test flag")
+		cmd.Flags().String("storage", tempDir, "test storage flag")
+
+		args := []string{regularFile}
+
+		err := c.preRun(cmd, args)
+		if err == nil {
+			t.Fatal("Expected preRun() to fail when sources path is a file")
+		}
+
+		if !strings.Contains(err.Error(), "sources path is not a directory") {
+			t.Errorf("Expected error to contain 'sources path is not a directory', got: %v", err)
 		}
 	})
 }
@@ -745,6 +821,17 @@ func TestInitCmd_E2E(t *testing.T) {
 		sourcesDir2 := filepath.Join(parentDir, "project-other")
 		sourcesDir3 := filepath.Join(parentDir, "project-another")
 
+		// Create the directories
+		if err := os.MkdirAll(sourcesDir1, 0755); err != nil {
+			t.Fatalf("Failed to create sourcesDir1: %v", err)
+		}
+		if err := os.MkdirAll(sourcesDir2, 0755); err != nil {
+			t.Fatalf("Failed to create sourcesDir2: %v", err)
+		}
+		if err := os.MkdirAll(sourcesDir3, 0755); err != nil {
+			t.Fatalf("Failed to create sourcesDir3: %v", err)
+		}
+
 		// Register first workspace with name "project"
 		rootCmd1 := NewRootCmd()
 		buf1 := new(bytes.Buffer)
@@ -836,6 +923,85 @@ func TestInitCmd_E2E(t *testing.T) {
 		}
 		if !strings.Contains(output, customName) {
 			t.Errorf("Expected verbose output to contain name %s, got: %s", customName, output)
+		}
+	})
+
+	t.Run("fails when sources directory does not exist", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		nonExistentDir := filepath.Join(storageDir, "does-not-exist")
+
+		rootCmd := NewRootCmd()
+		buf := new(bytes.Buffer)
+		rootCmd.SetOut(buf)
+		rootCmd.SetErr(buf)
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", nonExistentDir})
+
+		err := rootCmd.Execute()
+		if err == nil {
+			t.Fatal("Expected Execute() to fail with non-existent directory")
+		}
+
+		if !strings.Contains(err.Error(), "sources directory does not exist") {
+			t.Errorf("Expected error to contain 'sources directory does not exist', got: %v", err)
+		}
+
+		// Verify no instance was created
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		instancesList, err := manager.List()
+		if err != nil {
+			t.Fatalf("Failed to list instances: %v", err)
+		}
+
+		if len(instancesList) != 0 {
+			t.Errorf("Expected 0 instances, got %d", len(instancesList))
+		}
+	})
+
+	t.Run("fails when sources path is a file not a directory", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		regularFile := filepath.Join(storageDir, "regular-file.txt")
+
+		// Create a regular file
+		if err := os.WriteFile(regularFile, []byte("test content"), 0644); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+
+		rootCmd := NewRootCmd()
+		buf := new(bytes.Buffer)
+		rootCmd.SetOut(buf)
+		rootCmd.SetErr(buf)
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", regularFile})
+
+		err := rootCmd.Execute()
+		if err == nil {
+			t.Fatal("Expected Execute() to fail when sources path is a file")
+		}
+
+		if !strings.Contains(err.Error(), "sources path is not a directory") {
+			t.Errorf("Expected error to contain 'sources path is not a directory', got: %v", err)
+		}
+
+		// Verify no instance was created
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		instancesList, err := manager.List()
+		if err != nil {
+			t.Fatalf("Failed to list instances: %v", err)
+		}
+
+		if len(instancesList) != 0 {
+			t.Errorf("Expected 0 instances, got %d", len(instancesList))
 		}
 	})
 }
