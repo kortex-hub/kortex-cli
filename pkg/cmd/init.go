@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 
 	"github.com/kortex-hub/kortex-cli/pkg/instances"
+	"github.com/kortex-hub/kortex-cli/pkg/runtime/fake"
 	"github.com/spf13/cobra"
 )
 
@@ -57,6 +58,13 @@ func (i *initCmd) preRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create manager: %w", err)
 	}
+
+	// Register fake runtime (for testing)
+	// TODO: In production, register only the runtimes that are available/configured
+	if err := manager.RegisterRuntime(fake.New()); err != nil {
+		return fmt.Errorf("failed to register fake runtime: %w", err)
+	}
+
 	i.manager = manager
 
 	// Get sources directory (default to current directory)
@@ -110,8 +118,8 @@ func (i *initCmd) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create instance: %w", err)
 	}
 
-	// Add the instance to the manager
-	addedInstance, err := i.manager.Add(instance)
+	// Add the instance to the manager with runtime
+	addedInstance, err := i.manager.Add(instance, "fake")
 	if err != nil {
 		return fmt.Errorf("failed to add instance: %w", err)
 	}
