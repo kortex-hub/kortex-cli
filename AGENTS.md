@@ -706,16 +706,55 @@ if err != nil {
 
 ### Cross-Platform Path Handling
 
-**IMPORTANT**: All path operations must be cross-platform compatible (Linux, macOS, Windows).
+⚠️ **CRITICAL**: All path operations and tests MUST be cross-platform compatible (Linux, macOS, Windows).
 
 **Rules:**
 - Always use `filepath.Join()` for path construction (never hardcode "/" or "\\")
 - Convert relative paths to absolute with `filepath.Abs()`
 - Never hardcode paths with `~` - use `os.UserHomeDir()` instead
 - In tests, use `filepath.Join()` for all path assertions
-- Use `t.TempDir()` for temporary directories in tests
+- **Use `t.TempDir()` for ALL temporary directories in tests - never hardcode paths**
 
-**Examples:**
+#### Common Test Failures on Windows
+
+Tests often fail on Windows due to hardcoded Unix-style paths. These paths get normalized differently by `filepath.Abs()` on Windows vs Unix systems.
+
+**❌ NEVER do this in tests:**
+```go
+// BAD - Will fail on Windows because filepath.Abs() normalizes differently
+instance, err := instances.NewInstance(instances.NewInstanceParams{
+    SourceDir: "/path/to/source",      // ❌ Hardcoded Unix path
+    ConfigDir: "/path/to/config",      // ❌ Hardcoded Unix path
+})
+
+// BAD - Will fail on Windows
+invalidPath := "/this/path/does/not/exist"  // ❌ Unix-style absolute path
+
+// BAD - Platform-specific separator
+path := dir + "/subdir"  // ❌ Hardcoded forward slash
+```
+
+**✅ ALWAYS do this in tests:**
+```go
+// GOOD - Cross-platform, works everywhere
+sourceDir := t.TempDir()
+configDir := t.TempDir()
+instance, err := instances.NewInstance(instances.NewInstanceParams{
+    SourceDir: sourceDir,  // ✅ Real temp directory
+    ConfigDir: configDir,  // ✅ Real temp directory
+})
+
+// GOOD - Create invalid path cross-platform way
+tempDir := t.TempDir()
+notADir := filepath.Join(tempDir, "file")
+os.WriteFile(notADir, []byte("test"), 0644)
+invalidPath := filepath.Join(notADir, "subdir")  // ✅ Will fail MkdirAll on all platforms
+
+// GOOD - Use filepath.Join()
+path := filepath.Join(dir, "subdir")  // ✅ Cross-platform
+```
+
+#### Examples for Production Code
 
 ```go
 // GOOD: Cross-platform path construction
@@ -742,6 +781,8 @@ if result != expectedPath {
 tempDir := t.TempDir()  // Automatic cleanup
 sourcesDir := t.TempDir()
 ```
+
+**Why this matters:** Tests that pass on Linux/macOS may fail on Windows CI if they use hardcoded Unix paths. Always use `t.TempDir()` and `filepath.Join()` to ensure tests work on all platforms.
 
 ## Documentation Standards
 

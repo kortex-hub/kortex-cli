@@ -36,9 +36,12 @@ func TestInstanceToWorkspaceId(t *testing.T) {
 	t.Run("converts instance to workspace ID", func(t *testing.T) {
 		t.Parallel()
 
+		sourceDir := t.TempDir()
+		configDir := t.TempDir()
+
 		instance, err := instances.NewInstance(instances.NewInstanceParams{
-			SourceDir: "/path/to/source",
-			ConfigDir: "/path/to/config",
+			SourceDir: sourceDir,
+			ConfigDir: configDir,
 			Name:      "test-workspace",
 		})
 		if err != nil {
@@ -83,9 +86,12 @@ func TestInstanceToWorkspace(t *testing.T) {
 	t.Run("converts instance to full workspace", func(t *testing.T) {
 		t.Parallel()
 
+		sourceDir := t.TempDir()
+		configDir := t.TempDir()
+
 		instance, err := instances.NewInstance(instances.NewInstanceParams{
-			SourceDir: "/path/to/source",
-			ConfigDir: "/path/to/config",
+			SourceDir: sourceDir,
+			ConfigDir: configDir,
 			Name:      "test-workspace",
 		})
 		if err != nil {
@@ -107,21 +113,24 @@ func TestInstanceToWorkspace(t *testing.T) {
 			t.Errorf("Expected name 'test-workspace', got '%s'", result.Name)
 		}
 
-		if result.Paths.Source != "/path/to/source" {
-			t.Errorf("Expected source '/path/to/source', got '%s'", result.Paths.Source)
+		if result.Paths.Source != sourceDir {
+			t.Errorf("Expected source '%s', got '%s'", sourceDir, result.Paths.Source)
 		}
 
-		if result.Paths.Configuration != "/path/to/config" {
-			t.Errorf("Expected config '/path/to/config', got '%s'", result.Paths.Configuration)
+		if result.Paths.Configuration != configDir {
+			t.Errorf("Expected config '%s', got '%s'", configDir, result.Paths.Configuration)
 		}
 	})
 
 	t.Run("includes all required fields", func(t *testing.T) {
 		t.Parallel()
 
+		sourceDir := t.TempDir()
+		configDir := t.TempDir()
+
 		instance, err := instances.NewInstance(instances.NewInstanceParams{
-			SourceDir: "/some/path",
-			ConfigDir: "/config/path",
+			SourceDir: sourceDir,
+			ConfigDir: configDir,
 			Name:      "my-workspace",
 		})
 		if err != nil {
