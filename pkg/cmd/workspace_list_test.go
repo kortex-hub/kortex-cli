@@ -20,6 +20,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -29,6 +30,7 @@ import (
 	api "github.com/kortex-hub/kortex-cli-api/cli/go"
 	"github.com/kortex-hub/kortex-cli/pkg/cmd/testutil"
 	"github.com/kortex-hub/kortex-cli/pkg/instances"
+	"github.com/kortex-hub/kortex-cli/pkg/runtime/fake"
 	"github.com/spf13/cobra"
 )
 
@@ -243,7 +245,12 @@ func TestWorkspaceListCmd_E2E(t *testing.T) {
 			t.Fatalf("Failed to create instance: %v", err)
 		}
 
-		addedInstance, err := manager.Add(instance)
+		// Register fake runtime
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		addedInstance, err := manager.Add(context.Background(), instance, "fake")
 		if err != nil {
 			t.Fatalf("Failed to add instance: %v", err)
 		}
@@ -308,12 +315,17 @@ func TestWorkspaceListCmd_E2E(t *testing.T) {
 			t.Fatalf("Failed to create instance 2: %v", err)
 		}
 
-		addedInstance1, err := manager.Add(instance1)
+		// Register fake runtime
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		addedInstance1, err := manager.Add(context.Background(), instance1, "fake")
 		if err != nil {
 			t.Fatalf("Failed to add instance 1: %v", err)
 		}
 
-		addedInstance2, err := manager.Add(instance2)
+		addedInstance2, err := manager.Add(context.Background(), instance2, "fake")
 		if err != nil {
 			t.Fatalf("Failed to add instance 2: %v", err)
 		}
@@ -385,7 +397,12 @@ func TestWorkspaceListCmd_E2E(t *testing.T) {
 			t.Fatalf("Failed to create instance: %v", err)
 		}
 
-		addedInstance, err := manager.Add(instance)
+		// Register fake runtime
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		addedInstance, err := manager.Add(context.Background(), instance, "fake")
 		if err != nil {
 			t.Fatalf("Failed to add instance: %v", err)
 		}
@@ -473,7 +490,12 @@ func TestWorkspaceListCmd_E2E(t *testing.T) {
 			t.Fatalf("Failed to create instance: %v", err)
 		}
 
-		addedInstance, err := manager.Add(instance)
+		// Register fake runtime
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		addedInstance, err := manager.Add(context.Background(), instance, "fake")
 		if err != nil {
 			t.Fatalf("Failed to add instance: %v", err)
 		}

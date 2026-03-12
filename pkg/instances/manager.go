@@ -15,6 +15,7 @@
 package instances
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/kortex-hub/kortex-cli/pkg/generator"
+	"github.com/kortex-hub/kortex-cli/pkg/runtime"
 )
 
 const (
@@ -35,25 +37,32 @@ type InstanceFactory func(InstanceData) (Instance, error)
 
 // Manager handles instance storage and operations
 type Manager interface {
-	// Add registers a new instance and returns the instance with its generated ID
-	Add(inst Instance) (Instance, error)
+	// Add registers a new instance with a runtime and returns the instance with its generated ID
+	Add(ctx context.Context, inst Instance, runtimeType string) (Instance, error)
+	// Start starts a runtime instance by ID
+	Start(ctx context.Context, id string) error
+	// Stop stops a runtime instance by ID
+	Stop(ctx context.Context, id string) error
 	// List returns all registered instances
 	List() ([]Instance, error)
 	// Get retrieves a specific instance by ID
 	Get(id string) (Instance, error)
 	// Delete unregisters an instance by ID
-	Delete(id string) error
+	Delete(ctx context.Context, id string) error
 	// Reconcile removes instances with inaccessible directories
 	// Returns the list of removed instance IDs
 	Reconcile() ([]string, error)
+	// RegisterRuntime registers a runtime with the manager's registry
+	RegisterRuntime(rt runtime.Runtime) error
 }
 
 // manager is the internal implementation of Manager
 type manager struct {
-	storageFile string
-	mu          sync.RWMutex
-	factory     InstanceFactory
-	generator   generator.Generator
+	storageFile     string
+	mu              sync.RWMutex
+	factory         InstanceFactory
+	generator       generator.Generator
+	runtimeRegistry runtime.Registry
 }
 
 // Compile-time check to ensure manager implements Manager interface
@@ -61,12 +70,12 @@ var _ Manager = (*manager)(nil)
 
 // NewManager creates a new instance manager with the given storage directory.
 func NewManager(storageDir string) (Manager, error) {
-	return newManagerWithFactory(storageDir, NewInstanceFromData, generator.New())
+	return newManagerWithFactory(storageDir, NewInstanceFromData, generator.New(), runtime.NewRegistry())
 }
 
-// newManagerWithFactory creates a new instance manager with a custom instance factory and generator.
-// This is unexported and primarily useful for testing with fake instances and generators.
-func newManagerWithFactory(storageDir string, factory InstanceFactory, gen generator.Generator) (Manager, error) {
+// newManagerWithFactory creates a new instance manager with a custom instance factory, generator, and registry.
+// This is unexported and primarily useful for testing with fake instances, generators, and runtimes.
+func newManagerWithFactory(storageDir string, factory InstanceFactory, gen generator.Generator, reg runtime.Registry) (Manager, error) {
 	if storageDir == "" {
 		return nil, errors.New("storage directory cannot be empty")
 	}
@@ -76,6 +85,9 @@ func newManagerWithFactory(storageDir string, factory InstanceFactory, gen gener
 	if gen == nil {
 		return nil, errors.New("generator cannot be nil")
 	}
+	if reg == nil {
+		return nil, errors.New("registry cannot be nil")
+	}
 
 	// Ensure storage directory exists
 	if err := os.MkdirAll(storageDir, 0755); err != nil {
@@ -84,20 +96,25 @@ func newManagerWithFactory(storageDir string, factory InstanceFactory, gen gener
 
 	storageFile := filepath.Join(storageDir, DefaultStorageFileName)
 	return &manager{
-		storageFile: storageFile,
-		factory:     factory,
-		generator:   gen,
+		storageFile:     storageFile,
+		factory:         factory,
+		generator:       gen,
+		runtimeRegistry: reg,
 	}, nil
 }
 
-// Add registers a new instance.
+// Add registers a new instance with a runtime.
 // The instance must be created using NewInstance to ensure proper validation.
 // A unique ID is generated for the instance when it's added to storage.
 // If the instance name is empty, a unique name is generated from the source directory.
-// Returns the instance with its generated ID and name.
-func (m *manager) Add(inst Instance) (Instance, error) {
+// The runtime instance is created but not started.
+// Returns the instance with its generated ID, name, and runtime information.
+func (m *manager) Add(ctx context.Context, inst Instance, runtimeType string) (Instance, error) {
 	if inst == nil {
 		return nil, errors.New("instance cannot be nil")
+	}
+	if runtimeType == "" {
+		return nil, errors.New("runtime type cannot be empty")
 	}
 
 	m.mu.Lock()
@@ -134,12 +151,34 @@ func (m *manager) Add(inst Instance) (Instance, error) {
 		name = m.ensureUniqueName(name, instances)
 	}
 
-	// Create a new instance with the unique ID and name
+	// Get the runtime
+	rt, err := m.runtimeRegistry.Get(runtimeType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get runtime: %w", err)
+	}
+
+	// Create runtime instance
+	runtimeInfo, err := rt.Create(ctx, runtime.CreateParams{
+		Name:       name,
+		SourcePath: inst.GetSourceDir(),
+		ConfigPath: inst.GetConfigDir(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create runtime instance: %w", err)
+	}
+
+	// Create a new instance with the unique ID, name, and runtime info
 	instanceWithID := &instance{
 		ID:        uniqueID,
 		Name:      name,
 		SourceDir: inst.GetSourceDir(),
 		ConfigDir: inst.GetConfigDir(),
+		Runtime: RuntimeData{
+			Type:       runtimeType,
+			InstanceID: runtimeInfo.ID,
+			State:      runtimeInfo.State,
+			Info:       runtimeInfo.Info,
+		},
 	}
 
 	instances = append(instances, instanceWithID)
@@ -148,6 +187,136 @@ func (m *manager) Add(inst Instance) (Instance, error) {
 	}
 
 	return instanceWithID, nil
+}
+
+// Start starts a runtime instance by ID.
+func (m *manager) Start(ctx context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	instances, err := m.loadInstances()
+	if err != nil {
+		return err
+	}
+
+	// Find the instance
+	var instanceToStart Instance
+	var index int
+	found := false
+	for i, instance := range instances {
+		if instance.GetID() == id {
+			instanceToStart = instance
+			index = i
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return ErrInstanceNotFound
+	}
+
+	runtimeData := instanceToStart.GetRuntimeData()
+	if runtimeData.Type == "" || runtimeData.InstanceID == "" {
+		return errors.New("instance has no runtime configured")
+	}
+
+	// Get the runtime
+	rt, err := m.runtimeRegistry.Get(runtimeData.Type)
+	if err != nil {
+		return fmt.Errorf("failed to get runtime: %w", err)
+	}
+
+	// Start the runtime instance
+	runtimeInfo, err := rt.Start(ctx, runtimeData.InstanceID)
+	if err != nil {
+		return fmt.Errorf("failed to start runtime instance: %w", err)
+	}
+
+	// Update the instance with new runtime state
+	updatedInstance := &instance{
+		ID:        instanceToStart.GetID(),
+		Name:      instanceToStart.GetName(),
+		SourceDir: instanceToStart.GetSourceDir(),
+		ConfigDir: instanceToStart.GetConfigDir(),
+		Runtime: RuntimeData{
+			Type:       runtimeData.Type,
+			InstanceID: runtimeData.InstanceID,
+			State:      runtimeInfo.State,
+			Info:       runtimeInfo.Info,
+		},
+	}
+
+	instances[index] = updatedInstance
+	return m.saveInstances(instances)
+}
+
+// Stop stops a runtime instance by ID.
+func (m *manager) Stop(ctx context.Context, id string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	instances, err := m.loadInstances()
+	if err != nil {
+		return err
+	}
+
+	// Find the instance
+	var instanceToStop Instance
+	var index int
+	found := false
+	for i, instance := range instances {
+		if instance.GetID() == id {
+			instanceToStop = instance
+			index = i
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return ErrInstanceNotFound
+	}
+
+	runtimeData := instanceToStop.GetRuntimeData()
+	if runtimeData.Type == "" || runtimeData.InstanceID == "" {
+		return errors.New("instance has no runtime configured")
+	}
+
+	// Get the runtime
+	rt, err := m.runtimeRegistry.Get(runtimeData.Type)
+	if err != nil {
+		return fmt.Errorf("failed to get runtime: %w", err)
+	}
+
+	// Stop the runtime instance
+	err = rt.Stop(ctx, runtimeData.InstanceID)
+	if err != nil {
+		return fmt.Errorf("failed to stop runtime instance: %w", err)
+	}
+
+	// Get updated runtime info
+	runtimeInfo, err := rt.Info(ctx, runtimeData.InstanceID)
+	if err != nil {
+		return fmt.Errorf("failed to get runtime info: %w", err)
+	}
+
+	// Update the instance with new runtime state
+	updatedInstance := &instance{
+		ID:        instanceToStop.GetID(),
+		Name:      instanceToStop.GetName(),
+		SourceDir: instanceToStop.GetSourceDir(),
+		ConfigDir: instanceToStop.GetConfigDir(),
+		Runtime: RuntimeData{
+			Type:       runtimeData.Type,
+			InstanceID: runtimeData.InstanceID,
+			State:      runtimeInfo.State,
+			Info:       runtimeInfo.Info,
+		},
+	}
+
+	instances[index] = updatedInstance
+	return m.saveInstances(instances)
 }
 
 // List returns all registered instances
@@ -178,8 +347,10 @@ func (m *manager) Get(id string) (Instance, error) {
 	return nil, ErrInstanceNotFound
 }
 
-// Delete unregisters an instance by ID
-func (m *manager) Delete(id string) error {
+// Delete unregisters an instance by ID.
+// Before removing from storage, it attempts to remove the runtime instance.
+// Runtime cleanup is best-effort: if the runtime is unavailable, deletion proceeds anyway.
+func (m *manager) Delete(ctx context.Context, id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -188,13 +359,15 @@ func (m *manager) Delete(id string) error {
 		return err
 	}
 
-	// Find and remove by ID
+	// Find the instance to delete
+	var instanceToDelete Instance
 	found := false
 	filtered := make([]Instance, 0, len(instances))
 	for _, instance := range instances {
 		if instance.GetID() != id {
 			filtered = append(filtered, instance)
 		} else {
+			instanceToDelete = instance
 			found = true
 		}
 	}
@@ -203,6 +376,17 @@ func (m *manager) Delete(id string) error {
 		return ErrInstanceNotFound
 	}
 
+	// Runtime cleanup (best effort)
+	runtimeInfo := instanceToDelete.GetRuntimeData()
+	if runtimeInfo.Type != "" && runtimeInfo.InstanceID != "" {
+		rt, err := m.runtimeRegistry.Get(runtimeInfo.Type)
+		if err == nil {
+			// Runtime is available, try to clean up (ignore errors)
+			_ = rt.Remove(ctx, runtimeInfo.InstanceID)
+		}
+	}
+
+	// Remove from manager storage
 	return m.saveInstances(filtered)
 }
 
@@ -235,6 +419,11 @@ func (m *manager) Reconcile() ([]string, error) {
 	}
 
 	return removed, nil
+}
+
+// RegisterRuntime registers a runtime with the manager's registry.
+func (m *manager) RegisterRuntime(rt runtime.Runtime) error {
+	return m.runtimeRegistry.Register(rt)
 }
 
 // generateUniqueName generates a unique name from the source directory
