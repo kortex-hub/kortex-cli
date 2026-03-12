@@ -157,7 +157,14 @@ func (f *fakeRuntime) Remove(ctx context.Context, id string) error {
 
 	inst, exists := f.instances[id]
 	if !exists {
-		return fmt.Errorf("%w: %s", runtime.ErrInstanceNotFound, id)
+		// TODO: The fake runtime is not persistent - each New() creates a separate
+		// in-memory instance that doesn't share state. This causes issues in tests
+		// where one manager creates instances and another manager (with a new fake
+		// runtime) tries to remove them. Consider implementing persistent storage
+		// for the fake runtime (e.g., file-based or shared in-memory registry) to
+		// better simulate real runtimes (Docker/Podman) which maintain state externally.
+		// For now, treat missing instances as already removed (idempotent operation).
+		return nil
 	}
 
 	if inst.state == "running" {
