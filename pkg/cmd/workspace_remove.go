@@ -77,7 +77,7 @@ func (w *workspaceRemoveCmd) preRun(cmd *cobra.Command, args []string) error {
 // run executes the workspace remove command logic
 func (w *workspaceRemoveCmd) run(cmd *cobra.Command, args []string) error {
 	// Delete the instance
-	err := w.manager.Delete(w.id)
+	err := w.manager.Delete(cmd.Context(), w.id)
 	if err != nil {
 		if errors.Is(err, instances.ErrInstanceNotFound) {
 			if w.output == "json" {
