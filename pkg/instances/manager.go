@@ -375,8 +375,8 @@ func (m *manager) Get(id string) (Instance, error) {
 }
 
 // Delete unregisters an instance by ID.
-// Before removing from storage, it attempts to remove the runtime instance.
-// Runtime cleanup is best-effort: if the runtime is unavailable, deletion proceeds anyway.
+// Runtime cleanup is performed first and must succeed before removing from storage.
+// If runtime cleanup fails, the instance remains in storage to prevent orphaned runtimes.
 func (m *manager) Delete(ctx context.Context, id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -403,30 +403,23 @@ func (m *manager) Delete(ctx context.Context, id string) error {
 		return ErrInstanceNotFound
 	}
 
-	// Runtime cleanup: capture errors to avoid orphaning runtime instances
-	var removeErr error
+	// Runtime cleanup: must succeed before removing from storage
 	runtimeInfo := instanceToDelete.GetRuntimeData()
 	if runtimeInfo.Type != "" && runtimeInfo.InstanceID != "" {
 		rt, err := m.runtimeRegistry.Get(runtimeInfo.Type)
-		if err == nil {
-			// Runtime is available, try to clean up
-			removeErr = rt.Remove(ctx, runtimeInfo.InstanceID)
+		if err != nil {
+			return fmt.Errorf("failed to get runtime for cleanup: %w", err)
 		}
-		// If runtime is not available, proceed with deletion anyway (best effort)
+
+		// Remove runtime instance first - if this fails, we don't delete from storage
+		if err := rt.Remove(ctx, runtimeInfo.InstanceID); err != nil {
+			return fmt.Errorf("failed to remove runtime instance: %w", err)
+		}
 	}
 
-	// Save the updated instances list (remove from manager)
-	saveErr := m.saveInstances(filtered)
-	if saveErr != nil {
-		if removeErr != nil {
-			return fmt.Errorf("failed to remove runtime and save instances: remove error: %v, save error: %w", removeErr, saveErr)
-		}
-		return saveErr
-	}
-
-	// If save succeeded but remove failed, we have an orphaned runtime
-	if removeErr != nil {
-		return fmt.Errorf("instance removed from manager but runtime cleanup failed: %w", removeErr)
+	// Only save the updated instances list after successful runtime cleanup
+	if err := m.saveInstances(filtered); err != nil {
+		return fmt.Errorf("runtime removed but failed to save instances: %w", err)
 	}
 
 	return nil
