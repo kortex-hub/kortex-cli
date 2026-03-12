@@ -76,7 +76,7 @@ func (i *initCmd) preRun(cmd *cobra.Command, args []string) error {
 	// Register fake runtime (for testing)
 	// TODO: In production, register only the runtimes that are available/configured
 	if err := manager.RegisterRuntime(fake.New()); err != nil {
-		return fmt.Errorf("failed to register fake runtime: %w", err)
+		return outputErrorIfJSON(cmd, i.output, fmt.Errorf("failed to register fake runtime: %w", err))
 	}
 
 	i.manager = manager
