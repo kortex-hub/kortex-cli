@@ -20,6 +20,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -29,6 +30,7 @@ import (
 	api "github.com/kortex-hub/kortex-cli-api/cli/go"
 	"github.com/kortex-hub/kortex-cli/pkg/cmd/testutil"
 	"github.com/kortex-hub/kortex-cli/pkg/instances"
+	"github.com/kortex-hub/kortex-cli/pkg/runtime/fake"
 	"github.com/spf13/cobra"
 )
 
@@ -220,6 +222,46 @@ func TestWorkspaceRemoveCmd_E2E(t *testing.T) {
 		}
 	})
 
+	t.Run("creates manager from storage flag", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		// Create a workspace first
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		instance, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourcesDir,
+			ConfigDir: filepath.Join(sourcesDir, ".kortex"),
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance: %v", err)
+		}
+
+		// Register fake runtime
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		addedInstance, err := manager.Add(context.Background(), instance, "fake")
+		if err != nil {
+			t.Fatalf("Failed to add instance: %v", err)
+		}
+
+		// Now remove it
+		rootCmd := NewRootCmd()
+		rootCmd.SetArgs([]string{"workspace", "remove", addedInstance.GetID(), "--storage", storageDir})
+
+		err = rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+	})
+
 	t.Run("removes existing workspace by ID", func(t *testing.T) {
 		t.Parallel()
 
@@ -240,7 +282,12 @@ func TestWorkspaceRemoveCmd_E2E(t *testing.T) {
 			t.Fatalf("Failed to create instance: %v", err)
 		}
 
-		addedInstance, err := manager.Add(instance)
+		// Register fake runtime
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		addedInstance, err := manager.Add(context.Background(), instance, "fake")
 		if err != nil {
 			t.Fatalf("Failed to add instance: %v", err)
 		}
@@ -308,6 +355,7 @@ func TestWorkspaceRemoveCmd_E2E(t *testing.T) {
 	t.Run("removes only specified workspace when multiple exist", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := context.Background()
 		storageDir := t.TempDir()
 		sourcesDir1 := t.TempDir()
 		sourcesDir2 := t.TempDir()
@@ -334,12 +382,17 @@ func TestWorkspaceRemoveCmd_E2E(t *testing.T) {
 			t.Fatalf("Failed to create instance 2: %v", err)
 		}
 
-		addedInstance1, err := manager.Add(instance1)
+		// Register fake runtime
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		addedInstance1, err := manager.Add(ctx, instance1, "fake")
 		if err != nil {
 			t.Fatalf("Failed to add instance 1: %v", err)
 		}
 
-		addedInstance2, err := manager.Add(instance2)
+		addedInstance2, err := manager.Add(ctx, instance2, "fake")
 		if err != nil {
 			t.Fatalf("Failed to add instance 2: %v", err)
 		}
@@ -404,7 +457,12 @@ func TestWorkspaceRemoveCmd_E2E(t *testing.T) {
 			t.Fatalf("Failed to create instance: %v", err)
 		}
 
-		addedInstance, err := manager.Add(instance)
+		// Register fake runtime
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		addedInstance, err := manager.Add(context.Background(), instance, "fake")
 		if err != nil {
 			t.Fatalf("Failed to add instance: %v", err)
 		}
@@ -460,7 +518,12 @@ func TestWorkspaceRemoveCmd_E2E(t *testing.T) {
 			t.Fatalf("Failed to create instance: %v", err)
 		}
 
-		addedInstance, err := manager.Add(instance)
+		// Register fake runtime
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		addedInstance, err := manager.Add(context.Background(), instance, "fake")
 		if err != nil {
 			t.Fatalf("Failed to add instance: %v", err)
 		}
@@ -562,6 +625,7 @@ func TestWorkspaceRemoveCmd_E2E(t *testing.T) {
 	t.Run("json output removes correct workspace when multiple exist", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := context.Background()
 		storageDir := t.TempDir()
 		sourcesDir1 := t.TempDir()
 		sourcesDir2 := t.TempDir()
@@ -588,12 +652,17 @@ func TestWorkspaceRemoveCmd_E2E(t *testing.T) {
 			t.Fatalf("Failed to create instance 2: %v", err)
 		}
 
-		addedInstance1, err := manager.Add(instance1)
+		// Register fake runtime
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		addedInstance1, err := manager.Add(ctx, instance1, "fake")
 		if err != nil {
 			t.Fatalf("Failed to add instance 1: %v", err)
 		}
 
-		addedInstance2, err := manager.Add(instance2)
+		addedInstance2, err := manager.Add(ctx, instance2, "fake")
 		if err != nil {
 			t.Fatalf("Failed to add instance 2: %v", err)
 		}

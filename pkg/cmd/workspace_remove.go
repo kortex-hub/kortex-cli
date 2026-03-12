@@ -26,6 +26,7 @@ import (
 
 	api "github.com/kortex-hub/kortex-cli-api/cli/go"
 	"github.com/kortex-hub/kortex-cli/pkg/instances"
+	"github.com/kortex-hub/kortex-cli/pkg/runtime/fake"
 	"github.com/spf13/cobra"
 )
 
@@ -69,6 +70,13 @@ func (w *workspaceRemoveCmd) preRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return outputErrorIfJSON(cmd, w.output, fmt.Errorf("failed to create manager: %w", err))
 	}
+
+	// Register fake runtime (for testing)
+	// TODO: In production, register only the runtimes that are available/configured
+	if err := manager.RegisterRuntime(fake.New()); err != nil {
+		return outputErrorIfJSON(cmd, w.output, fmt.Errorf("failed to register fake runtime: %w", err))
+	}
+
 	w.manager = manager
 
 	return nil
@@ -77,7 +85,7 @@ func (w *workspaceRemoveCmd) preRun(cmd *cobra.Command, args []string) error {
 // run executes the workspace remove command logic
 func (w *workspaceRemoveCmd) run(cmd *cobra.Command, args []string) error {
 	// Delete the instance
-	err := w.manager.Delete(w.id)
+	err := w.manager.Delete(cmd.Context(), w.id)
 	if err != nil {
 		if errors.Is(err, instances.ErrInstanceNotFound) {
 			if w.output == "json" {
