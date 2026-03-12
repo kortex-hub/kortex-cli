@@ -250,39 +250,3 @@ func ValidateCommandExamples(rootCmd *cobra.Command, example string) error {
 
 	return nil
 }
-
-// AdaptExampleForAlias replaces the original command with the alias command
-// in the example string, but only in command lines (not in comments).
-// This is useful for alias commands that want to inherit examples from
-// their original commands while showing the alias syntax.
-//
-// Example:
-//
-//	original := `# List all workspaces
-//	kortex-cli workspace list
-//
-//	# List in JSON format
-//	kortex-cli workspace list --output json`
-//
-//	adapted := AdaptExampleForAlias(original, "workspace list", "list")
-//	// Result:
-//	// `# List all workspaces
-//	// kortex-cli list
-//	//
-//	// # List in JSON format
-//	// kortex-cli list --output json`
-func AdaptExampleForAlias(example, originalCmd, aliasCmd string) string {
-	lines := strings.Split(example, "\n")
-	var result []string
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		// Only replace in command lines (starting with kortex-cli), not in comments
-		if strings.HasPrefix(trimmed, "kortex-cli ") {
-			line = strings.Replace(line, originalCmd, aliasCmd, 1)
-		}
-		result = append(result, line)
-	}
-
-	return strings.Join(result, "\n")
-}

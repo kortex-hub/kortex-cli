@@ -329,7 +329,7 @@ Alias commands are shortcuts that delegate to existing commands (e.g., `list` as
 2. **Adapt the examples** to show the alias syntax instead of the full command
 3. **Do NOT create validation tests** for aliases (they use the same validation as the original command)
 
-Use the `testutil.AdaptExampleForAlias()` function to automatically replace the command name in examples while preserving comments:
+Use the `AdaptExampleForAlias()` helper function (from `pkg/cmd/helpers.go`) to automatically replace the command name in examples while preserving comments:
 
 ```go
 func NewListCmd() *cobra.Command {
@@ -341,7 +341,7 @@ func NewListCmd() *cobra.Command {
         Use:     "list",
         Short:   workspaceListCmd.Short,
         Long:    workspaceListCmd.Long,
-        Example: testutil.AdaptExampleForAlias(workspaceListCmd.Example, "workspace list", "list"),
+        Example: AdaptExampleForAlias(workspaceListCmd.Example, "workspace list", "list"),
         Args:    workspaceListCmd.Args,
         PreRunE: workspaceListCmd.PreRunE,
         RunE:    workspaceListCmd.RunE,
@@ -360,20 +360,20 @@ The `AdaptExampleForAlias()` function:
 - Maintains formatting and indentation
 
 **Example transformation:**
-```go
-// Original (from workspace list):
-`# List all workspaces
+```bash
+# Original (from workspace list):
+# List all workspaces
 kortex-cli workspace list
 
 # List in JSON format
-kortex-cli workspace list --output json`
+kortex-cli workspace list --output json
 
-// After AdaptExampleForAlias(..., "workspace list", "list"):
-`# List all workspaces
+# After AdaptExampleForAlias(..., "workspace list", "list"):
+# List all workspaces
 kortex-cli list
 
 # List in JSON format
-kortex-cli list --output json`
+kortex-cli list --output json
 ```
 
 **Reference:** See `pkg/cmd/list.go` and `pkg/cmd/remove.go` for complete alias examples.

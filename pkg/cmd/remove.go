@@ -19,7 +19,6 @@
 package cmd
 
 import (
-	"github.com/kortex-hub/kortex-cli/pkg/cmd/testutil"
 	"github.com/spf13/cobra"
 )
 
@@ -32,7 +31,7 @@ func NewRemoveCmd() *cobra.Command {
 		Use:     "remove ID",
 		Short:   workspaceRemoveCmd.Short,
 		Long:    workspaceRemoveCmd.Long,
-		Example: testutil.AdaptExampleForAlias(workspaceRemoveCmd.Example, "workspace remove", "remove"),
+		Example: AdaptExampleForAlias(workspaceRemoveCmd.Example, "workspace remove", "remove"),
 		Args:    workspaceRemoveCmd.Args,
 		PreRunE: workspaceRemoveCmd.PreRunE,
 		RunE:    workspaceRemoveCmd.RunE,
