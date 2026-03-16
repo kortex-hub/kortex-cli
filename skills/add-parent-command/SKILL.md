@@ -200,7 +200,7 @@ func Test<Parent>Cmd_Examples(t *testing.T) {
     }
 
     // Parent commands typically have 2-3 examples
-    expectedCount := 3
+    expectedCount := 2
     if len(commands) != expectedCount {
         t.Errorf("Expected %d example commands, got %d", expectedCount, len(commands))
     }
