@@ -17,7 +17,6 @@ package podman
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/kortex-hub/kortex-cli/pkg/runtime"
 )
@@ -49,36 +48,4 @@ func (p *podmanRuntime) startContainer(ctx context.Context, id string) error {
 		return fmt.Errorf("failed to start podman container: %w", err)
 	}
 	return nil
-}
-
-// getContainerInfo retrieves detailed information about a container.
-func (p *podmanRuntime) getContainerInfo(ctx context.Context, id string) (runtime.RuntimeInfo, error) {
-	// Use podman inspect to get container details in a format we can parse
-	// Format: ID|State|ImageName (custom fields from creation)
-	output, err := p.executor.Output(ctx, "inspect", "--format", "{{.Id}}|{{.State.Status}}|{{.ImageName}}", id)
-	if err != nil {
-		return runtime.RuntimeInfo{}, fmt.Errorf("failed to inspect container: %w", err)
-	}
-
-	// Parse the output
-	fields := strings.Split(strings.TrimSpace(string(output)), "|")
-	if len(fields) != 3 {
-		return runtime.RuntimeInfo{}, fmt.Errorf("unexpected inspect output format: %s", string(output))
-	}
-
-	containerID := fields[0]
-	state := fields[1]
-	imageName := fields[2]
-
-	// Build the info map
-	info := map[string]string{
-		"container_id": containerID,
-		"image_name":   imageName,
-	}
-
-	return runtime.RuntimeInfo{
-		ID:    containerID,
-		State: state,
-		Info:  info,
-	}, nil
 }

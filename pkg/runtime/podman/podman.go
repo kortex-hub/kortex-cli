@@ -75,8 +75,3 @@ func (p *podmanRuntime) Type() string {
 func (p *podmanRuntime) Remove(ctx context.Context, id string) error {
 	return fmt.Errorf("not implemented")
 }
-
-// Info retrieves information about a Podman runtime instance.
-func (p *podmanRuntime) Info(ctx context.Context, id string) (runtime.RuntimeInfo, error) {
-	return runtime.RuntimeInfo{}, fmt.Errorf("not implemented")
-}

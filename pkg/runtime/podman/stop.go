@@ -29,11 +29,7 @@ func (p *podmanRuntime) Stop(ctx context.Context, id string) error {
 	}
 
 	// Stop the container
-	if err := p.stopContainer(ctx, id); err != nil {
-		return err
-	}
-
-	return nil
+	return p.stopContainer(ctx, id)
 }
 
 // stopContainer stops a podman container by ID.
