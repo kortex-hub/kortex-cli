@@ -71,11 +71,6 @@ func (p *podmanRuntime) Type() string {
 	return "podman"
 }
 
-// Stop stops a Podman runtime instance.
-func (p *podmanRuntime) Stop(ctx context.Context, id string) error {
-	return fmt.Errorf("not implemented")
-}
-
 // Remove removes a Podman runtime instance.
 func (p *podmanRuntime) Remove(ctx context.Context, id string) error {
 	return fmt.Errorf("not implemented")
