@@ -16,7 +16,6 @@
 package podman
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/kortex-hub/kortex-cli/pkg/runtime"
@@ -69,9 +68,4 @@ func (p *podmanRuntime) Initialize(storageDir string) error {
 // Type returns the runtime type identifier.
 func (p *podmanRuntime) Type() string {
 	return "podman"
-}
-
-// Remove removes a Podman runtime instance.
-func (p *podmanRuntime) Remove(ctx context.Context, id string) error {
-	return fmt.Errorf("not implemented")
 }
