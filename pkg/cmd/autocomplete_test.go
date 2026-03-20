@@ -417,3 +417,52 @@ func TestNewOutputFlagCompletion(t *testing.T) {
 		}
 	})
 }
+
+func TestCompleteRuntimeFlag(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns available runtimes excluding fake", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+
+		// Create a command with the storage flag
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "test storage flag")
+
+		// Call completion function
+		completions, directive := completeRuntimeFlag(cmd, []string{}, "")
+
+		// Verify "fake" is not in the completions
+		for _, completion := range completions {
+			if completion == "fake" {
+				t.Errorf("Expected 'fake' runtime to be filtered out, but it was included")
+			}
+		}
+
+		// Verify directive
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("Expected ShellCompDirectiveNoFileComp, got %v", directive)
+		}
+	})
+
+	t.Run("returns error directive when storage flag is missing", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a command without the storage flag
+		cmd := &cobra.Command{}
+
+		// Call completion function
+		completions, directive := completeRuntimeFlag(cmd, []string{}, "")
+
+		// Verify we got an error directive
+		if directive != cobra.ShellCompDirectiveError {
+			t.Errorf("Expected ShellCompDirectiveError, got %v", directive)
+		}
+
+		// Verify we got no completions
+		if len(completions) != 0 {
+			t.Errorf("Expected 0 completions, got %d", len(completions))
+		}
+	})
+}

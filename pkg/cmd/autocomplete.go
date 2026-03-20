@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 
 	"github.com/kortex-hub/kortex-cli/pkg/instances"
+	"github.com/kortex-hub/kortex-cli/pkg/runtimesetup"
 	"github.com/spf13/cobra"
 )
 
@@ -91,4 +92,45 @@ func newOutputFlagCompletion(validFormats []string) func(cmd *cobra.Command, arg
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return validFormats, cobra.ShellCompDirectiveNoFileComp
 	}
+}
+
+// completeRuntimeFlag provides completion for the --runtime flag
+// It lists all available runtimes, excluding the "fake" runtime (used only for testing)
+func completeRuntimeFlag(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	// Get storage directory from global flag
+	storageDir, err := cmd.Flags().GetString("storage")
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	// Normalize storage path to absolute path
+	absStorageDir, err := filepath.Abs(storageDir)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	// Create manager
+	manager, err := instances.NewManager(absStorageDir)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	// Register all available runtimes
+	// We need to register runtimes before we can list them
+	if err := runtimesetup.RegisterAll(manager); err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	// Get all registered runtimes
+	runtimes := manager.ListRuntimes()
+
+	// Filter out "fake" runtime (used only for testing)
+	var filteredRuntimes []string
+	for _, rt := range runtimes {
+		if rt != "fake" {
+			filteredRuntimes = append(filteredRuntimes, rt)
+		}
+	}
+
+	return filteredRuntimes, cobra.ShellCompDirectiveNoFileComp
 }

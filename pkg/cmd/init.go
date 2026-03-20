@@ -248,6 +248,7 @@ kortex-cli init --runtime fake --verbose`,
 
 	// Add runtime flag
 	cmd.Flags().StringVarP(&c.runtime, "runtime", "r", "", "Runtime to use for the workspace (required if KORTEX_CLI_DEFAULT_RUNTIME is not set)")
+	cmd.RegisterFlagCompletionFunc("runtime", completeRuntimeFlag)
 
 	// Add verbose flag
 	cmd.Flags().BoolVarP(&c.verbose, "verbose", "v", false, "Show detailed output")

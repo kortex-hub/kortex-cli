@@ -67,6 +67,8 @@ type Manager interface {
 	Reconcile() ([]string, error)
 	// RegisterRuntime registers a runtime with the manager's registry
 	RegisterRuntime(rt runtime.Runtime) error
+	// ListRuntimes returns all registered runtime types
+	ListRuntimes() []string
 }
 
 // manager is the internal implementation of Manager
@@ -447,6 +449,11 @@ func (m *manager) Reconcile() ([]string, error) {
 // RegisterRuntime registers a runtime with the manager's registry.
 func (m *manager) RegisterRuntime(rt runtime.Runtime) error {
 	return m.runtimeRegistry.Register(rt)
+}
+
+// ListRuntimes returns all registered runtime types.
+func (m *manager) ListRuntimes() []string {
+	return m.runtimeRegistry.List()
 }
 
 // generateUniqueName generates a unique name from the source directory
