@@ -213,19 +213,11 @@ func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageNam
 	return args, nil
 }
 
-// createContainer creates a podman container.
-func (p *podmanRuntime) createContainer(ctx context.Context, args []string) error {
-	if err := p.executor.Run(ctx, args...); err != nil {
-		return fmt.Errorf("failed to create podman container: %w", err)
-	}
-	return nil
-}
-
-// getContainerID retrieves the container ID for a given container name.
-func (p *podmanRuntime) getContainerID(ctx context.Context, name string) (string, error) {
-	output, err := p.executor.Output(ctx, "inspect", "--format", "{{.Id}}", name)
+// createContainer creates a podman container and returns its ID.
+func (p *podmanRuntime) createContainer(ctx context.Context, args []string) (string, error) {
+	output, err := p.executor.Output(ctx, args...)
 	if err != nil {
-		return "", fmt.Errorf("failed to inspect container: %w", err)
+		return "", fmt.Errorf("failed to create podman container: %w", err)
 	}
 	return strings.TrimSpace(string(output)), nil
 }
@@ -260,13 +252,8 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		return runtime.RuntimeInfo{}, err
 	}
 
-	// Create container
-	if err := p.createContainer(ctx, createArgs); err != nil {
-		return runtime.RuntimeInfo{}, err
-	}
-
-	// Get container ID
-	containerID, err := p.getContainerID(ctx, params.Name)
+	// Create container and get its ID directly from podman create output
+	containerID, err := p.createContainer(ctx, createArgs)
 	if err != nil {
 		return runtime.RuntimeInfo{}, err
 	}
