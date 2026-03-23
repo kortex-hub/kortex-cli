@@ -38,6 +38,7 @@ type initCmd struct {
 	workspaceConfigDir string
 	name               string
 	runtime            string
+	project            string
 	absSourcesDir      string
 	absConfigDir       string
 	manager            instances.Manager
@@ -167,6 +168,7 @@ func (i *initCmd) run(cmd *cobra.Command, args []string) error {
 		Instance:        instance,
 		RuntimeType:     i.runtime,
 		WorkspaceConfig: i.workspaceConfig,
+		Project:         i.project,
 	})
 	if err != nil {
 		return outputErrorIfJSON(cmd, i.output, err)
@@ -233,6 +235,9 @@ kortex-cli init --runtime fake /path/to/project
 # Register with custom workspace name
 kortex-cli init --runtime fake --name my-project
 
+# Register with custom project identifier
+kortex-cli init --runtime fake --project my-custom-project
+
 # Show detailed output
 kortex-cli init --runtime fake --verbose`,
 		Args:    cobra.MaximumNArgs(1),
@@ -249,6 +254,9 @@ kortex-cli init --runtime fake --verbose`,
 	// Add runtime flag
 	cmd.Flags().StringVarP(&c.runtime, "runtime", "r", "", "Runtime to use for the workspace (required if KORTEX_CLI_DEFAULT_RUNTIME is not set)")
 	cmd.RegisterFlagCompletionFunc("runtime", completeRuntimeFlag)
+
+	// Add project flag
+	cmd.Flags().StringVarP(&c.project, "project", "p", "", "Custom project identifier (default: auto-detected from git repository or source directory)")
 
 	// Add verbose flag
 	cmd.Flags().BoolVarP(&c.verbose, "verbose", "v", false, "Show detailed output")

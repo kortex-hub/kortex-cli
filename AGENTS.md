@@ -858,6 +858,67 @@ if err != nil {
 }
 ```
 
+### Project Detection and Grouping
+
+Each workspace has a `project` field that enables grouping workspaces belonging to the same project across branches, forks, or subdirectories.
+
+**Project Identifier Detection:**
+
+The manager automatically detects the project identifier when adding instances:
+
+1. **Git repository with remote**: Uses repository remote URL (without `.git`) plus relative path
+   - Checks `upstream` remote first (useful for forks)
+   - Falls back to `origin` remote if `upstream` doesn't exist
+   - Example: `https://github.com/kortex-hub/kortex-cli/` (at root) or `https://github.com/kortex-hub/kortex-cli/pkg/git` (in subdirectory)
+
+2. **Git repository without remote**: Uses repository root directory plus relative path
+   - Example: `/home/user/local-repo` (at root) or `/home/user/local-repo/pkg/utils` (in subdirectory)
+
+3. **Non-git directory**: Uses the source directory path
+   - Example: `/tmp/workspace`
+
+**Custom Project Override:**
+
+Users can override auto-detection with the `--project` flag:
+
+```go
+// Add instance with custom project
+addedInstance, err := manager.Add(ctx, instances.AddOptions{
+    Instance:        instance,
+    RuntimeType:     "fake",
+    WorkspaceConfig: workspaceConfig,
+    Project:         "custom-project-id", // Optional: overrides auto-detection
+})
+```
+
+**Implementation Details:**
+
+- **Package**: `pkg/git` provides git repository detection with testable abstractions
+- **Detector Interface**: `git.Detector` with `DetectRepository(ctx, dir)` method
+- **Executor Pattern**: `git.Executor` abstracts git command execution for testing
+- **Manager Integration**: `manager.detectProject()` is called during `Add()` if no custom project is provided
+
+**Testing:**
+
+```go
+// Use fake git detector in tests
+gitDetector := newFakeGitDetectorWithRepo(
+    "/repo/root",
+    "https://github.com/user/repo",
+    "pkg/subdir", // relative path
+)
+
+manager, _ := newManagerWithFactory(
+    storageDir,
+    fakeInstanceFactory,
+    newFakeGenerator(),
+    newTestRegistry(tmpDir),
+    gitDetector,
+)
+```
+
+See `pkg/instances/manager_project_test.go` for comprehensive test examples.
+
 ### Cross-Platform Path Handling
 
 ⚠️ **CRITICAL**: All path operations and tests MUST be cross-platform compatible (Linux, macOS, Windows).

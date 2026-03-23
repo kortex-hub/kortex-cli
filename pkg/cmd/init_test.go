@@ -1519,6 +1519,44 @@ func TestInitCmd_E2E(t *testing.T) {
 			t.Errorf("Expected name %s in JSON output, got %s", customName, workspace.Name)
 		}
 	})
+
+	t.Run("registers workspace with custom project identifier", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+		customProject := "my-custom-project-id"
+
+		rootCmd := NewRootCmd()
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", sourcesDir, "--project", customProject})
+
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		// Verify instance was created with custom project
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		instancesList, err := manager.List()
+		if err != nil {
+			t.Fatalf("Failed to list instances: %v", err)
+		}
+
+		if len(instancesList) != 1 {
+			t.Fatalf("Expected 1 instance, got %d", len(instancesList))
+		}
+
+		inst := instancesList[0]
+
+		// Verify project is the custom value
+		if inst.GetProject() != customProject {
+			t.Errorf("Expected project %s, got %s", customProject, inst.GetProject())
+		}
+	})
 }
 
 func TestInitCmd_Examples(t *testing.T) {
@@ -1539,7 +1577,7 @@ func TestInitCmd_Examples(t *testing.T) {
 	}
 
 	// Verify we have the expected number of examples
-	expectedCount := 4
+	expectedCount := 5
 	if len(commands) != expectedCount {
 		t.Errorf("Expected %d example commands, got %d", expectedCount, len(commands))
 	}

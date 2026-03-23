@@ -24,6 +24,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/kortex-hub/kortex-cli/pkg/git"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime/fake"
 )
@@ -36,6 +37,7 @@ type fakeInstance struct {
 	configDir  string
 	accessible bool
 	runtime    RuntimeData
+	project    string
 }
 
 // Compile-time check to ensure fakeInstance implements Instance interface
@@ -69,6 +71,10 @@ func (f *fakeInstance) GetRuntimeData() RuntimeData {
 	return f.runtime
 }
 
+func (f *fakeInstance) GetProject() string {
+	return f.project
+}
+
 func (f *fakeInstance) Dump() InstanceData {
 	return InstanceData{
 		ID:   f.id,
@@ -78,6 +84,7 @@ func (f *fakeInstance) Dump() InstanceData {
 			Configuration: f.configDir,
 		},
 		Runtime: f.runtime,
+		Project: f.project,
 	}
 }
 
@@ -89,6 +96,7 @@ type newFakeInstanceParams struct {
 	ConfigDir  string
 	Accessible bool
 	Runtime    RuntimeData
+	Project    string
 }
 
 // newFakeInstance creates a new fake instance for testing
@@ -100,6 +108,7 @@ func newFakeInstance(params newFakeInstanceParams) Instance {
 		configDir:  params.ConfigDir,
 		accessible: params.Accessible,
 		runtime:    params.Runtime,
+		project:    params.Project,
 	}
 }
 
@@ -126,6 +135,7 @@ func fakeInstanceFactory(data InstanceData) (Instance, error) {
 		configDir:  data.Paths.Configuration,
 		accessible: true,
 		runtime:    data.Runtime,
+		project:    data.Project,
 	}, nil
 }
 
@@ -179,6 +189,25 @@ func newTestRegistry(storageDir string) runtime.Registry {
 	}
 	_ = reg.Register(fake.New())
 	return reg
+}
+
+// fakeGitDetector is a test double for the git.Detector interface
+type fakeGitDetector struct {
+	repoInfo *git.RepositoryInfo
+	err      error
+}
+
+func newFakeGitDetector() *fakeGitDetector {
+	return &fakeGitDetector{
+		err: git.ErrNotGitRepository,
+	}
+}
+
+func (f *fakeGitDetector) DetectRepository(ctx context.Context, dir string) (*git.RepositoryInfo, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.repoInfo, nil
 }
 
 func TestNewManager(t *testing.T) {
@@ -239,7 +268,7 @@ func TestNewManager(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, err := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, err := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 		if err != nil {
 			t.Fatalf("newManagerWithFactory() unexpected error = %v", err)
 		}
@@ -271,7 +300,7 @@ func TestManager_Add(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -301,7 +330,7 @@ func TestManager_Add(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		_, err := manager.Add(context.Background(), AddOptions{Instance: nil, RuntimeType: "fake"})
 		if err == nil {
@@ -323,7 +352,7 @@ func TestManager_Add(t *testing.T) {
 			"duplicate-id-0000000000000000000000000000000000000000000000000000000a",
 			"unique-id-1-0000000000000000000000000000000000000000000000000000000b",
 		})
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, gen, newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, gen, newTestRegistry(tmpDir), newFakeGitDetector())
 
 		instanceTmpDir := t.TempDir()
 		// Create instances without IDs (empty ID)
@@ -374,7 +403,7 @@ func TestManager_Add(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -400,7 +429,7 @@ func TestManager_Add(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		instanceTmpDir := t.TempDir()
 		inst1 := newFakeInstance(newFakeInstanceParams{
@@ -437,7 +466,7 @@ func TestManager_List(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		instances, err := manager.List()
 		if err != nil {
@@ -453,7 +482,7 @@ func TestManager_List(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		instanceTmpDir := t.TempDir()
 		inst1 := newFakeInstance(newFakeInstanceParams{
@@ -483,7 +512,7 @@ func TestManager_List(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		// Create empty storage file
 		storageFile := filepath.Join(tmpDir, DefaultStorageFileName)
@@ -506,7 +535,7 @@ func TestManager_Get(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		instanceTmpDir := t.TempDir()
 		expectedSource := filepath.Join(instanceTmpDir, "source")
@@ -539,7 +568,7 @@ func TestManager_Get(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		_, err := manager.Get("nonexistent-id")
 		if err != ErrInstanceNotFound {
@@ -556,7 +585,7 @@ func TestManager_Delete(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		instanceTmpDir := t.TempDir()
 		sourceDir := filepath.Join(instanceTmpDir, "source")
@@ -586,7 +615,7 @@ func TestManager_Delete(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		err := manager.Delete(context.Background(), "nonexistent-id")
 		if err != ErrInstanceNotFound {
@@ -599,7 +628,7 @@ func TestManager_Delete(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		instanceTmpDir := t.TempDir()
 		source1 := filepath.Join(instanceTmpDir, "source1")
@@ -642,7 +671,7 @@ func TestManager_Delete(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager1, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager1, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		inst := newFakeInstance(newFakeInstanceParams{
 			SourceDir:  filepath.Join(string(filepath.Separator), "tmp", "source"),
@@ -656,7 +685,7 @@ func TestManager_Delete(t *testing.T) {
 		manager1.Delete(ctx, generatedID)
 
 		// Create new manager with same storage
-		manager2, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager2, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 		_, err := manager2.Get(generatedID)
 		if err != ErrInstanceNotFound {
 			t.Errorf("Get() from new manager error = %v, want %v", err, ErrInstanceNotFound)
@@ -668,7 +697,7 @@ func TestManager_Delete(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		instanceTmpDir := t.TempDir()
 		sourceDir := filepath.Join(instanceTmpDir, "source")
@@ -710,7 +739,7 @@ func TestManager_Start(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -742,7 +771,7 @@ func TestManager_Start(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		err := manager.Start(context.Background(), "nonexistent-id")
 		if err != ErrInstanceNotFound {
@@ -772,7 +801,7 @@ func TestManager_Start(t *testing.T) {
 				runtime:    RuntimeData{}, // Empty runtime
 			}, nil
 		}
-		manager, _ := newManagerWithFactory(tmpDir, noRuntimeFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, noRuntimeFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		inst := newFakeInstance(newFakeInstanceParams{
 			SourceDir:  filepath.Join(string(filepath.Separator), "tmp", "source"),
@@ -812,7 +841,7 @@ func TestManager_Start(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager1, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager1, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		inst := newFakeInstance(newFakeInstanceParams{
 			SourceDir:  filepath.Join(string(filepath.Separator), "tmp", "source"),
@@ -823,7 +852,7 @@ func TestManager_Start(t *testing.T) {
 		manager1.Start(ctx, added.GetID())
 
 		// Create new manager with same storage
-		manager2, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager2, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 		retrieved, _ := manager2.Get(added.GetID())
 
 		if retrieved.GetRuntimeData().State != "running" {
@@ -840,7 +869,7 @@ func TestManager_Stop(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -874,7 +903,7 @@ func TestManager_Stop(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		err := manager.Stop(context.Background(), "nonexistent-id")
 		if err != ErrInstanceNotFound {
@@ -887,7 +916,7 @@ func TestManager_Stop(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		inst := newFakeInstance(newFakeInstanceParams{
 			SourceDir:  filepath.Join(string(filepath.Separator), "tmp", "source"),
@@ -927,7 +956,7 @@ func TestManager_Stop(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager1, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager1, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		inst := newFakeInstance(newFakeInstanceParams{
 			SourceDir:  filepath.Join(string(filepath.Separator), "tmp", "source"),
@@ -939,7 +968,7 @@ func TestManager_Stop(t *testing.T) {
 		manager1.Stop(ctx, added.GetID())
 
 		// Create new manager with same storage
-		manager2, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager2, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 		retrieved, _ := manager2.Get(added.GetID())
 
 		if retrieved.GetRuntimeData().State != "stopped" {
@@ -952,7 +981,7 @@ func TestManager_Stop(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -996,7 +1025,7 @@ func TestManager_Reconcile(t *testing.T) {
 				accessible: false, // Always inaccessible for this test
 			}, nil
 		}
-		manager, _ := newManagerWithFactory(tmpDir, inaccessibleFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, inaccessibleFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		// Add instance that is inaccessible
 		instanceTmpDir := t.TempDir()
@@ -1040,7 +1069,7 @@ func TestManager_Reconcile(t *testing.T) {
 				accessible: false, // Always inaccessible for this test
 			}, nil
 		}
-		manager, _ := newManagerWithFactory(tmpDir, inaccessibleFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, inaccessibleFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		// Add instance that is inaccessible
 		instanceTmpDir := t.TempDir()
@@ -1084,7 +1113,7 @@ func TestManager_Reconcile(t *testing.T) {
 				accessible: false, // Always inaccessible for this test
 			}, nil
 		}
-		manager, _ := newManagerWithFactory(tmpDir, inaccessibleFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, inaccessibleFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		instanceTmpDir := t.TempDir()
 		inaccessibleSource := filepath.Join(instanceTmpDir, "nonexistent-source")
@@ -1133,7 +1162,7 @@ func TestManager_Reconcile(t *testing.T) {
 				accessible: accessible,
 			}, nil
 		}
-		manager, _ := newManagerWithFactory(tmpDir, mixedFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, mixedFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		accessibleConfig := filepath.Join(instanceTmpDir, "accessible-config")
 
@@ -1176,7 +1205,7 @@ func TestManager_Reconcile(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -1200,7 +1229,7 @@ func TestManager_Reconcile(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		removed, err := manager.Reconcile()
 		if err != nil {
@@ -1223,7 +1252,7 @@ func TestManager_Persistence(t *testing.T) {
 		instanceTmpDir := t.TempDir()
 
 		// Create first manager and add instance
-		manager1, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager1, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 		expectedSource := filepath.Join(instanceTmpDir, "source")
 		expectedConfig := filepath.Join(instanceTmpDir, "config")
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -1236,7 +1265,7 @@ func TestManager_Persistence(t *testing.T) {
 		generatedID := added.GetID()
 
 		// Create second manager with same storage
-		manager2, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager2, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 		instances, err := manager2.List()
 		if err != nil {
 			t.Fatalf("List() from second manager unexpected error = %v", err)
@@ -1257,7 +1286,7 @@ func TestManager_Persistence(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		instanceTmpDir := t.TempDir()
 		expectedSource := filepath.Join(instanceTmpDir, "source")
@@ -1309,7 +1338,7 @@ func TestManager_ConcurrentAccess(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		instanceTmpDir := t.TempDir()
 		var wg sync.WaitGroup
@@ -1342,7 +1371,7 @@ func TestManager_ConcurrentAccess(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		instanceTmpDir := t.TempDir()
 		// Add some instances first
@@ -1386,7 +1415,7 @@ func TestManager_ensureUniqueName(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		// Cast to concrete type to access unexported methods
 		mgr := m.(*manager)
@@ -1419,7 +1448,7 @@ func TestManager_ensureUniqueName(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		mgr := m.(*manager)
 
@@ -1444,7 +1473,7 @@ func TestManager_ensureUniqueName(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		mgr := m.(*manager)
 
@@ -1483,7 +1512,7 @@ func TestManager_ensureUniqueName(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		mgr := m.(*manager)
 
@@ -1519,7 +1548,7 @@ func TestManager_ensureUniqueName(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		mgr := m.(*manager)
 
@@ -1540,7 +1569,7 @@ func TestManager_generateUniqueName(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		mgr := m.(*manager)
 
@@ -1557,7 +1586,7 @@ func TestManager_generateUniqueName(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		mgr := m.(*manager)
 
@@ -1582,7 +1611,7 @@ func TestManager_generateUniqueName(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		mgr := m.(*manager)
 
@@ -1600,7 +1629,7 @@ func TestManager_generateUniqueName(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir))
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), newFakeGitDetector())
 
 		mgr := m.(*manager)
 

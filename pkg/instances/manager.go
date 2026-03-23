@@ -21,10 +21,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	workspace "github.com/kortex-hub/kortex-cli-api/workspace-configuration/go"
 	"github.com/kortex-hub/kortex-cli/pkg/generator"
+	"github.com/kortex-hub/kortex-cli/pkg/git"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime"
 )
 
@@ -46,6 +48,8 @@ type AddOptions struct {
 	RuntimeType string
 	// WorkspaceConfig is the loaded workspace configuration (optional, can be nil)
 	WorkspaceConfig *workspace.WorkspaceConfiguration
+	// Project is an optional custom project identifier to override auto-detection
+	Project string
 }
 
 // Manager handles instance storage and operations
@@ -76,6 +80,7 @@ type manager struct {
 	factory         InstanceFactory
 	generator       generator.Generator
 	runtimeRegistry runtime.Registry
+	gitDetector     git.Detector
 }
 
 // Compile-time check to ensure manager implements Manager interface
@@ -88,12 +93,12 @@ func NewManager(storageDir string) (Manager, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runtime registry: %w", err)
 	}
-	return newManagerWithFactory(storageDir, NewInstanceFromData, generator.New(), reg)
+	return newManagerWithFactory(storageDir, NewInstanceFromData, generator.New(), reg, git.NewDetector())
 }
 
-// newManagerWithFactory creates a new instance manager with a custom instance factory, generator, and registry.
-// This is unexported and primarily useful for testing with fake instances, generators, and runtimes.
-func newManagerWithFactory(storageDir string, factory InstanceFactory, gen generator.Generator, reg runtime.Registry) (Manager, error) {
+// newManagerWithFactory creates a new instance manager with a custom instance factory, generator, registry, and git detector.
+// This is unexported and primarily useful for testing with fake instances, generators, runtimes, and git detector.
+func newManagerWithFactory(storageDir string, factory InstanceFactory, gen generator.Generator, reg runtime.Registry, detector git.Detector) (Manager, error) {
 	if storageDir == "" {
 		return nil, errors.New("storage directory cannot be empty")
 	}
@@ -105,6 +110,9 @@ func newManagerWithFactory(storageDir string, factory InstanceFactory, gen gener
 	}
 	if reg == nil {
 		return nil, errors.New("registry cannot be nil")
+	}
+	if detector == nil {
+		return nil, errors.New("git detector cannot be nil")
 	}
 
 	// Ensure storage directory exists
@@ -118,6 +126,7 @@ func newManagerWithFactory(storageDir string, factory InstanceFactory, gen gener
 		factory:         factory,
 		generator:       gen,
 		runtimeRegistry: reg,
+		gitDetector:     detector,
 	}, nil
 }
 
@@ -171,6 +180,12 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 		name = m.ensureUniqueName(name, instances)
 	}
 
+	// Use custom project identifier if provided, otherwise auto-detect
+	project := opts.Project
+	if project == "" {
+		project = m.detectProject(ctx, inst.GetSourceDir())
+	}
+
 	// Get the runtime
 	rt, err := m.runtimeRegistry.Get(opts.RuntimeType)
 	if err != nil {
@@ -187,7 +202,7 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 		return nil, fmt.Errorf("failed to create runtime instance: %w", err)
 	}
 
-	// Create a new instance with the unique ID, name, and runtime info
+	// Create a new instance with the unique ID, name, runtime info, and project
 	instanceWithID := &instance{
 		ID:        uniqueID,
 		Name:      name,
@@ -199,6 +214,7 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 			State:      runtimeInfo.State,
 			Info:       runtimeInfo.Info,
 		},
+		Project: project,
 	}
 
 	instances = append(instances, instanceWithID)
@@ -483,6 +499,47 @@ func (m *manager) ensureUniqueName(name string, instances []Instance) string {
 		}
 		counter++
 	}
+}
+
+// detectProject detects the project identifier for a source directory
+// Returns:
+//   - Git repository with remote: the repository remote URL with workspace path appended
+//     (e.g., "https://github.com/user/repo/" for root, "https://github.com/user/repo/sub/path" for subdirectory)
+//   - Git repository without remote: the repository root directory with workspace path appended
+//   - Non-git directory: the source directory
+func (m *manager) detectProject(ctx context.Context, sourceDir string) string {
+	// Try to detect git repository
+	repoInfo, err := m.gitDetector.DetectRepository(ctx, sourceDir)
+	if err != nil {
+		// Not a git repository, use source directory
+		return sourceDir
+	}
+
+	// Git repository found
+	if repoInfo.RemoteURL != "" {
+		// Has remote URL, construct project identifier with relative path
+		// Ensure URL ends with slash before appending path
+		baseURL := repoInfo.RemoteURL
+		if !strings.HasSuffix(baseURL, "/") {
+			baseURL += "/"
+		}
+
+		if repoInfo.RelativePath != "" {
+			// Append relative path to base URL
+			// Convert to forward slashes for URL compatibility (Windows uses backslashes)
+			urlPath := filepath.ToSlash(repoInfo.RelativePath)
+			return baseURL + urlPath
+		}
+		// At repository root, return base URL with trailing slash
+		return baseURL
+	}
+
+	// No remote URL, use repository root directory with relative path
+	// Use filepath.Join for local paths (OS-specific separators)
+	if repoInfo.RelativePath != "" {
+		return filepath.Join(repoInfo.RootDir, repoInfo.RelativePath)
+	}
+	return repoInfo.RootDir
 }
 
 // loadInstances reads instances from the storage file

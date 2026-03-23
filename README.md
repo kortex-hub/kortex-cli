@@ -631,6 +631,7 @@ kortex-cli init [sources-directory] [flags]
 - `--runtime, -r <type>` - Runtime to use for the workspace (required if `KORTEX_CLI_DEFAULT_RUNTIME` is not set)
 - `--workspace-configuration <path>` - Directory for workspace configuration files (default: `<sources-directory>/.kortex`)
 - `--name, -n <name>` - Human-readable name for the workspace (default: generated from sources directory)
+- `--project, -p <identifier>` - Custom project identifier to override auto-detection (default: auto-detected from git repository or source directory)
 - `--verbose, -v` - Show detailed output including all workspace information
 - `--output, -o <format>` - Output format (supported: `json`)
 - `--storage <path>` - Storage directory for kortex-cli data (default: `$HOME/.kortex-cli`)
@@ -651,6 +652,11 @@ kortex-cli init /path/to/myproject --runtime fake
 **Register with a custom name:**
 ```bash
 kortex-cli init /path/to/myproject --runtime fake --name "my-awesome-project"
+```
+
+**Register with a custom project identifier:**
+```bash
+kortex-cli init /path/to/myproject --runtime fake --project "my project"
 ```
 
 **Register with custom configuration location:**
@@ -723,9 +729,81 @@ kortex-cli init /tmp/project --runtime fake --name "project"
 # Name: "project-3"
 ```
 
+#### Project Detection
+
+When registering a workspace, kortex-cli automatically detects and stores a project identifier. This allows grouping workspaces that belong to the same project, even across different branches, forks, or subdirectories.
+
+**The project is determined using the following rules:**
+
+**1. Git repository with remote URL**
+
+The project is the repository remote URL (without `.git` suffix) plus the workspace's relative path within the repository:
+
+- **At repository root**: `https://github.com/user/repo/`
+- **In subdirectory**: `https://github.com/user/repo/sub/path`
+
+**Remote priority:**
+1. `upstream` remote is checked first (useful for forks)
+2. `origin` remote is used if `upstream` doesn't exist
+3. If neither exists, falls back to local repository path (see below)
+
+**Example - Fork with upstream:**
+```bash
+# Repository setup:
+# upstream: https://github.com/kortex-hub/kortex-cli.git
+# origin:   https://github.com/myuser/kortex-cli.git (fork)
+
+# Workspace at repository root
+kortex-cli init /home/user/kortex-cli --runtime fake
+# Project: https://github.com/kortex-hub/kortex-cli/
+
+# Workspace in subdirectory
+kortex-cli init /home/user/kortex-cli/pkg/git --runtime fake
+# Project: https://github.com/kortex-hub/kortex-cli/pkg/git
+```
+
+This ensures all forks and branches of the same upstream repository are grouped together.
+
+**2. Git repository without remote**
+
+The project is the repository root directory path plus the workspace's relative path:
+
+- **At repository root**: `/home/user/my-local-repo`
+- **In subdirectory**: `/home/user/my-local-repo/sub/path`
+
+**Example - Local repository:**
+```bash
+# Workspace at repository root
+kortex-cli init /home/user/local-repo --runtime fake
+# Project: /home/user/local-repo
+
+# Workspace in subdirectory
+kortex-cli init /home/user/local-repo/pkg/utils --runtime fake
+# Project: /home/user/local-repo/pkg/utils
+```
+
+**3. Non-git directory**
+
+The project is the workspace source directory path:
+
+**Example - Regular directory:**
+```bash
+kortex-cli init /tmp/workspace --runtime fake
+# Project: /tmp/workspace
+```
+
+**Benefits:**
+
+- **Cross-branch grouping**: Workspaces in different git worktrees or branches of the same repository share the same project
+- **Fork grouping**: Forks reference the upstream repository, grouping all contributors working on the same project
+- **Subdirectory support**: Monorepo subdirectories are tracked with their full path for precise identification
+- **Custom override**: Use `--project` flag to manually group workspaces under a custom identifier (e.g., "client-project")
+- **Future filtering**: The project field enables filtering and grouping commands (e.g., list all workspaces for a specific project)
+
 #### Notes
 
 - **Runtime is required**: You must specify a runtime using either the `--runtime` flag or the `KORTEX_CLI_DEFAULT_RUNTIME` environment variable
+- **Project auto-detection**: The project identifier is automatically detected from git repository information or source directory path. Use `--project` flag to override with a custom identifier
 - All directory paths are converted to absolute paths for consistency
 - The workspace ID is a unique identifier generated automatically
 - Workspaces can be listed using the `workspace list` command

@@ -60,6 +60,15 @@ type InstanceData struct {
 	Paths InstancePaths `json:"paths"`
 	// Runtime contains runtime-specific information
 	Runtime RuntimeData `json:"runtime"`
+	// Project is the project identifier for grouping instances.
+	// Format depends on workspace type:
+	// - Git repository with remote: normalized remote repository identifier (remote URL with .git suffix
+	//   and credentials stripped, e.g., "https://github.com/user/repo")
+	// - Git repository without remote: repository root directory as absolute path (e.g., "/home/user/my-local-repo")
+	// - Non-git directory: workspace source directory as absolute path (e.g., "/home/user/my-workspace")
+	// When the workspace is in a subdirectory of the repository, a relative-path suffix is appended
+	// (e.g., "https://github.com/user/repo/pkg/subdir" or "/home/user/my-local-repo/pkg/subdir")
+	Project string `json:"project"`
 }
 
 // Instance represents a workspace instance with source and configuration directories.
@@ -82,6 +91,8 @@ type Instance interface {
 	GetRuntimeType() string
 	// GetRuntimeData returns the complete runtime data for this instance
 	GetRuntimeData() RuntimeData
+	// GetProject returns the project identifier for this instance
+	GetProject() string
 	// Dump returns the serializable data of the instance
 	Dump() InstanceData
 }
@@ -100,6 +111,8 @@ type instance struct {
 	ConfigDir string
 	// Runtime contains runtime-specific information
 	Runtime RuntimeData
+	// Project is the project identifier for grouping instances
+	Project string
 }
 
 // Compile-time check to ensure instance implements Instance interface
@@ -153,6 +166,11 @@ func (i *instance) GetRuntimeData() RuntimeData {
 	}
 }
 
+// GetProject returns the project identifier for this instance
+func (i *instance) GetProject() string {
+	return i.Project
+}
+
 // Dump returns the serializable data of the instance
 func (i *instance) Dump() InstanceData {
 	return InstanceData{
@@ -163,6 +181,7 @@ func (i *instance) Dump() InstanceData {
 			Configuration: i.ConfigDir,
 		},
 		Runtime: i.Runtime,
+		Project: i.Project,
 	}
 }
 
@@ -228,6 +247,7 @@ func NewInstanceFromData(data InstanceData) (Instance, error) {
 		SourceDir: data.Paths.Source,
 		ConfigDir: data.Paths.Configuration,
 		Runtime:   data.Runtime,
+		Project:   data.Project,
 	}, nil
 }
 
