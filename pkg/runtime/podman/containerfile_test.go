@@ -130,6 +130,11 @@ func TestGenerateContainerfile(t *testing.T) {
 			t.Error("Expected PATH environment variable")
 		}
 
+		// Check for Containerfile copy
+		if !strings.Contains(result, "COPY Containerfile /home/claude/Containerfile") {
+			t.Error("Expected COPY Containerfile line")
+		}
+
 		// Check for agent RUN commands
 		if !strings.Contains(result, "RUN curl -fsSL https://claude.ai/install.sh | bash") {
 			t.Error("Expected agent RUN command")

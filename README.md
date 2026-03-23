@@ -563,6 +563,7 @@ Configuration changes take effect when you **register a new workspace with `init
 - Each workspace's image is built once using the configuration at registration time
 - To rebuild a workspace with new config, remove and re-register it
 - Validation errors in config files will cause workspace registration to fail with a descriptive message
+- The generated Containerfile is automatically copied to `/home/claude/Containerfile` inside the container for reference
 
 ## Workspace Configuration
 

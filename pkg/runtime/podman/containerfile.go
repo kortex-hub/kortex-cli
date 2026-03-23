@@ -89,6 +89,10 @@ func generateContainerfile(imageConfig *config.ImageConfig, agentConfig *config.
 
 	// Environment PATH
 	lines = append(lines, fmt.Sprintf("ENV PATH=/home/%s/.local/bin:/usr/local/bin:/usr/bin", ContainerUser))
+	lines = append(lines, "")
+
+	// Copy Containerfile to home directory for reference
+	lines = append(lines, fmt.Sprintf("COPY Containerfile /home/%s/Containerfile", ContainerUser))
 
 	// Custom RUN commands from image config
 	for _, cmd := range imageConfig.RunCommands {
