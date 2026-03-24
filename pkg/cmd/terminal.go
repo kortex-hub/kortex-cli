@@ -22,20 +22,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewWorkspaceCmd() *cobra.Command {
+func NewTerminalCmd() *cobra.Command {
+	// Create the workspace terminal command
+	workspaceTerminalCmd := NewWorkspaceTerminalCmd()
+
+	// Create an alias command that delegates to workspace terminal
 	cmd := &cobra.Command{
-		Use:   "workspace",
-		Short: "Manage workspaces",
-		Long:  "Manage workspaces registered with kortex-cli init",
-		Args:  cobra.NoArgs,
+		Use:               "terminal ID [COMMAND...]",
+		Short:             workspaceTerminalCmd.Short,
+		Long:              workspaceTerminalCmd.Long,
+		Example:           AdaptExampleForAlias(workspaceTerminalCmd.Example, "workspace terminal", "terminal"),
+		Args:              workspaceTerminalCmd.Args,
+		ValidArgsFunction: workspaceTerminalCmd.ValidArgsFunction,
+		PreRunE:           workspaceTerminalCmd.PreRunE,
+		RunE:              workspaceTerminalCmd.RunE,
 	}
 
-	// Add subcommands
-	cmd.AddCommand(NewWorkspaceListCmd())
-	cmd.AddCommand(NewWorkspaceRemoveCmd())
-	cmd.AddCommand(NewWorkspaceStartCmd())
-	cmd.AddCommand(NewWorkspaceStopCmd())
-	cmd.AddCommand(NewWorkspaceTerminalCmd())
+	// No flags to copy - terminal command uses arguments only
 
 	return cmd
 }

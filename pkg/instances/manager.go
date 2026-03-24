@@ -63,6 +63,8 @@ type Manager interface {
 	Start(ctx context.Context, id string) error
 	// Stop stops a runtime instance by ID
 	Stop(ctx context.Context, id string) error
+	// Terminal starts an interactive terminal session in a running instance
+	Terminal(ctx context.Context, id string, command []string) error
 	// List returns all registered instances
 	List() ([]Instance, error)
 	// Get retrieves a specific instance by ID
@@ -366,6 +368,57 @@ func (m *manager) Stop(ctx context.Context, id string) error {
 
 	instances[index] = updatedInstance
 	return m.saveInstances(instances)
+}
+
+// Terminal starts an interactive terminal session in a running instance.
+func (m *manager) Terminal(ctx context.Context, id string, command []string) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	instances, err := m.loadInstances()
+	if err != nil {
+		return err
+	}
+
+	// Find the instance
+	var instanceToConnect Instance
+	found := false
+	for _, instance := range instances {
+		if instance.GetID() == id {
+			instanceToConnect = instance
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return ErrInstanceNotFound
+	}
+
+	runtimeData := instanceToConnect.GetRuntimeData()
+	if runtimeData.Type == "" || runtimeData.InstanceID == "" {
+		return errors.New("instance has no runtime configured")
+	}
+
+	// Verify instance is running
+	if runtimeData.State != "running" {
+		return fmt.Errorf("instance is not running (current state: %s)", runtimeData.State)
+	}
+
+	// Get the runtime
+	rt, err := m.runtimeRegistry.Get(runtimeData.Type)
+	if err != nil {
+		return fmt.Errorf("failed to get runtime: %w", err)
+	}
+
+	// Type-assert to Terminal interface
+	terminalRT, ok := rt.(runtime.Terminal)
+	if !ok {
+		return fmt.Errorf("runtime %s does not support terminal sessions", runtimeData.Type)
+	}
+
+	// Start terminal session
+	return terminalRT.Terminal(ctx, runtimeData.InstanceID, command)
 }
 
 // List returns all registered instances

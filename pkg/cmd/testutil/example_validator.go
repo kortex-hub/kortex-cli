@@ -90,6 +90,13 @@ func parseCommandLine(line string) (ExampleCommand, error) {
 	for i := 1; i < len(parts); i++ {
 		part := parts[i]
 
+		// Check for -- separator (stop flag parsing)
+		if part == "--" {
+			// Everything after -- is treated as positional arguments
+			cmd.Args = append(cmd.Args, parts[i+1:]...)
+			break
+		}
+
 		if strings.HasPrefix(part, "--") {
 			// Long flag
 			flagName, flagValue, hasValue := parseLongFlag(part, parts, &i)

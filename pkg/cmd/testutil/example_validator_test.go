@@ -157,6 +157,49 @@ kortex-cli workspace list`,
 				}
 			},
 		},
+		{
+			name:      "command with -- separator",
+			example:   `kortex-cli terminal abc123 -- bash -c 'echo hello'`,
+			wantCount: 1,
+			checkCommands: func(t *testing.T, commands []ExampleCommand) {
+				if commands[0].Binary != "kortex-cli" {
+					t.Errorf("Expected binary 'kortex-cli', got '%s'", commands[0].Binary)
+				}
+				// Should have: terminal, abc123, bash, -c, echo hello
+				expectedArgs := []string{"terminal", "abc123", "bash", "-c", "echo hello"}
+				if len(commands[0].Args) != len(expectedArgs) {
+					t.Errorf("Expected %d args, got %d: %v", len(expectedArgs), len(commands[0].Args), commands[0].Args)
+				}
+				for i, arg := range expectedArgs {
+					if i >= len(commands[0].Args) || commands[0].Args[i] != arg {
+						t.Errorf("Expected args[%d]=%s, got %v", i, arg, commands[0].Args)
+					}
+				}
+				// Should have no flags (-- stops flag parsing)
+				if len(commands[0].FlagPresent) != 0 {
+					t.Errorf("Expected no flags after --, got %v", commands[0].FlagPresent)
+				}
+			},
+		},
+		{
+			name:      "command with flags before -- separator",
+			example:   `kortex-cli terminal --storage /tmp abc123 -- bash -l`,
+			wantCount: 1,
+			checkCommands: func(t *testing.T, commands []ExampleCommand) {
+				// Should have flag before --
+				if !commands[0].FlagPresent["storage"] {
+					t.Error("Expected 'storage' flag to be present")
+				}
+				if commands[0].FlagValues["storage"] != "/tmp" {
+					t.Errorf("Expected storage=/tmp, got %s", commands[0].FlagValues["storage"])
+				}
+				// Should have: terminal, abc123, bash, -l (after --)
+				expectedArgs := []string{"terminal", "abc123", "bash", "-l"}
+				if len(commands[0].Args) != len(expectedArgs) {
+					t.Errorf("Expected %d args, got %d: %v", len(expectedArgs), len(commands[0].Args), commands[0].Args)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {

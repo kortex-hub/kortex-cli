@@ -26,11 +26,17 @@ type FakeExecutor struct {
 	// OutputFunc is called when Output is invoked. If nil, Output returns empty bytes.
 	OutputFunc func(ctx context.Context, args ...string) ([]byte, error)
 
+	// RunInteractiveFunc is called when RunInteractive is invoked. If nil, RunInteractive returns nil.
+	RunInteractiveFunc func(ctx context.Context, args ...string) error
+
 	// RunCalls tracks all calls to Run with their arguments.
 	RunCalls [][]string
 
 	// OutputCalls tracks all calls to Output with their arguments.
 	OutputCalls [][]string
+
+	// RunInteractiveCalls tracks all calls to RunInteractive with their arguments.
+	RunInteractiveCalls [][]string
 }
 
 // Ensure FakeExecutor implements Executor at compile time.
@@ -39,8 +45,9 @@ var _ Executor = (*FakeExecutor)(nil)
 // NewFake creates a new FakeExecutor.
 func NewFake() *FakeExecutor {
 	return &FakeExecutor{
-		RunCalls:    make([][]string, 0),
-		OutputCalls: make([][]string, 0),
+		RunCalls:            make([][]string, 0),
+		OutputCalls:         make([][]string, 0),
+		RunInteractiveCalls: make([][]string, 0),
 	}
 }
 
@@ -60,6 +67,15 @@ func (f *FakeExecutor) Output(ctx context.Context, args ...string) ([]byte, erro
 		return f.OutputFunc(ctx, args...)
 	}
 	return []byte{}, nil
+}
+
+// RunInteractive executes the RunInteractiveFunc if set, otherwise returns nil.
+func (f *FakeExecutor) RunInteractive(ctx context.Context, args ...string) error {
+	f.RunInteractiveCalls = append(f.RunInteractiveCalls, args)
+	if f.RunInteractiveFunc != nil {
+		return f.RunInteractiveFunc(ctx, args...)
+	}
+	return nil
 }
 
 // AssertRunCalledWith checks if Run was called with the expected arguments.
@@ -84,6 +100,18 @@ func (f *FakeExecutor) AssertOutputCalledWith(t interface {
 		}
 	}
 	t.Errorf("Expected Output to be called with %v, but it was called with: %v", expectedArgs, f.OutputCalls)
+}
+
+// AssertRunInteractiveCalledWith checks if RunInteractive was called with the expected arguments.
+func (f *FakeExecutor) AssertRunInteractiveCalledWith(t interface {
+	Errorf(format string, args ...interface{})
+}, expectedArgs ...string) {
+	for _, call := range f.RunInteractiveCalls {
+		if argsEqual(call, expectedArgs) {
+			return
+		}
+	}
+	t.Errorf("Expected RunInteractive to be called with %v, but it was called with: %v", expectedArgs, f.RunInteractiveCalls)
 }
 
 // argsEqual compares two slices of strings for equality.

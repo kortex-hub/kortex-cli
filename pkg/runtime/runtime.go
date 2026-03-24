@@ -72,3 +72,33 @@ type RuntimeInfo struct {
 	// Examples: container_id, pid, created_at, network addresses.
 	Info map[string]string
 }
+
+// Terminal is an optional interface for runtimes that support interactive terminal sessions.
+// Runtimes implementing this interface enable the terminal command for connecting to running instances.
+//
+// When a runtime implements this interface, users can:
+//  1. Connect to running instances with an interactive terminal
+//  2. Execute commands directly inside the instance environment
+//  3. Interact with agents or shells running in the instance
+//
+// Example implementation:
+//
+//	type myRuntime struct {
+//	    // ... other fields
+//	}
+//
+//	func (r *myRuntime) Terminal(ctx context.Context, instanceID string, command []string) error {
+//	    // Execute command interactively (stdin/stdout/stderr connected)
+//	    return r.exec.RunInteractive(ctx, "exec", "-it", instanceID, command...)
+//	}
+type Terminal interface {
+	// Terminal starts an interactive terminal session inside a running instance.
+	// The command is executed with stdin/stdout/stderr connected directly to the user's terminal.
+	// Returns an error if the instance is not running or command execution fails.
+	//
+	// Parameters:
+	//   - ctx: Context for cancellation and timeout
+	//   - instanceID: The runtime instance identifier
+	//   - command: The command to execute (e.g., ["bash"], ["claude-code", "--debug"])
+	Terminal(ctx context.Context, instanceID string, command []string) error
+}

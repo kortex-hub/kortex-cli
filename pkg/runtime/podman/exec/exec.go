@@ -17,6 +17,7 @@ package exec
 
 import (
 	"context"
+	"os"
 	"os/exec"
 )
 
@@ -29,6 +30,11 @@ type Executor interface {
 	// Output executes a podman command and returns its standard output.
 	// Returns an error if the command fails.
 	Output(ctx context.Context, args ...string) ([]byte, error)
+
+	// RunInteractive executes a podman command with stdin/stdout/stderr connected to the terminal.
+	// This is used for interactive sessions where user input is required.
+	// Returns an error if the command fails.
+	RunInteractive(ctx context.Context, args ...string) error
 }
 
 // executor is the default implementation of Executor.
@@ -52,4 +58,13 @@ func (e *executor) Run(ctx context.Context, args ...string) error {
 func (e *executor) Output(ctx context.Context, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "podman", args...)
 	return cmd.Output()
+}
+
+// RunInteractive executes a podman command with stdin/stdout/stderr connected to the terminal.
+func (e *executor) RunInteractive(ctx context.Context, args ...string) error {
+	cmd := exec.CommandContext(ctx, "podman", args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
