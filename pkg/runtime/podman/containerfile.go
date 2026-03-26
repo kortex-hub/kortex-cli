@@ -19,17 +19,7 @@ import (
 	"strings"
 
 	"github.com/kortex-hub/kortex-cli/pkg/runtime/podman/config"
-)
-
-const (
-	// BaseImageRegistry is the hardcoded base image registry
-	BaseImageRegistry = "registry.fedoraproject.org/fedora"
-
-	// ContainerUser is the hardcoded container user
-	ContainerUser = "agent"
-
-	// ContainerGroup is the hardcoded container group
-	ContainerGroup = "agent"
+	"github.com/kortex-hub/kortex-cli/pkg/runtime/podman/constants"
 )
 
 // generateSudoers generates the sudoers file content from a list of allowed binaries.
@@ -37,7 +27,7 @@ const (
 func generateSudoers(sudoBinaries []string) string {
 	if len(sudoBinaries) == 0 {
 		// No sudo access if no binaries are specified
-		return fmt.Sprintf("%s ALL = !ALL\n", ContainerUser)
+		return fmt.Sprintf("%s ALL = !ALL\n", constants.ContainerUser)
 	}
 
 	var lines []string
@@ -47,7 +37,7 @@ func generateSudoers(sudoBinaries []string) string {
 	lines = append(lines, "")
 
 	// Create sudo rule
-	lines = append(lines, fmt.Sprintf("%s ALL = !ALL, NOPASSWD: ALLOWED", ContainerUser))
+	lines = append(lines, fmt.Sprintf("%s ALL = !ALL, NOPASSWD: ALLOWED", constants.ContainerUser))
 
 	return strings.Join(lines, "\n") + "\n"
 }
@@ -64,7 +54,7 @@ func generateContainerfile(imageConfig *config.ImageConfig, agentConfig *config.
 	var lines []string
 
 	// FROM line with base image
-	baseImage := fmt.Sprintf("%s:%s", BaseImageRegistry, imageConfig.Version)
+	baseImage := fmt.Sprintf("%s:%s", constants.BaseImageRegistry, imageConfig.Version)
 	lines = append(lines, fmt.Sprintf("FROM %s", baseImage))
 	lines = append(lines, "")
 
@@ -82,18 +72,18 @@ func generateContainerfile(imageConfig *config.ImageConfig, agentConfig *config.
 	lines = append(lines, "ARG UID=1000")
 	lines = append(lines, "ARG GID=1000")
 	lines = append(lines, `RUN GROUPNAME=$(grep $GID /etc/group | cut -d: -f1); [ -n "$GROUPNAME" ] && groupdel $GROUPNAME || true`)
-	lines = append(lines, fmt.Sprintf(`RUN groupadd -g "${GID}" %s && useradd -u "${UID}" -g "${GID}" -m %s`, ContainerGroup, ContainerUser))
-	lines = append(lines, fmt.Sprintf("COPY sudoers /etc/sudoers.d/%s", ContainerUser))
-	lines = append(lines, fmt.Sprintf("RUN chmod 0440 /etc/sudoers.d/%s", ContainerUser))
-	lines = append(lines, fmt.Sprintf("USER %s:%s", ContainerUser, ContainerGroup))
+	lines = append(lines, fmt.Sprintf(`RUN groupadd -g "${GID}" %s && useradd -u "${UID}" -g "${GID}" -m %s`, constants.ContainerGroup, constants.ContainerUser))
+	lines = append(lines, fmt.Sprintf("COPY sudoers /etc/sudoers.d/%s", constants.ContainerUser))
+	lines = append(lines, fmt.Sprintf("RUN chmod 0440 /etc/sudoers.d/%s", constants.ContainerUser))
+	lines = append(lines, fmt.Sprintf("USER %s:%s", constants.ContainerUser, constants.ContainerGroup))
 	lines = append(lines, "")
 
 	// Environment PATH
-	lines = append(lines, fmt.Sprintf("ENV PATH=/home/%s/.local/bin:/usr/local/bin:/usr/bin", ContainerUser))
+	lines = append(lines, fmt.Sprintf("ENV PATH=/home/%s/.local/bin:/usr/local/bin:/usr/bin", constants.ContainerUser))
 	lines = append(lines, "")
 
 	// Copy Containerfile to home directory for reference
-	lines = append(lines, fmt.Sprintf("COPY Containerfile /home/%s/Containerfile", ContainerUser))
+	lines = append(lines, fmt.Sprintf("COPY Containerfile /home/%s/Containerfile", constants.ContainerUser))
 
 	// Custom RUN commands from image config
 	for _, cmd := range imageConfig.RunCommands {

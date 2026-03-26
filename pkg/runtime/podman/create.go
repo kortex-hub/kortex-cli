@@ -24,6 +24,7 @@ import (
 
 	"github.com/kortex-hub/kortex-cli/pkg/runtime"
 	"github.com/kortex-hub/kortex-cli/pkg/runtime/podman/config"
+	"github.com/kortex-hub/kortex-cli/pkg/runtime/podman/constants"
 	"github.com/kortex-hub/kortex-cli/pkg/steplogger"
 )
 
@@ -185,7 +186,7 @@ func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageNam
 				confAbsPath := filepath.Join(homeDir, confOSPath)
 				// HOME in container is /home/<user> for the image
 				// Use path.Join for container paths to ensure forward slashes
-				confMountPoint := path.Join(fmt.Sprintf("/home/%s", ContainerUser), conf)
+				confMountPoint := path.Join(fmt.Sprintf("/home/%s", constants.ContainerUser), conf)
 				args = append(args, "-v", fmt.Sprintf("%s:%s:Z", confAbsPath, confMountPoint))
 			}
 		}

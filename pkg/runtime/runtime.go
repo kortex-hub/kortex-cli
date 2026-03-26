@@ -90,7 +90,7 @@ type RuntimeInfo struct {
 //	    // ... other fields
 //	}
 //
-//	func (r *myRuntime) Terminal(ctx context.Context, instanceID string, command []string) error {
+//	func (r *myRuntime) Terminal(ctx context.Context, instanceID string, agent string, command []string) error {
 //	    // Execute command interactively (stdin/stdout/stderr connected)
 //	    return r.exec.RunInteractive(ctx, "exec", "-it", instanceID, command...)
 //	}

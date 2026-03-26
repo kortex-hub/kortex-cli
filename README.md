@@ -177,6 +177,7 @@ $ kortex-cli workspace list -o json
     {
       "id": "f6e5d4c3b2a1098765432109876543210987654321098765432109876543210a",
       "name": "another-project",
+      "agent": "claude",
       "paths": {
         "source": "/absolute/path/to/another-project",
         "configuration": "/absolute/path/to/another-project/.kortex"

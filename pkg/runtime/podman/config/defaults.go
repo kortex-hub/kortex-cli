@@ -14,6 +14,12 @@
 
 package config
 
+import (
+	"fmt"
+
+	"github.com/kortex-hub/kortex-cli/pkg/runtime/podman/constants"
+)
+
 const (
 	// DefaultVersion is the default Fedora version tag
 	DefaultVersion = "latest"
@@ -58,7 +64,7 @@ func defaultClaudeConfig() *AgentConfig {
 		Packages: []string{},
 		RunCommands: []string{
 			"curl -fsSL --proto-redir '-all,https' --tlsv1.3 https://claude.ai/install.sh | bash",
-			"mkdir -p /home/agent/.config",
+			fmt.Sprintf("mkdir -p /home/%s/.config", constants.ContainerUser),
 		},
 		TerminalCommand: []string{"claude"},
 	}
