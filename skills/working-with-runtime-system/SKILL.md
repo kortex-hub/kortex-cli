@@ -108,6 +108,9 @@ type Terminal interface {
 
 ```go
 func (p *podmanRuntime) Terminal(ctx context.Context, agent string, instanceID string, command []string) error {
+    if agent == "" {
+        return fmt.Errorf("%w: agent is required", runtime.ErrInvalidParams)
+    }
     if instanceID == "" {
         return fmt.Errorf("%w: instance ID is required", runtime.ErrInvalidParams)
     }
