@@ -1,18 +1,17 @@
 # kortex-cli
 
 [![codecov](https://codecov.io/gh/kortex-hub/kortex-cli/branch/main/graph/badge.svg)](https://codecov.io/gh/kortex-hub/kortex-cli)
-
-## Introduction
+[![Documentation](https://img.shields.io/badge/documentation-blue)](https://kortex-hub.github.io/kortex-cli/)
 
 kortex-cli is a command-line interface for launching and managing AI agents with custom configurations. It provides a unified way to start different agents with specific settings including skills, MCP (Model Context Protocol) server connections, and LLM integrations.
 
-### Supported Agents
+**Supported Agents**
 
 - **Claude Code** - Anthropic's official CLI for Claude
 - **Goose** - AI agent for development tasks
 - **Cursor** - AI-powered code editor agent
 
-### Key Features
+**Key Features**
 
 - Configure agents with custom skills and capabilities
 - Connect to MCP servers for extended functionality
@@ -408,19 +407,17 @@ kortex-cli list
 kortex-cli list --storage /tmp/kortex-storage
 ```
 
-## Runtimes
-
-### Podman Runtime
+## Podman Runtime
 
 The Podman runtime provides a container-based development environment for workspaces. It creates an isolated environment with all necessary tools pre-installed and configured.
 
-#### Container Image
+### Container Image
 
 **Base Image:** `registry.fedoraproject.org/fedora:latest`
 
 The Podman runtime builds a custom container image based on Fedora Linux, providing a stable and up-to-date foundation for development work.
 
-#### Installed Packages
+### Installed Packages
 
 The runtime includes a comprehensive development toolchain:
 
@@ -440,7 +437,7 @@ The runtime includes a comprehensive development toolchain:
   - `python3` - Python 3 interpreter
   - `python3-pip` - Python package manager
 
-#### User and Permissions
+### User and Permissions
 
 The container runs as a non-root user named `agent` with the following configuration:
 
@@ -462,7 +459,7 @@ The `agent` user has limited sudo access with no password required (`NOPASSWD`) 
 
 All other sudo commands are explicitly denied for security.
 
-#### AI Agent
+### AI Agent
 
 **Claude Code** is installed as the default AI agent using the official installation script from `claude.ai/install.sh`. This provides:
 
@@ -472,11 +469,11 @@ All other sudo commands are explicitly denied for security.
 
 The agent runs within the container environment and has access to the mounted workspace sources and dependencies.
 
-#### Working Directory
+### Working Directory
 
 The container's working directory is set to `/workspace/sources`, which is where your project source code is mounted. This ensures that the agent and all tools operate within your project context.
 
-#### Example Usage
+### Example Usage
 
 ```bash
 # Register a workspace with the Podman runtime
@@ -513,7 +510,7 @@ kortex-cli start <workspace-id>
 
 **Note:** When using `--output json`, all progress spinners are hidden to avoid polluting the JSON output.
 
-#### Customizing Podman Runtime Configuration
+### Customizing Podman Runtime Configuration
 
 The Podman runtime is fully configurable through JSON files. When you first use the Podman runtime, default configuration files are automatically created in your storage directory.
 
@@ -531,7 +528,7 @@ Or if using a custom storage directory:
 <storage-dir>/runtimes/podman/config/
 ```
 
-##### Base Image Configuration (`image.json`)
+#### Base Image Configuration (`image.json`)
 
 Controls the container's base image, packages, and sudo permissions.
 
@@ -584,7 +581,7 @@ Controls the container's base image, packages, and sudo permissions.
   - Run before agent-specific commands
   - Useful for additional setup steps
 
-##### Agent Configuration (`claude.json`)
+#### Agent Configuration (`claude.json`)
 
 Controls agent-specific packages and installation steps.
 
@@ -617,7 +614,7 @@ Controls agent-specific packages and installation steps.
   - Must have at least one element
   - Can include flags: `["claude", "--verbose"]`
 
-##### Applying Configuration Changes
+#### Applying Configuration Changes
 
 Configuration changes take effect when you **register a new workspace with `init`**. The Containerfile is generated and the image is built during workspace registration, using the configuration files that exist at that time.
 

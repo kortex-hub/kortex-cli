@@ -23,7 +23,6 @@ site_url: https://kortex-hub.github.io/kortex-cli/
 # Repository configuration
 repo_name: kortex-hub/kortex-cli
 repo_url: https://github.com/kortex-hub/kortex-cli
-edit_uri: blob/main/README.md
 
 # Copyright
 copyright: Copyright &copy; 2026 Red Hat, Inc. Licensed under Apache License 2.0
@@ -68,7 +67,6 @@ theme:
     - search.share
     - content.code.copy
     - content.code.annotate
-    - content.action.edit
     - toc.follow
   icon:
     repo: fontawesome/brands/github
@@ -97,7 +95,7 @@ markdown_extensions:
   - toc:
       permalink: true
       permalink_title: Anchor link to this section
-      toc_depth: 3
+      toc_depth: 4
   - pymdownx.arithmatex:
       generic: true
   - pymdownx.betterem:
