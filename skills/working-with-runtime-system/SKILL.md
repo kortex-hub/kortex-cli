@@ -98,15 +98,16 @@ The Terminal interface enables interactive terminal sessions for connecting to r
 ```go
 type Terminal interface {
     // Terminal starts an interactive terminal session inside a running instance.
+    // The agent parameter is used to load agent-specific configuration for the terminal session.
     // The command is executed with stdin/stdout/stderr connected directly to the user's terminal.
-    Terminal(ctx context.Context, instanceID string, command []string) error
+    Terminal(ctx context.Context, agent string, instanceID string, command []string) error
 }
 ```
 
 **Example implementation (Podman runtime):**
 
 ```go
-func (p *podmanRuntime) Terminal(ctx context.Context, instanceID string, command []string) error {
+func (p *podmanRuntime) Terminal(ctx context.Context, agent string, instanceID string, command []string) error {
     if instanceID == "" {
         return fmt.Errorf("%w: instance ID is required", runtime.ErrInvalidParams)
     }
@@ -128,7 +129,7 @@ The Terminal interface follows the same pattern as `StorageAware` - it's optiona
 
 ```go
 if terminalRuntime, ok := runtime.(Terminal); ok {
-    return terminalRuntime.Terminal(ctx, instanceID, command)
+    return terminalRuntime.Terminal(ctx, agent, instanceID, command)
 }
 return errors.New("runtime does not support terminal sessions")
 ```

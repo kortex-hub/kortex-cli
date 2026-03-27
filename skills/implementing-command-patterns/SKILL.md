@@ -252,8 +252,15 @@ func (w *workspaceTerminalCmd) preRun(cmd *cobra.Command, args []string) error {
     }
 
     // Standard setup: storage flag, manager, runtime registration
-    storageDir, _ := cmd.Flags().GetString("storage")
-    absStorageDir, _ := filepath.Abs(storageDir)
+    storageDir, err := cmd.Flags().GetString("storage")
+    if err != nil {
+        return fmt.Errorf("failed to read --storage flag: %w", err)
+    }
+
+    absStorageDir, err := filepath.Abs(storageDir)
+    if err != nil {
+        return fmt.Errorf("failed to resolve storage path: %w", err)
+    }
 
     manager, err := instances.NewManager(absStorageDir)
     if err != nil {

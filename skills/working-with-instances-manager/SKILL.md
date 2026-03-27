@@ -255,7 +255,7 @@ if errors.Is(err, instances.ErrInstanceNotFound) {
 }
 
 // Runtime not found
-if errors.Is(err, instances.ErrRuntimeNotFound) {
+if errors.Is(err, runtime.ErrRuntimeNotFound) {
     return fmt.Errorf("runtime not found: %s", runtimeType)
 }
 
