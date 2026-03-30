@@ -171,6 +171,47 @@ func TestGenerateDefaults(t *testing.T) {
 		}
 	})
 
+	t.Run("creates default goose config", func(t *testing.T) {
+		t.Parallel()
+
+		configDir := t.TempDir()
+
+		cfg, err := NewConfig(configDir)
+		if err != nil {
+			t.Fatalf("NewConfig() failed: %v", err)
+		}
+
+		err = cfg.GenerateDefaults()
+		if err != nil {
+			t.Fatalf("GenerateDefaults() failed: %v", err)
+		}
+
+		// Verify goose.json exists
+		gooseConfigPath := filepath.Join(configDir, GooseConfigFileName)
+		if _, err := os.Stat(gooseConfigPath); os.IsNotExist(err) {
+			t.Error("goose.json was not created")
+		}
+
+		// Verify content is valid JSON
+		data, err := os.ReadFile(gooseConfigPath)
+		if err != nil {
+			t.Fatalf("Failed to read goose config: %v", err)
+		}
+
+		var agentConfig AgentConfig
+		if err := json.Unmarshal(data, &agentConfig); err != nil {
+			t.Fatalf("Failed to parse goose config: %v", err)
+		}
+
+		// Verify terminal command is set
+		if len(agentConfig.TerminalCommand) == 0 {
+			t.Error("Expected terminal command to be set")
+		}
+		if agentConfig.TerminalCommand[0] != "goose" {
+			t.Errorf("Expected terminal command to be 'goose', got: %s", agentConfig.TerminalCommand[0])
+		}
+	})
+
 	t.Run("does not overwrite existing configs", func(t *testing.T) {
 		t.Parallel()
 
@@ -270,6 +311,36 @@ func TestGenerateDefaults(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), claudeConfigPath) {
 			t.Errorf("Expected error to contain path %s, got: %v", claudeConfigPath, err)
+		}
+	})
+
+	t.Run("returns error when goose config path is a directory", func(t *testing.T) {
+		t.Parallel()
+
+		configDir := t.TempDir()
+
+		cfg, err := NewConfig(configDir)
+		if err != nil {
+			t.Fatalf("NewConfig() failed: %v", err)
+		}
+
+		// Create goose.json as a directory instead of a file
+		gooseConfigPath := filepath.Join(configDir, GooseConfigFileName)
+		if err := os.MkdirAll(gooseConfigPath, 0755); err != nil {
+			t.Fatalf("Failed to create directory: %v", err)
+		}
+
+		// Call GenerateDefaults - should fail
+		err = cfg.GenerateDefaults()
+		if err == nil {
+			t.Fatal("Expected error when goose config path is a directory")
+		}
+
+		if !strings.Contains(err.Error(), "expected file but found directory") {
+			t.Errorf("Expected 'expected file but found directory' error, got: %v", err)
+		}
+		if !strings.Contains(err.Error(), gooseConfigPath) {
+			t.Errorf("Expected error to contain path %s, got: %v", gooseConfigPath, err)
 		}
 	})
 }

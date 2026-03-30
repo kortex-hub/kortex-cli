@@ -126,6 +126,32 @@ func (c *config) LoadAgent(agentName string) (*AgentConfig, error) {
 	return &cfg, nil
 }
 
+// generateConfigFile generates a configuration file if it doesn't exist.
+// Does not overwrite existing files.
+func (c *config) generateConfigFile(filename string, config interface{}) error {
+	configPath := filepath.Join(c.path, filename)
+	fileInfo, err := os.Stat(configPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("failed to stat %s: %w", configPath, err)
+		}
+		// File doesn't exist, generate it
+		data, err := json.MarshalIndent(config, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal %s: %w", filename, err)
+		}
+		if err := os.WriteFile(configPath, data, 0644); err != nil {
+			return fmt.Errorf("failed to write %s: %w", filename, err)
+		}
+	} else {
+		// File exists, check if it's a directory
+		if fileInfo.IsDir() {
+			return fmt.Errorf("expected file but found directory: %s", configPath)
+		}
+	}
+	return nil
+}
+
 // GenerateDefaults creates default configuration files if they don't exist
 func (c *config) GenerateDefaults() error {
 	// Create the configuration directory if it doesn't exist
@@ -133,49 +159,16 @@ func (c *config) GenerateDefaults() error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	// Generate default image config if it doesn't exist
-	imageConfigPath := filepath.Join(c.path, ImageConfigFileName)
-	fileInfo, err := os.Stat(imageConfigPath)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return fmt.Errorf("failed to stat %s: %w", imageConfigPath, err)
-		}
-		// File doesn't exist, generate it
-		imageConfig := defaultImageConfig()
-		data, err := json.MarshalIndent(imageConfig, "", "  ")
-		if err != nil {
-			return fmt.Errorf("failed to marshal image config: %w", err)
-		}
-		if err := os.WriteFile(imageConfigPath, data, 0644); err != nil {
-			return fmt.Errorf("failed to write image config: %w", err)
-		}
-	} else {
-		// File exists, check if it's a directory
-		if fileInfo.IsDir() {
-			return fmt.Errorf("expected file but found directory: %s", imageConfigPath)
-		}
+	// Generate default configurations
+	configs := map[string]interface{}{
+		ImageConfigFileName:  defaultImageConfig(),
+		ClaudeConfigFileName: defaultClaudeConfig(),
+		GooseConfigFileName:  defaultGooseConfig(),
 	}
 
-	// Generate default Claude config if it doesn't exist
-	claudeConfigPath := filepath.Join(c.path, ClaudeConfigFileName)
-	fileInfo, err = os.Stat(claudeConfigPath)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return fmt.Errorf("failed to stat %s: %w", claudeConfigPath, err)
-		}
-		// File doesn't exist, generate it
-		claudeConfig := defaultClaudeConfig()
-		data, err := json.MarshalIndent(claudeConfig, "", "  ")
-		if err != nil {
-			return fmt.Errorf("failed to marshal claude config: %w", err)
-		}
-		if err := os.WriteFile(claudeConfigPath, data, 0644); err != nil {
-			return fmt.Errorf("failed to write claude config: %w", err)
-		}
-	} else {
-		// File exists, check if it's a directory
-		if fileInfo.IsDir() {
-			return fmt.Errorf("expected file but found directory: %s", claudeConfigPath)
+	for filename, config := range configs {
+		if err := c.generateConfigFile(filename, config); err != nil {
+			return err
 		}
 	}
 

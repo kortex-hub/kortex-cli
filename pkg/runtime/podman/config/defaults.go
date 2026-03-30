@@ -29,6 +29,9 @@ const (
 
 	// ClaudeConfigFileName is the filename for Claude agent configuration
 	ClaudeConfigFileName = "claude.json"
+
+	// GooseConfigFileName is the filename for Goose agent configuration
+	GooseConfigFileName = "goose.json"
 )
 
 // defaultImageConfig returns the default base image configuration.
@@ -67,5 +70,16 @@ func defaultClaudeConfig() *AgentConfig {
 			fmt.Sprintf("mkdir -p /home/%s/.config", constants.ContainerUser),
 		},
 		TerminalCommand: []string{"claude"},
+	}
+}
+
+// defaultGooseConfig returns the default Goose agent configuration.
+func defaultGooseConfig() *AgentConfig {
+	return &AgentConfig{
+		Packages: []string{},
+		RunCommands: []string{
+			"cd /tmp && curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash",
+		},
+		TerminalCommand: []string{"goose"},
 	}
 }
