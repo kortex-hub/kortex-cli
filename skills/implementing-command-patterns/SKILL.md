@@ -136,7 +136,7 @@ When adding JSON output support to commands, follow this pattern to ensure consi
 ### Rules
 
 1. **Check output flag FIRST in preRun** - Validate the output format before any other validation
-2. **Set SilenceErrors and SilenceUsage early** - Prevent Cobra's default error output when in JSON mode
+2. **Set SilenceErrors early** - Prevent Cobra's default error output when in JSON mode
 3. **Use outputErrorIfJSON for ALL errors** - In preRun, run, and any helper methods (like outputJSON)
 
 ### Pattern
@@ -156,7 +156,6 @@ func (m *myCmd) preRun(cmd *cobra.Command, args []string) error {
     // 2. EARLY: Silence Cobra's error output in JSON mode
     if m.output == "json" {
         cmd.SilenceErrors = true
-        cmd.SilenceUsage = true
     }
 
     // 3. ALL subsequent errors use outputErrorIfJSON
