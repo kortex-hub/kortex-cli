@@ -77,7 +77,6 @@ func (c *<command>Cmd) preRun(cmd *cobra.Command, args []string) error {
     // 2. EARLY: Silence Cobra's error output in JSON mode
     if c.output == "json" {
         cmd.SilenceErrors = true
-        cmd.SilenceUsage = true
     }
 
     // 3. ALL subsequent errors use outputErrorIfJSON
@@ -367,7 +366,7 @@ func (c *<command>Cmd) run(cmd *cobra.Command, args []string) error {
 - **Flag Binding**: Always use `*Var` variants (StringVarP, BoolVarP, etc.) to bind flags to struct fields
 - **Output Validation**: Check output format FIRST in preRun
 - **Error Handling**: Always use `outputErrorIfJSON()` for ALL errors after setting up JSON mode
-- **JSON Mode Setup**: Set `cmd.SilenceErrors = true` and `cmd.SilenceUsage = true` early in preRun
+- **JSON Mode Setup**: Set `cmd.SilenceErrors = true` early in preRun
 - **Examples**: Include 3-5 clear examples showing common use cases
 - **Testing**: Create both unit tests (preRun) and E2E tests (full execution)
 - **Example Validation**: Always add a Test<Command>Cmd_Examples test
