@@ -80,6 +80,268 @@ A registered directory containing your project source code and its configuration
 
 ## Scenarios
 
+### Claude with a Model from Vertex AI
+
+This scenario demonstrates how to configure Claude Code to use a model hosted on Google Cloud Vertex AI instead of the default Anthropic API. This is useful when you need to use Claude through your Google Cloud organization's billing or compliance setup.
+
+**Prerequisites:**
+
+- A Google Cloud project with the Vertex AI API enabled and Claude models available
+- Google Cloud credentials configured on your host machine (via `gcloud auth application-default login`)
+
+**Step 1: Configure Claude agent settings**
+
+Create or edit `~/.kortex-cli/config/agents.json` to add the required environment variables and mount your Google Cloud credentials into the workspace:
+
+```json
+{
+  "claude": {
+    "environment": [
+      {
+        "name": "CLAUDE_CODE_USE_VERTEX",
+        "value": "1"
+      },
+      {
+        "name": "ANTHROPIC_VERTEX_PROJECT_ID",
+        "value": "my-gcp-project-id"
+      },
+      {
+        "name": "CLOUD_ML_REGION",
+        "value": "my-region"
+      }
+    ],
+    "mounts": [
+      {"host": "$HOME/.config/gcloud", "target": "$HOME/.config/gcloud", "ro": true}
+    ]
+  }
+}
+```
+
+**Fields:**
+
+- `CLAUDE_CODE_USE_VERTEX` - Set to `1` to instruct Claude Code to use Vertex AI instead of the Anthropic API
+- `ANTHROPIC_VERTEX_PROJECT_ID` - Your Google Cloud project ID where Vertex AI is configured
+- `CLOUD_ML_REGION` - The region where Claude is available on Vertex AI (e.g., `us-east5`)
+- `$HOME/.config/gcloud` mounted read-only - Provides the workspace access to your application default credentials
+
+**Step 2: Register and start the workspace**
+
+```bash
+# Register a workspace with the Podman runtime and Claude agent
+kortex-cli init /path/to/project --runtime podman --agent claude
+
+# Start the workspace
+kortex-cli start <workspace-id>
+
+# Connect to the workspace — Claude Code will use Vertex AI automatically
+kortex-cli terminal <workspace-id>
+```
+
+When Claude Code starts, it detects `ANTHROPIC_VERTEX_PROJECT_ID` and `CLOUD_ML_REGION` and routes all requests to Vertex AI using the mounted application default credentials.
+
+**Sharing local Claude settings (optional)**
+
+To reuse your host Claude Code settings (preferences, custom instructions, etc.) inside the workspace, add `~/.claude` and `~/.claude.json` to the mounts:
+
+```json
+{
+  "claude": {
+    "environment": [
+      {
+        "name": "CLAUDE_CODE_USE_VERTEX",
+        "value": "1"
+      },
+      {
+        "name": "ANTHROPIC_VERTEX_PROJECT_ID",
+        "value": "my-gcp-project-id"
+      },
+      {
+        "name": "CLOUD_ML_REGION",
+        "value": "my-region"
+      }
+    ],
+    "mounts": [
+      {"host": "$HOME/.config/gcloud", "target": "$HOME/.config/gcloud", "ro": true},
+      {"host": "$HOME/.claude", "target": "$HOME/.claude"},
+      {"host": "$HOME/.claude.json", "target": "$HOME/.claude.json"}
+    ]
+  }
+}
+```
+
+`~/.claude` contains your Claude Code configuration directory (skills, settings) and `~/.claude.json` stores your account and preferences. These are mounted read-write so that changes made inside the workspace (e.g., updated preferences) are persisted back to your host.
+
+**Notes:**
+
+- Run `gcloud auth application-default login` on your host machine before starting the workspace to ensure valid credentials are available
+- The `$HOME/.config/gcloud` mount is read-only to prevent the workspace from modifying your host credentials
+- No `ANTHROPIC_API_KEY` is needed when using Vertex AI — credentials are provided via the mounted gcloud configuration
+- To pin a specific Claude model, add a `ANTHROPIC_MODEL` environment variable (e.g., `"claude-opus-4-5"`)
+
+### Sharing a GitHub Token
+
+This scenario demonstrates how to make a GitHub token available inside workspaces using the multi-level configuration system — either globally for all projects or scoped to a specific project.
+
+**For all projects**
+
+Edit `~/.kortex-cli/config/projects.json` and add the token and your git configuration under the global `""` key:
+
+```json
+{
+  "": {
+    "environment": [
+      {
+        "name": "GH_TOKEN",
+        "secret": "github-token"
+      }
+    ],
+    "mounts": [
+      {"host": "$HOME/.gitconfig", "target": "$HOME/.gitconfig", "ro": true}
+    ]
+  }
+}
+```
+
+The `GH_TOKEN` variable is automatically picked up by the `gh` CLI and other GitHub-aware tools running inside the workspace. The `$HOME/.gitconfig` mount makes your git identity (name, email, aliases, etc.) available to git commands run by the agent.
+
+**For a specific project**
+
+Use the project identifier as the key instead. The identifier is the git remote URL (without `.git`) as detected by kortex-cli during `init`:
+
+```json
+{
+  "https://github.com/my-org/my-repo/": {
+    "environment": [
+      {
+        "name": "GH_TOKEN",
+        "secret": "github-token"
+      }
+    ]
+  }
+}
+```
+
+This injects the token only when working on workspaces that belong to `https://github.com/my-org/my-repo/`, leaving other projects unaffected.
+
+**Both at once**
+
+You can combine global and project-specific entries in the same file. The project-specific value takes precedence over the global one if both define the same variable:
+
+```json
+{
+  "": {
+    "environment": [
+      {
+        "name": "GH_TOKEN",
+        "secret": "github-token-default"
+      }
+    ]
+  },
+  "https://github.com/my-org/my-private-repo/": {
+    "environment": [
+      {
+        "name": "GH_TOKEN",
+        "secret": "github-token-private"
+      }
+    ]
+  }
+}
+```
+
+**Creating the secret**
+
+How secrets are created depends on the runtime being used. The `secret` field value is the name under which the secret is registered with that runtime.
+
+For the **Podman runtime**, create the secret once on your host machine using `podman secret create` before registering the workspace:
+
+```bash
+# Create the secret from an environment variable
+echo "$GITHUB_TOKEN" | podman secret create github-token -
+
+# Or create it from a file
+podman secret create github-token /path/to/token-file
+```
+
+The secret name (`github-token` here) must match the `secret` field value in your configuration. At workspace creation time, kortex-cli passes `--secret github-token,type=env,target=GH_TOKEN` to Podman, which injects the secret value as the `GH_TOKEN` environment variable inside the container.
+
+Podman secrets are stored locally on the host and never written to the container image.
+
+**Notes:**
+
+- The `secret` field references a secret by name rather than embedding the token value directly, keeping credentials out of the configuration file
+- The project identifier used as the key must match what kortex-cli detected during `init` — run `kortex-cli list -o json -v` to see the project field for each registered workspace
+- Configuration changes in `projects.json` take effect the next time you run `kortex-cli init` for that workspace; already-registered workspaces need to be removed and re-registered
+
+### Working with Git Worktrees
+
+This scenario demonstrates how to run multiple agents in parallel, each working on a different branch of the same repository. Git worktrees allow each branch to live in its own directory, so each agent gets its own isolated workspace.
+
+**Step 1: Clone the repository**
+
+```bash
+git clone https://github.com/my-org/my-repo.git /path/to/my-project/main
+```
+
+**Step 2: Create a worktree for each feature branch**
+
+```bash
+cd /path/to/my-project/main
+
+git worktree add ../feature-a feature-a
+git worktree add ../feature-b feature-b
+```
+
+This results in the following layout:
+
+```text
+/path/to/my-project/
+├── main/       ← main branch (original clone)
+├── feature-a/  ← feature-a branch (worktree)
+└── feature-b/  ← feature-b branch (worktree)
+```
+
+**Step 3: Configure the main branch mount in your local project config**
+
+If you want the agents to have access to the main branch (e.g., to compare changes), add the mount in `~/.kortex-cli/config/projects.json` under the project identifier. This keeps the configuration on your machine only — not all developers of the project may use worktrees, so it does not belong in the repository's `.kortex/workspace.json`.
+
+```json
+{
+  "https://github.com/my-org/my-repo/": {
+    "mounts": [
+      {"host": "$SOURCES/../main", "target": "$SOURCES/../main"}
+    ]
+  }
+}
+```
+
+`$SOURCES` expands to the workspace sources directory (e.g., `/path/to/my-project/feature-a`), so `$SOURCES/../main` resolves to `/path/to/my-project/main` on both the host and inside the container.
+
+**Step 4: Register a workspace for each worktree**
+
+```bash
+kortex-cli init /path/to/my-project/feature-a --runtime podman --agent claude
+kortex-cli init /path/to/my-project/feature-b --runtime podman --agent claude
+```
+
+**Step 5: Start and connect to each workspace independently**
+
+```bash
+# Start both workspaces
+kortex-cli start <workspace-id-a>
+kortex-cli start <workspace-id-b>
+
+# Connect to each agent in separate terminals
+kortex-cli terminal <workspace-id-a>
+kortex-cli terminal <workspace-id-b>
+```
+
+Each agent runs independently in its own container, operating on its own branch without interfering with the other.
+
+**Notes:**
+
+- Each worktree shares the same `.git` directory, so agents can run git commands that are branch-aware
+- Workspaces for different worktrees of the same repository share the same project identifier (derived from the git remote URL), so the mount defined in `projects.json` automatically applies to all of them
+
 ### Managing Workspaces from a UI or Programmatically
 
 This scenario demonstrates how to manage workspaces programmatically using JSON output, which is ideal for UIs, scripts, or automation tools. All commands support the `--output json` (or `-o json`) flag for machine-readable output.
