@@ -678,10 +678,11 @@ The `workspace.json` file uses a nested JSON structure:
       "secret": "github-token"
     }
   ],
-  "mounts": {
-    "dependencies": ["../main", "../../lib"],
-    "configs": [".ssh", ".gitconfig"]
-  }
+  "mounts": [
+    {"host": "$SOURCES/../main", "target": "$SOURCES/../main"},
+    {"host": "$HOME/.ssh", "target": "$HOME/.ssh"},
+    {"host": "/absolute/path/to/data", "target": "/workspace/data"}
+  ]
 }
 ```
 
@@ -730,25 +731,32 @@ Configure additional directories to mount in the workspace runtime.
 **Structure:**
 ```json
 {
-  "mounts": {
-    "dependencies": ["../main"],
-    "configs": [".claude", ".gitconfig"]
-  }
+  "mounts": [
+    {"host": "$SOURCES/../main", "target": "$SOURCES/../main"},
+    {"host": "$HOME/.gitconfig", "target": "$HOME/.gitconfig"},
+    {"host": "/absolute/path/to/data", "target": "/workspace/data", "ro": true}
+  ]
 }
 ```
 
 **Fields:**
-- `dependencies` (optional) - Additional source directories to mount
-  - Paths are relative to the workspace sources directory
-  - Useful for git worktrees
-- `configs` (optional) - Configuration directories to mount from the user's home directory
-  - Paths are relative to `$HOME`
-  - Useful for sharing Git configs, or tool configurations
+- `host` (required) - Path on the host filesystem to mount
+- `target` (required) - Path inside the container where the host path is mounted
+- `ro` (optional) - Mount as read-only (default: `false`)
+
+**Path Variables:**
+
+Both `host` and `target` support the following variables:
+- `$SOURCES` - Expands to the workspace sources directory on the host, or `/workspace/sources` in the container
+- `$HOME` - Expands to the user's home directory on the host, or `/home/agent` in the container
+
+Paths can also be absolute (e.g., `/absolute/path`).
 
 **Validation Rules:**
-- All paths must be relative (not absolute)
-- Paths cannot be empty
-- Absolute paths like `/absolute/path` are rejected
+- `host` and `target` cannot be empty
+- Each path must be absolute or start with `$SOURCES` or `$HOME`
+- `$SOURCES`-based container targets must not escape above `/workspace`
+- `$HOME`-based container targets must not escape above `/home/agent`
 
 ### Configuration Validation
 
@@ -763,13 +771,13 @@ Error: workspace configuration validation failed: invalid workspace configuratio
 environment variable "API_KEY" (index 0) has both value and secret set
 ```
 
-**Example - Invalid configuration (absolute path in mounts):**
+**Example - Invalid configuration (missing host in mount):**
 ```bash
 $ kortex-cli init /path/to/project --runtime fake --agent claude
 ```
 ```text
 Error: workspace configuration validation failed: invalid workspace configuration:
-dependency mount "/absolute/path" (index 0) must be a relative path
+mount at index 0 is missing host
 ```
 
 ### Configuration Examples
@@ -805,24 +813,20 @@ dependency mount "/absolute/path" (index 0) must be a relative path
 **git worktree:**
 ```json
 {
-  "mounts": {
-    "dependencies": [
-      "../main"
-    ]
-  }
+  "mounts": [
+    {"host": "$SOURCES/../main", "target": "$SOURCES/../main"}
+  ]
 }
 ```
 
 **Sharing user configurations:**
 ```json
 {
-  "mounts": {
-    "configs": [
-      ".claude",
-      ".gitconfig",
-      ".kube/config"
-    ]
-  }
+  "mounts": [
+    {"host": "$HOME/.claude", "target": "$HOME/.claude"},
+    {"host": "$HOME/.gitconfig", "target": "$HOME/.gitconfig"},
+    {"host": "$HOME/.kube/config", "target": "$HOME/.kube/config", "ro": true}
+  ]
 }
 ```
 
@@ -839,10 +843,11 @@ dependency mount "/absolute/path" (index 0) must be a relative path
       "secret": "local-db-url"
     }
   ],
-  "mounts": {
-    "dependencies": ["../main"],
-    "configs": [".claude", ".gitconfig"]
-  }
+  "mounts": [
+    {"host": "$SOURCES/../main", "target": "$SOURCES/../main"},
+    {"host": "$HOME/.claude", "target": "$HOME/.claude"},
+    {"host": "$HOME/.gitconfig", "target": "$HOME/.gitconfig"}
+  ]
 }
 ```
 
@@ -920,9 +925,9 @@ The storage directory contains:
         "value": "true"
       }
     ],
-    "mounts": {
-      "configs": [".claude-config"]
-    }
+    "mounts": [
+      {"host": "$HOME/.claude-config", "target": "$HOME/.claude-config"}
+    ]
   },
   "goose": {
     "environment": [
@@ -945,9 +950,10 @@ Each key is an agent name (e.g., `claude`, `goose`). The value uses the same str
 ```json
 {
   "": {
-    "mounts": {
-      "configs": [".gitconfig", ".ssh"]
-    }
+    "mounts": [
+      {"host": "$HOME/.gitconfig", "target": "$HOME/.gitconfig"},
+      {"host": "$HOME/.ssh", "target": "$HOME/.ssh"}
+    ]
   },
   "github.com/kortex-hub/kortex-cli": {
     "environment": [
@@ -956,9 +962,9 @@ Each key is an agent name (e.g., `claude`, `goose`). The value uses the same str
         "value": "project-value"
       }
     ],
-    "mounts": {
-      "dependencies": ["../kortex-common"]
-    }
+    "mounts": [
+      {"host": "$SOURCES/../kortex-common", "target": "$SOURCES/../kortex-common"}
+    ]
   },
   "/home/user/my/project": {
     "environment": [
@@ -982,9 +988,11 @@ Each key is an agent name (e.g., `claude`, `goose`). The value uses the same str
 ```json
 {
   "": {
-    "mounts": {
-      "configs": [".gitconfig", ".ssh", ".gnupg"]
-    }
+    "mounts": [
+      {"host": "$HOME/.gitconfig", "target": "$HOME/.gitconfig"},
+      {"host": "$HOME/.ssh", "target": "$HOME/.ssh"},
+      {"host": "$HOME/.gnupg", "target": "$HOME/.gnupg"}
+    ]
   }
 }
 ```
@@ -1042,9 +1050,9 @@ kortex-cli init --runtime fake --project my-custom-project --agent goose
 - Example: If workspace sets `DEBUG=false` and agent sets `DEBUG=true`, the final value is `DEBUG=true`
 
 **Mount Paths:**
-- Paths are deduplicated (duplicates removed)
+- Mounts are deduplicated by `host`+`target` pair (duplicates removed)
 - Order is preserved (first occurrence wins)
-- Example: If workspace has `[".gitconfig", ".ssh"]` and global has `[".ssh", ".kube"]`, the result is `[".gitconfig", ".ssh", ".kube"]`
+- Example: If workspace has mounts for `.gitconfig` and `.ssh`, and global adds `.ssh` and `.kube`, the result contains `.gitconfig`, `.ssh`, and `.kube`
 
 ### Configuration Files Don't Exist?
 
@@ -1070,9 +1078,10 @@ The system works without any configuration files and merges only the ones that e
 ```json
 {
   "": {
-    "mounts": {
-      "configs": [".gitconfig", ".ssh"]
-    }
+    "mounts": [
+      {"host": "$HOME/.gitconfig", "target": "$HOME/.gitconfig"},
+      {"host": "$HOME/.ssh", "target": "$HOME/.ssh"}
+    ]
   }
 }
 ```
@@ -1101,7 +1110,7 @@ The system works without any configuration files and merges only the ones that e
 
 **Result when running** `kortex-cli init --runtime fake --agent claude`:
 - Environment: `NODE_ENV=development`, `DEBUG=true`, `CLAUDE_VERBOSE=true`
-- Mounts: `.gitconfig`, `.ssh`
+- Mounts: `$HOME/.gitconfig`, `$HOME/.ssh`
 
 ## Commands
 
