@@ -1,0 +1,87 @@
+# Copyright (C) 2026 Red Hat, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+name: next-build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  next-build:
+    name: Next Build
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          token: ${{ secrets.KORTEX_BOT_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Compute version
+        id: version
+        run: |
+          BASE_VERSION=$(grep 'var Version' pkg/version/version.go | sed 's/.*"\(.*\)"/\1/')
+          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          DATE=$(date -u +%Y%m%d)
+          VERSION="${BASE_VERSION}.${DATE}.${SHORT_SHA}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "githubTag=v$VERSION" >> ${GITHUB_OUTPUT}
+
+      - name: Override GoReleaser config for prereleases
+        run: |
+          yq -i '.release.github.name = "kortex-cli-prereleases"' .goreleaser.yaml
+          yq -i '.release.prerelease = "auto"' .goreleaser.yaml
+          yq -i '.changelog.disable = true' .goreleaser.yaml
+
+      - name: Create tag and push to prereleases repo
+        run: |
+          git config --local user.name ${{ github.actor }}
+          git config --local user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+          git add .goreleaser.yaml
+          git commit -m "chore: tag ${{ steps.version.outputs.githubTag }}"
+          echo "Tagging with ${{ steps.version.outputs.githubTag }}"
+          git tag ${{ steps.version.outputs.githubTag }}"
+          git remote add prereleases https://x-access-token:${KORTEX_BOT_TOKEN}@github.com/kortex-hub/kortex-cli-prereleases
+          git push prereleases "v${{ steps.version.outputs.githubTag }}"
+        env:
+          KORTEX_BOT_TOKEN: ${{ secrets.KORTEX_BOT_TOKEN }}
+
+      - name: checkout the tag
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: kortex-hub/kortex-cli-prereleases
+          ref: ${{ steps.version.outputs.githubTag }}
+          fetch-depth: 0
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
+        with:
+          version: "~> v2.14"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.KORTEX_BOT_TOKEN }}
