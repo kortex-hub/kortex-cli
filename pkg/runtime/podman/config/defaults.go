@@ -32,6 +32,9 @@ const (
 
 	// GooseConfigFileName is the filename for Goose agent configuration
 	GooseConfigFileName = "goose.json"
+
+	// CursorConfigFileName is the filename for Cursor agent configuration
+	CursorConfigFileName = "cursor.json"
 )
 
 // defaultImageConfig returns the default base image configuration.
@@ -81,5 +84,16 @@ func defaultGooseConfig() *AgentConfig {
 			"cd /tmp && curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash",
 		},
 		TerminalCommand: []string{"goose"},
+	}
+}
+
+// defaultCursorConfig returns the default Cursor agent configuration.
+func defaultCursorConfig() *AgentConfig {
+	return &AgentConfig{
+		Packages: []string{},
+		RunCommands: []string{
+			"curl https://cursor.com/install -fsS | bash",
+		},
+		TerminalCommand: []string{"agent"},
 	}
 }

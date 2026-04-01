@@ -164,6 +164,7 @@ func (c *config) GenerateDefaults() error {
 		ImageConfigFileName:  defaultImageConfig(),
 		ClaudeConfigFileName: defaultClaudeConfig(),
 		GooseConfigFileName:  defaultGooseConfig(),
+		CursorConfigFileName: defaultCursorConfig(),
 	}
 
 	for filename, config := range configs {

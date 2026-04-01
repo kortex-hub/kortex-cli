@@ -212,6 +212,47 @@ func TestGenerateDefaults(t *testing.T) {
 		}
 	})
 
+	t.Run("creates default cursor config", func(t *testing.T) {
+		t.Parallel()
+
+		configDir := t.TempDir()
+
+		cfg, err := NewConfig(configDir)
+		if err != nil {
+			t.Fatalf("NewConfig() failed: %v", err)
+		}
+
+		err = cfg.GenerateDefaults()
+		if err != nil {
+			t.Fatalf("GenerateDefaults() failed: %v", err)
+		}
+
+		// Verify cursor.json exists
+		cursorConfigPath := filepath.Join(configDir, CursorConfigFileName)
+		if _, err := os.Stat(cursorConfigPath); os.IsNotExist(err) {
+			t.Error("cursor.json was not created")
+		}
+
+		// Verify content is valid JSON
+		data, err := os.ReadFile(cursorConfigPath)
+		if err != nil {
+			t.Fatalf("Failed to read cursor config: %v", err)
+		}
+
+		var agentConfig AgentConfig
+		if err := json.Unmarshal(data, &agentConfig); err != nil {
+			t.Fatalf("Failed to parse cursor config: %v", err)
+		}
+
+		// Verify terminal command is set
+		if len(agentConfig.TerminalCommand) == 0 {
+			t.Error("Expected terminal command to be set")
+		}
+		if agentConfig.TerminalCommand[0] != "agent" {
+			t.Errorf("Expected terminal command to be 'agent', got: %s", agentConfig.TerminalCommand[0])
+		}
+	})
+
 	t.Run("does not overwrite existing configs", func(t *testing.T) {
 		t.Parallel()
 
@@ -341,6 +382,36 @@ func TestGenerateDefaults(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), gooseConfigPath) {
 			t.Errorf("Expected error to contain path %s, got: %v", gooseConfigPath, err)
+		}
+	})
+
+	t.Run("returns error when cursor config path is a directory", func(t *testing.T) {
+		t.Parallel()
+
+		configDir := t.TempDir()
+
+		cfg, err := NewConfig(configDir)
+		if err != nil {
+			t.Fatalf("NewConfig() failed: %v", err)
+		}
+
+		// Create cursor.json as a directory instead of a file
+		cursorConfigPath := filepath.Join(configDir, CursorConfigFileName)
+		if err := os.MkdirAll(cursorConfigPath, 0755); err != nil {
+			t.Fatalf("Failed to create directory: %v", err)
+		}
+
+		// Call GenerateDefaults - should fail
+		err = cfg.GenerateDefaults()
+		if err == nil {
+			t.Fatal("Expected error when cursor config path is a directory")
+		}
+
+		if !strings.Contains(err.Error(), "expected file but found directory") {
+			t.Errorf("Expected 'expected file but found directory' error, got: %v", err)
+		}
+		if !strings.Contains(err.Error(), cursorConfigPath) {
+			t.Errorf("Expected error to contain path %s, got: %v", cursorConfigPath, err)
 		}
 	})
 }
