@@ -96,7 +96,7 @@ func TestGenerateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"claude"},
 		}
 
-		result := generateContainerfile(imageConfig, agentConfig)
+		result := generateContainerfile(imageConfig, agentConfig, false)
 
 		// Check for FROM line with correct base image
 		expectedFrom := "FROM registry.fedoraproject.org/fedora:latest"
@@ -161,7 +161,7 @@ func TestGenerateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"claude"},
 		}
 
-		result := generateContainerfile(imageConfig, agentConfig)
+		result := generateContainerfile(imageConfig, agentConfig, false)
 
 		expectedFrom := "FROM registry.fedoraproject.org/fedora:40"
 		if !strings.Contains(result, expectedFrom) {
@@ -184,7 +184,7 @@ func TestGenerateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"claude"},
 		}
 
-		result := generateContainerfile(imageConfig, agentConfig)
+		result := generateContainerfile(imageConfig, agentConfig, false)
 
 		// Should have all packages in a single RUN command
 		if !strings.Contains(result, "RUN dnf install -y package1 package2 package3 package4") {
@@ -207,7 +207,7 @@ func TestGenerateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"claude"},
 		}
 
-		result := generateContainerfile(imageConfig, agentConfig)
+		result := generateContainerfile(imageConfig, agentConfig, false)
 
 		// Should not have dnf install line
 		if strings.Contains(result, "dnf install") {
@@ -231,7 +231,7 @@ func TestGenerateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"claude"},
 		}
 
-		result := generateContainerfile(imageConfig, agentConfig)
+		result := generateContainerfile(imageConfig, agentConfig, false)
 
 		// Should have both RUN commands
 		if !strings.Contains(result, "RUN echo 'image setup'") {
@@ -239,6 +239,61 @@ func TestGenerateContainerfile(t *testing.T) {
 		}
 		if !strings.Contains(result, "RUN echo 'agent setup'") {
 			t.Error("Expected agent RUN command")
+		}
+	})
+
+	t.Run("adds COPY instruction for agent settings when hasAgentSettings is true", func(t *testing.T) {
+		t.Parallel()
+
+		imageConfig := &config.ImageConfig{
+			Version:     "latest",
+			Packages:    []string{},
+			Sudo:        []string{},
+			RunCommands: []string{"echo 'image setup'"},
+		}
+		agentConfig := &config.AgentConfig{
+			Packages:        []string{},
+			RunCommands:     []string{"echo 'agent setup'"},
+			TerminalCommand: []string{"claude"},
+		}
+
+		result := generateContainerfile(imageConfig, agentConfig, true)
+
+		expected := "COPY --chown=agent:agent agent-settings/. /home/agent/"
+		if !strings.Contains(result, expected) {
+			t.Errorf("Expected Containerfile to contain %q, got:\n%s", expected, result)
+		}
+
+		// Verify the COPY comes before all RUN commands so agent install scripts can
+		// read and build upon the defaults.
+		settingsPos := strings.Index(result, expected)
+		imageRunPos := strings.Index(result, "RUN echo 'image setup'")
+		agentRunPos := strings.Index(result, "RUN echo 'agent setup'")
+
+		if settingsPos > imageRunPos || settingsPos > agentRunPos {
+			t.Error("Expected COPY agent-settings to appear before all RUN commands")
+		}
+	})
+
+	t.Run("no agent-settings COPY when hasAgentSettings is false", func(t *testing.T) {
+		t.Parallel()
+
+		imageConfig := &config.ImageConfig{
+			Version:     "latest",
+			Packages:    []string{},
+			Sudo:        []string{},
+			RunCommands: []string{},
+		}
+		agentConfig := &config.AgentConfig{
+			Packages:        []string{},
+			RunCommands:     []string{},
+			TerminalCommand: []string{"claude"},
+		}
+
+		result := generateContainerfile(imageConfig, agentConfig, false)
+
+		if strings.Contains(result, "agent-settings") {
+			t.Errorf("Expected no agent-settings COPY line, got:\n%s", result)
 		}
 	})
 
@@ -258,7 +313,7 @@ func TestGenerateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"claude"},
 		}
 
-		result := generateContainerfile(imageConfig, agentConfig)
+		result := generateContainerfile(imageConfig, agentConfig, false)
 
 		// Find positions
 		imagePos := strings.Index(result, "RUN echo 'image'")

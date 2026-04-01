@@ -61,6 +61,12 @@ type CreateParams struct {
 
 	// Agent is the agent name for loading agent-specific configuration (required, cannot be empty).
 	Agent string
+
+	// AgentSettings contains the agent settings files to embed into the agent user's
+	// home directory in the workspace image. Keys are relative file paths using
+	// forward slashes (e.g., ".claude/settings.json"), values are file contents.
+	// This map can be nil or empty if no default settings are configured.
+	AgentSettings map[string][]byte
 }
 
 // RuntimeInfo contains information about a runtime instance.

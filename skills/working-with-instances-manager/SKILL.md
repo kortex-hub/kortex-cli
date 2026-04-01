@@ -62,7 +62,8 @@ The `Add()` method:
 2. Loads project config (global `""` + project-specific merged)
 3. Loads agent config (if agent name provided)
 4. Merges configs: workspace → global → project → agent
-5. Passes merged config to runtime for injection into workspace
+5. Reads agent settings files from `<storage-dir>/config/<agent>/` into `map[string][]byte`
+6. Passes merged config and agent settings to runtime for injection into workspace
 
 ### List - Get All Instances
 

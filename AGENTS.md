@@ -212,6 +212,17 @@ The config system manages workspace configuration for **injecting environment va
 
 **Configuration Precedence:** Agent > Project > Global > Workspace (highest to lowest)
 
+### Agent Default Settings Files
+
+A separate mechanism (distinct from env/mount config) allows default dotfiles to be baked into the workspace image:
+
+- **Location:** `~/.kortex-cli/config/<agent>/` (e.g., `~/.kortex-cli/config/claude/`)
+- Files are read by `manager.readAgentSettings()` into a `map[string][]byte` and passed to the runtime via `runtime.CreateParams.AgentSettings`
+- The Podman runtime writes these files into the build context as `agent-settings/` and adds `COPY --chown=agent:agent agent-settings/. /home/agent/` to the Containerfile
+- Result: every file under `config/<agent>/` lands at the corresponding path under `/home/agent/` inside the image
+
+**For detailed guidance, use:** `/working-with-config-system`
+
 **For detailed configuration guidance, use:** `/working-with-config-system`
 
 ### Podman Runtime Configuration

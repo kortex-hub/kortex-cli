@@ -194,7 +194,7 @@ func TestCreateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"claude"},
 		}
 
-		err := p.createContainerfile(instanceDir, imageConfig, agentConfig)
+		err := p.createContainerfile(instanceDir, imageConfig, agentConfig, nil)
 		if err != nil {
 			t.Fatalf("createContainerfile() failed: %v", err)
 		}
@@ -245,7 +245,7 @@ func TestCreateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"custom-agent"},
 		}
 
-		err := p.createContainerfile(instanceDir, imageConfig, agentConfig)
+		err := p.createContainerfile(instanceDir, imageConfig, agentConfig, nil)
 		if err != nil {
 			t.Fatalf("createContainerfile() failed: %v", err)
 		}
@@ -286,6 +286,110 @@ func TestCreateContainerfile(t *testing.T) {
 
 		if !strings.Contains(string(sudoersContent), "/usr/bin/custom") {
 			t.Error("Expected sudoers to contain custom binary")
+		}
+	})
+
+	t.Run("writes agent settings files to build context", func(t *testing.T) {
+		t.Parallel()
+
+		instanceDir := t.TempDir()
+		p := &podmanRuntime{}
+
+		imageConfig := &config.ImageConfig{
+			Version:     "latest",
+			Packages:    []string{},
+			Sudo:        []string{},
+			RunCommands: []string{},
+		}
+		agentConfig := &config.AgentConfig{
+			Packages:        []string{},
+			RunCommands:     []string{},
+			TerminalCommand: []string{"claude"},
+		}
+		settings := map[string][]byte{
+			".claude/settings.json": []byte(`{"theme":"dark"}`),
+			".gitconfig":            []byte("[user]\n\tname = Agent\n"),
+		}
+
+		err := p.createContainerfile(instanceDir, imageConfig, agentConfig, settings)
+		if err != nil {
+			t.Fatalf("createContainerfile() failed: %v", err)
+		}
+
+		// Verify agent-settings directory was created
+		settingsDir := filepath.Join(instanceDir, "agent-settings")
+		if _, err := os.Stat(settingsDir); os.IsNotExist(err) {
+			t.Error("Expected agent-settings directory to be created")
+		}
+
+		// Verify nested file is written correctly
+		claudeSettings := filepath.Join(settingsDir, ".claude", "settings.json")
+		content, err := os.ReadFile(claudeSettings)
+		if err != nil {
+			t.Fatalf("Failed to read .claude/settings.json: %v", err)
+		}
+		if string(content) != `{"theme":"dark"}` {
+			t.Errorf("Expected settings content %q, got %q", `{"theme":"dark"}`, string(content))
+		}
+
+		// Verify flat file is written correctly
+		gitconfig := filepath.Join(settingsDir, ".gitconfig")
+		content, err = os.ReadFile(gitconfig)
+		if err != nil {
+			t.Fatalf("Failed to read .gitconfig: %v", err)
+		}
+		if string(content) != "[user]\n\tname = Agent\n" {
+			t.Errorf("Expected gitconfig content %q, got %q", "[user]\n\tname = Agent\n", string(content))
+		}
+
+		// Verify Containerfile contains the COPY instruction for agent settings
+		containerfilePath := filepath.Join(instanceDir, "Containerfile")
+		containerfileContent, err := os.ReadFile(containerfilePath)
+		if err != nil {
+			t.Fatalf("Failed to read Containerfile: %v", err)
+		}
+		if !strings.Contains(string(containerfileContent), "COPY --chown=agent:agent agent-settings/. /home/agent/") {
+			t.Error("Expected Containerfile to contain COPY instruction for agent settings")
+		}
+	})
+
+	t.Run("no agent-settings dir or COPY when settings is nil", func(t *testing.T) {
+		t.Parallel()
+
+		instanceDir := t.TempDir()
+		p := &podmanRuntime{}
+
+		imageConfig := &config.ImageConfig{
+			Version:     "latest",
+			Packages:    []string{},
+			Sudo:        []string{},
+			RunCommands: []string{},
+		}
+		agentConfig := &config.AgentConfig{
+			Packages:        []string{},
+			RunCommands:     []string{},
+			TerminalCommand: []string{"claude"},
+		}
+
+		err := p.createContainerfile(instanceDir, imageConfig, agentConfig, nil)
+		if err != nil {
+			t.Fatalf("createContainerfile() failed: %v", err)
+		}
+
+		// Verify agent-settings directory was NOT created
+		settingsDir := filepath.Join(instanceDir, "agent-settings")
+		if _, err := os.Stat(settingsDir); !os.IsNotExist(err) {
+			t.Error("Expected agent-settings directory to NOT be created when settings is nil")
+		}
+
+		// Verify Containerfile does not contain agent-settings COPY
+		containerfilePath := filepath.Join(instanceDir, "Containerfile")
+		containerfileContent, err := os.ReadFile(containerfilePath)
+		if err != nil {
+			t.Fatalf("Failed to read Containerfile: %v", err)
+		}
+		if strings.Contains(string(containerfileContent), "agent-settings") {
+			t.Error("Expected Containerfile to NOT contain agent-settings when settings is nil")
 		}
 	})
 }

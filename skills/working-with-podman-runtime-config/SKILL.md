@@ -150,7 +150,8 @@ The config system is used to generate Containerfiles dynamically:
 import "github.com/kortex-hub/kortex-cli/pkg/runtime/podman"
 
 // Generate Containerfile content from configs
-containerfileContent := generateContainerfile(imageConfig, agentConfig)
+// hasAgentSettings = true adds a COPY instruction for default settings files
+containerfileContent := generateContainerfile(imageConfig, agentConfig, hasAgentSettings)
 
 // Generate sudoers file content from sudo binaries
 sudoersContent := generateSudoers(imageConfig.Sudo)
@@ -161,7 +162,24 @@ The `generateContainerfile` function creates a Containerfile with:
 - Merged packages from image and agent configs
 - User/group setup (hardcoded as `agent:agent`)
 - Sudoers configuration with single `ALLOWED` Cmnd_Alias
+- When `hasAgentSettings` is true: `COPY --chown=agent:agent agent-settings/. /home/agent/` (placed before RUN commands)
 - Custom RUN commands from both configs (image commands first, then agent commands)
+
+## Agent Default Settings Files
+
+When `runtime.CreateParams.AgentSettings` is non-empty, `createContainerfile()` writes the map entries as files into an `agent-settings/` subdirectory of the build context (the instance directory), then sets `hasAgentSettings = true` so `generateContainerfile` emits a `COPY` instruction.
+
+```text
+Build context (instance dir):
+├── Containerfile
+├── sudoers
+└── agent-settings/          ← created from CreateParams.AgentSettings
+    └── .claude.json          ← key ".claude.json", value = file contents
+```
+
+The `COPY --chown=agent:agent agent-settings/. /home/agent/` instruction is placed **before** all `RUN` commands from both `image.json` and the agent config, so that agent install scripts can read and build upon the defaults (e.g., the Claude install script may modify settings files, which is expected behavior).
+
+This mechanism is populated by `manager.readAgentSettings()` in `pkg/instances/manager.go`, which walks `<storage-dir>/config/<agent>/` and passes the result as `AgentSettings` in `CreateParams`.
 
 ## Hardcoded Values
 

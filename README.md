@@ -178,6 +178,60 @@ To reuse your host Claude Code settings (preferences, custom instructions, etc.)
 - No `ANTHROPIC_API_KEY` is needed when using Vertex AI — credentials are provided via the mounted gcloud configuration
 - To pin a specific Claude model, add a `ANTHROPIC_MODEL` environment variable (e.g., `"claude-opus-4-5"`)
 
+### Starting Claude with Default Settings
+
+This scenario demonstrates how to pre-configure Claude Code's settings so that when it starts inside a workspace, it skips the interactive onboarding flow (theme selection, trusted folder prompt, etc.) and uses your preferred defaults. This is useful when you want a consistent, ready-to-use Claude experience without sharing your local `~/.claude` directory.
+
+**Step 1: Create the agent settings directory**
+
+```bash
+mkdir -p ~/.kortex-cli/config/claude
+```
+
+**Step 2: Write the default Claude settings file**
+
+```bash
+cat > ~/.kortex-cli/config/claude/.claude.json << 'EOF'
+{
+  "theme": "dark-daltonized",
+  "hasCompletedOnboarding": true,
+  "projects": {
+    "/workspace/sources": {
+      "hasTrustDialogAccepted": true
+    }
+  }
+}
+EOF
+```
+
+**Fields:**
+
+- `theme` - The UI theme for Claude Code (e.g., `"dark"`, `"light"`, `"dark-daltonized"`)
+- `hasCompletedOnboarding` - Set to `true` to skip the first-run onboarding wizard
+- `projects["/workspace/sources"].hasTrustDialogAccepted` - Pre-accepts the trust dialog for the workspace sources directory, which is always mounted at `/workspace/sources` inside the container
+
+**Step 3: Register and start the workspace**
+
+```bash
+# Register a workspace — the settings file is embedded in the container image
+kortex-cli init /path/to/project --runtime podman --agent claude
+
+# Start the workspace
+kortex-cli start <workspace-id>
+
+# Connect — Claude Code starts directly without onboarding
+kortex-cli terminal <workspace-id>
+```
+
+When `init` runs, kortex-cli reads all files from `~/.kortex-cli/config/claude/` and copies them into the container image at `/home/agent/`, so `.claude.json` lands at `/home/agent/.claude.json`. Claude Code finds this file on startup and skips onboarding.
+
+**Notes:**
+
+- The settings are baked into the container image at `init` time, not mounted at runtime — changes to the files on the host require re-registering the workspace to take effect
+- Any file placed under `~/.kortex-cli/config/claude/` is copied into the container home directory, preserving the directory structure (e.g., `~/.kortex-cli/config/claude/.some-tool/config` becomes `/home/agent/.some-tool/config` inside the container)
+- This approach keeps your workspace self-contained — other developers using the same project are not affected, and your local `~/.claude` directory is not exposed inside the container
+- To apply changes to the settings, remove and re-register the workspace: `kortex-cli remove <workspace-id>` then `kortex-cli init` again
+
 ### Sharing a GitHub Token
 
 This scenario demonstrates how to make a GitHub token available inside workspaces using the multi-level configuration system — either globally for all projects or scoped to a specific project.

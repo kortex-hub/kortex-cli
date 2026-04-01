@@ -94,6 +94,19 @@ func (r *<runtime-name>Runtime) Create(ctx context.Context, params runtime.Creat
         return runtime.RuntimeInfo{}, err
     }
 
+    // Step 3: Copy agent default settings files into the workspace home directory.
+    // params.AgentSettings is a map[string][]byte (relative forward-slash path → content)
+    // populated from <storage-dir>/config/<agent>/ by the instances manager.
+    // For image-based runtimes (e.g., Podman), embed these files BEFORE install RUN commands
+    // so agent install scripts can read and build upon the defaults.
+    if len(params.AgentSettings) > 0 {
+        stepLogger.Start("Copying agent settings to workspace", "Agent settings copied")
+        if err := r.copyAgentSettings(ctx, info.ID, params.AgentSettings); err != nil {
+            stepLogger.Fail(err)
+            return runtime.RuntimeInfo{}, err
+        }
+    }
+
     return info, nil
 }
 

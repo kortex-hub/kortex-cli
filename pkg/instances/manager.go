@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -205,12 +206,19 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 		return nil, fmt.Errorf("failed to get runtime: %w", err)
 	}
 
+	// Read agent settings files from storage config directory
+	agentSettings, err := m.readAgentSettings(m.storageDir, opts.Agent)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read agent settings: %w", err)
+	}
+
 	// Create runtime instance with merged configuration
 	runtimeInfo, err := rt.Create(ctx, runtime.CreateParams{
 		Name:            name,
 		SourcePath:      inst.GetSourceDir(),
 		WorkspaceConfig: mergedConfig,
 		Agent:           opts.Agent,
+		AgentSettings:   agentSettings,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runtime instance: %w", err)
@@ -701,4 +709,44 @@ func (m *manager) saveInstances(instances []Instance) error {
 	}
 
 	return os.WriteFile(m.storageFile, data, 0644)
+}
+
+// readAgentSettings reads all files from {storageDir}/config/{agentName}/ into a map.
+// Keys are relative paths using forward slashes; values are file contents.
+// Returns nil (no error) if the directory does not exist.
+func (m *manager) readAgentSettings(storageDir, agentName string) (map[string][]byte, error) {
+	if agentName == "" {
+		return nil, nil
+	}
+
+	// Validate agentName to prevent path traversal
+	if strings.Contains(agentName, "/") || strings.Contains(agentName, "\\") || strings.Contains(agentName, "..") {
+		return nil, fmt.Errorf("invalid agent name: %q", agentName)
+	}
+
+	agentSettingsDir := filepath.Join(storageDir, "config", agentName)
+	if _, err := os.Stat(agentSettingsDir); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	settings := make(map[string][]byte)
+	err := fs.WalkDir(os.DirFS(agentSettingsDir), ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		content, err := os.ReadFile(filepath.Join(agentSettingsDir, filepath.FromSlash(path)))
+		if err != nil {
+			return fmt.Errorf("failed to read agent settings file %s: %w", path, err)
+		}
+		settings[path] = content
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to walk agent settings directory: %w", err)
+	}
+
+	return settings, nil
 }

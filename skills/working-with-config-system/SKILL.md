@@ -27,6 +27,25 @@ The multi-level configuration system allows users to customize workspace setting
 
 These configurations control what gets injected **into** workspaces (environment variables, mounts), not how the workspace runtime is built or configured.
 
+## Agent Default Settings Files
+
+In addition to the env/mount configuration above, kortex-cli supports **default settings files** that are baked directly into the workspace image at `init` time.
+
+**Location:** `~/.kortex-cli/config/<agent>/` (one directory per agent name)
+
+Any file placed in this directory is copied into the agent user's home directory (`/home/agent/`) inside the container image, preserving the directory structure. For example:
+
+```text
+~/.kortex-cli/config/claude/
+└── .claude.json          → /home/agent/.claude.json inside the image
+```
+
+This is distinct from `agents.json`:
+- `agents.json` — injects **environment variables and mounts** at runtime
+- `config/<agent>/` — embeds **dotfiles / settings files** directly into the image at build time
+
+**Implementation:** `manager.readAgentSettings(storageDir, agentName)` in `pkg/instances/manager.go` walks this directory and returns a `map[string][]byte` (relative forward-slash path → content). The map is passed to the runtime via `runtime.CreateParams.AgentSettings`. The Podman runtime writes the files into the build context and adds a `COPY --chown=agent:agent agent-settings/. /home/agent/` instruction to the Containerfile.
+
 ## Key Components
 
 - **Config Interface** (`pkg/config/config.go`): Interface for managing configuration directories

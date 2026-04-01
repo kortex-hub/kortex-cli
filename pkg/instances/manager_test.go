@@ -2214,3 +2214,137 @@ func TestManager_mergeConfigurations(t *testing.T) {
 		}
 	})
 }
+
+func TestReadAgentSettings(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns nil when agent name is empty", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		mgr := &manager{storageDir: tmpDir}
+
+		result, err := mgr.readAgentSettings(tmpDir, "")
+		if err != nil {
+			t.Fatalf("readAgentSettings() unexpected error = %v", err)
+		}
+		if result != nil {
+			t.Errorf("Expected nil result for empty agent name, got %v", result)
+		}
+	})
+
+	t.Run("returns nil when directory does not exist", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		mgr := &manager{storageDir: tmpDir}
+
+		result, err := mgr.readAgentSettings(tmpDir, "claude")
+		if err != nil {
+			t.Fatalf("readAgentSettings() unexpected error = %v", err)
+		}
+		if result != nil {
+			t.Errorf("Expected nil result when directory does not exist, got %v", result)
+		}
+	})
+
+	t.Run("reads files into map with relative paths", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		mgr := &manager{storageDir: tmpDir}
+
+		// Create agent settings directory with a nested file
+		agentDir := filepath.Join(tmpDir, "config", "claude")
+		if err := os.MkdirAll(filepath.Join(agentDir, ".claude"), 0755); err != nil {
+			t.Fatalf("Failed to create test directory: %v", err)
+		}
+		settingsContent := []byte(`{"theme":"dark"}`)
+		if err := os.WriteFile(filepath.Join(agentDir, ".claude", "settings.json"), settingsContent, 0600); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+
+		result, err := mgr.readAgentSettings(tmpDir, "claude")
+		if err != nil {
+			t.Fatalf("readAgentSettings() unexpected error = %v", err)
+		}
+
+		if len(result) != 1 {
+			t.Fatalf("Expected 1 file in result, got %d", len(result))
+		}
+
+		content, ok := result[".claude/settings.json"]
+		if !ok {
+			t.Error("Expected key '.claude/settings.json' in result map")
+		}
+		if string(content) != `{"theme":"dark"}` {
+			t.Errorf("Expected content %q, got %q", `{"theme":"dark"}`, string(content))
+		}
+	})
+
+	t.Run("reads multiple files recursively", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		mgr := &manager{storageDir: tmpDir}
+
+		agentDir := filepath.Join(tmpDir, "config", "claude")
+		if err := os.MkdirAll(filepath.Join(agentDir, ".claude"), 0755); err != nil {
+			t.Fatalf("Failed to create test directory: %v", err)
+		}
+		files := map[string][]byte{
+			".claude/settings.json": []byte(`{"theme":"dark"}`),
+			".gitconfig":            []byte("[user]\n\tname = Agent\n"),
+		}
+		for relPath, content := range files {
+			dest := filepath.Join(agentDir, filepath.FromSlash(relPath))
+			if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+				t.Fatalf("Failed to create parent dir for %s: %v", relPath, err)
+			}
+			if err := os.WriteFile(dest, content, 0600); err != nil {
+				t.Fatalf("Failed to write %s: %v", relPath, err)
+			}
+		}
+
+		result, err := mgr.readAgentSettings(tmpDir, "claude")
+		if err != nil {
+			t.Fatalf("readAgentSettings() unexpected error = %v", err)
+		}
+
+		if len(result) != 2 {
+			t.Fatalf("Expected 2 files in result, got %d", len(result))
+		}
+		for relPath, expectedContent := range files {
+			got, ok := result[relPath]
+			if !ok {
+				t.Errorf("Expected key %q in result map", relPath)
+				continue
+			}
+			if string(got) != string(expectedContent) {
+				t.Errorf("Content mismatch for %q: expected %q, got %q", relPath, expectedContent, got)
+			}
+		}
+	})
+
+	t.Run("returns empty map for empty directory", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		mgr := &manager{storageDir: tmpDir}
+
+		// Create empty agent settings directory
+		agentDir := filepath.Join(tmpDir, "config", "claude")
+		if err := os.MkdirAll(agentDir, 0755); err != nil {
+			t.Fatalf("Failed to create agent directory: %v", err)
+		}
+
+		result, err := mgr.readAgentSettings(tmpDir, "claude")
+		if err != nil {
+			t.Fatalf("readAgentSettings() unexpected error = %v", err)
+		}
+
+		if len(result) != 0 {
+			t.Errorf("Expected empty map for empty directory, got %d entries", len(result))
+		}
+	})
+}

@@ -52,7 +52,9 @@ func (p *podmanRuntime) createInstanceDirectory(name string) (string, error) {
 }
 
 // createContainerfile creates a Containerfile in the instance directory using the provided configs.
-func (p *podmanRuntime) createContainerfile(instanceDir string, imageConfig *config.ImageConfig, agentConfig *config.AgentConfig) error {
+// If settings is non-empty, the files are written to an agent-settings/ subdirectory of instanceDir
+// so they can be embedded in the image via a COPY instruction.
+func (p *podmanRuntime) createContainerfile(instanceDir string, imageConfig *config.ImageConfig, agentConfig *config.AgentConfig, settings map[string][]byte) error {
 	// Generate sudoers content
 	sudoersContent := generateSudoers(imageConfig.Sudo)
 	sudoersPath := filepath.Join(instanceDir, "sudoers")
@@ -60,8 +62,25 @@ func (p *podmanRuntime) createContainerfile(instanceDir string, imageConfig *con
 		return fmt.Errorf("failed to write sudoers: %w", err)
 	}
 
+	// Write agent settings files to the build context if provided
+	if len(settings) > 0 {
+		settingsDir := filepath.Join(instanceDir, "agent-settings")
+		if err := os.MkdirAll(settingsDir, 0755); err != nil {
+			return fmt.Errorf("failed to create agent settings dir: %w", err)
+		}
+		for relPath, content := range settings {
+			destPath := filepath.Join(settingsDir, filepath.FromSlash(relPath))
+			if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+				return fmt.Errorf("failed to create directory for %s: %w", relPath, err)
+			}
+			if err := os.WriteFile(destPath, content, 0600); err != nil {
+				return fmt.Errorf("failed to write agent settings file %s: %w", relPath, err)
+			}
+		}
+	}
+
 	// Generate Containerfile content
-	containerfileContent := generateContainerfile(imageConfig, agentConfig)
+	containerfileContent := generateContainerfile(imageConfig, agentConfig, len(settings) > 0)
 	containerfilePath := filepath.Join(instanceDir, "Containerfile")
 	if err := os.WriteFile(containerfilePath, []byte(containerfileContent), 0644); err != nil {
 		return fmt.Errorf("failed to write Containerfile: %w", err)
@@ -185,7 +204,7 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 
 	// Create Containerfile
 	stepLogger.Start("Generating Containerfile", "Containerfile generated")
-	if err := p.createContainerfile(instanceDir, imageConfig, agentConfig); err != nil {
+	if err := p.createContainerfile(instanceDir, imageConfig, agentConfig, params.AgentSettings); err != nil {
 		stepLogger.Fail(err)
 		return runtime.RuntimeInfo{}, err
 	}

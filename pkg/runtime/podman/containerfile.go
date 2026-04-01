@@ -43,7 +43,9 @@ func generateSudoers(sudoBinaries []string) string {
 }
 
 // generateContainerfile generates the Containerfile content from image and agent configurations.
-func generateContainerfile(imageConfig *config.ImageConfig, agentConfig *config.AgentConfig) string {
+// If hasAgentSettings is true, a COPY instruction is added to embed the agent-settings
+// directory (written to the build context) into the agent user's home directory.
+func generateContainerfile(imageConfig *config.ImageConfig, agentConfig *config.AgentConfig, hasAgentSettings bool) string {
 	if imageConfig == nil {
 		return ""
 	}
@@ -84,6 +86,13 @@ func generateContainerfile(imageConfig *config.ImageConfig, agentConfig *config.
 
 	// Copy Containerfile to home directory for reference
 	lines = append(lines, fmt.Sprintf("COPY Containerfile /home/%s/Containerfile", constants.ContainerUser))
+
+	// Copy agent default settings into home directory before the RUN commands,
+	// so that agent install scripts can read and build upon the defaults.
+	if hasAgentSettings {
+		lines = append(lines, fmt.Sprintf("COPY --chown=%s:%s agent-settings/. /home/%s/",
+			constants.ContainerUser, constants.ContainerGroup, constants.ContainerUser))
+	}
 
 	// Custom RUN commands from image config
 	for _, cmd := range imageConfig.RunCommands {
