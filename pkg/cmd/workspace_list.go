@@ -53,8 +53,12 @@ func compactPath(path string) string {
 	if err != nil {
 		return path
 	}
-	if strings.HasPrefix(path, homeDir) {
-		return "~" + strings.TrimPrefix(path, homeDir)
+	if path == homeDir {
+		return "~"
+	}
+	homePrefix := homeDir + string(os.PathSeparator)
+	if strings.HasPrefix(path, homePrefix) {
+		return "~" + string(os.PathSeparator) + strings.TrimPrefix(path, homePrefix)
 	}
 	return path
 }
