@@ -3,7 +3,9 @@
 [![codecov](https://codecov.io/gh/kortex-hub/kortex-cli/branch/main/graph/badge.svg)](https://codecov.io/gh/kortex-hub/kortex-cli)
 [![Documentation](https://img.shields.io/badge/documentation-blue)](https://kortex-hub.github.io/kortex-cli/)
 
-kortex-cli is a command-line interface for launching and managing AI agents with custom configurations. It provides a unified way to start different agents with specific settings including skills, MCP (Model Context Protocol) server connections, and LLM integrations.
+kortex-cli is a command-line interface for launching and managing AI agents in isolated, reproducible workspaces. It creates runtime-based environments (containers, VMs, or other backends) where agents run with your project source code mounted, automatically configured and ready to use — no manual onboarding or setup required.
+
+The architecture is built around pluggable runtimes. The first supported runtime is **Podman**, which creates container-based workspaces using a custom Fedora image. Additional runtimes (e.g., MicroVM, Kubernetes) can be added to support other execution environments.
 
 **Supported Agents**
 
@@ -13,10 +15,13 @@ kortex-cli is a command-line interface for launching and managing AI agents with
 
 **Key Features**
 
-- Configure agents with custom skills and capabilities
-- Connect to MCP servers for extended functionality
-- Integrate with various LLM providers
-- Consistent interface across different agent types
+- Isolated workspaces per project, each running in its own runtime instance
+- Pluggable runtime system — Podman is the default, with support for adding other runtimes
+- Automatic agent configuration (onboarding flags, trusted directories) on workspace creation
+- Multi-level configuration: workspace, global, project-specific, and agent-specific settings
+- Inject environment variables and mount directories into workspaces at multiple scopes
+- Connect to MCP servers and integrate with various LLM providers (including Vertex AI)
+- Consistent CLI interface across different agent types and runtimes
 
 ## Getting Started
 
@@ -72,17 +77,14 @@ The underlying AI model that powers the agents. Examples include Claude (by Anth
 ### MCP (Model Context Protocol)
 A standardized protocol for connecting AI agents to external data sources and tools. MCP servers provide agents with additional capabilities like database access, API integrations, or file system operations.
 
+### Runtime
+The environment where workspaces run. kortex-cli supports multiple runtimes (e.g., Podman containers), allowing workspaces to be hosted on different backends depending on your needs.
+
 ### Skills
 Pre-configured capabilities or specialized functions that can be enabled for an agent. Skills extend what an agent can do, such as code review, testing, or specific domain knowledge.
 
 ### Workspace
 A registered directory containing your project source code and its configuration. Each workspace is tracked by kortex-cli with a unique ID and a human-readable name. Workspaces can be accessed using either their ID or name in all commands (start, stop, remove, terminal).
-
-**Workspace States:**
-- `stopped` - The workspace instance is created but not running
-- `running` - The workspace instance is actively running
-- `error` - The workspace instance encountered an error
-- `unknown` - The workspace state cannot be determined
 
 ## Scenarios
 
