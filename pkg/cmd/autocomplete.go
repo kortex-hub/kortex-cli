@@ -96,6 +96,20 @@ func completeRunningWorkspaceID(cmd *cobra.Command, args []string, toComplete st
 	})
 }
 
+// completeRemoveWorkspaceID provides completion for the remove command.
+// When --force is set, all workspaces are suggested; otherwise only non-running workspaces.
+// The args and toComplete parameters are part of Cobra's ValidArgsFunction signature but are unused
+// because Cobra's shell completion framework automatically filters results based on user input.
+func completeRemoveWorkspaceID(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	force, _ := cmd.Flags().GetBool("force")
+	if force {
+		return getFilteredWorkspaceIDs(cmd, nil)
+	}
+	return getFilteredWorkspaceIDs(cmd, func(state api.WorkspaceState) bool {
+		return state != api.WorkspaceStateRunning
+	})
+}
+
 // newOutputFlagCompletion creates a completion function for the --output flag
 // with the given list of valid output formats
 func newOutputFlagCompletion(validFormats []string) func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

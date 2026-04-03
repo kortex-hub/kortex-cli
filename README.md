@@ -2504,6 +2504,7 @@ kortex-cli remove NAME|ID [flags]
 
 #### Flags
 
+- `--force, -f` - Stop the workspace if it is running before removing it
 - `--output, -o <format>` - Output format (supported: `json`)
 - `--show-logs` - Show stdout and stderr from runtime commands (cannot be combined with `--output json`)
 - `--storage <path>` - Storage directory for kortex-cli data (default: `$HOME/.kortex-cli`)
@@ -2535,6 +2536,12 @@ kortex-cli list
 # Then remove the desired workspace (using either name or ID)
 kortex-cli remove my-project
 ```
+
+**Remove a running workspace (stops it first):**
+```bash
+kortex-cli workspace remove a1b2c3d4e5f6... --force
+```
+Output: `a1b2c3d4e5f6...` (ID of removed workspace)
 
 **JSON output:**
 ```bash
@@ -2580,12 +2587,27 @@ Output:
 }
 ```
 
+**Removing a running workspace without --force:**
+
+Attempting to remove a running workspace without `--force` will fail because the runtime refuses to remove a running instance. Stop the workspace first, or use `--force`:
+
+```bash
+# Stop first, then remove
+kortex-cli stop a1b2c3d4e5f6...
+kortex-cli remove a1b2c3d4e5f6...
+
+# Or remove in one step
+kortex-cli remove a1b2c3d4e5f6... --force
+```
+
 #### Notes
 
 - You can specify the workspace using either its name or ID (both can be obtained using the `workspace list` or `list` command)
 - The command always outputs the workspace ID, even when removed by name
 - Removing a workspace only unregisters it from kortex-cli; it does not delete any files from the sources or configuration directories
 - If the workspace name or ID is not found, the command will fail with a helpful error message
+- Use `--force` to automatically stop a running workspace before removing it; without this flag, removing a running workspace will fail
+- Tab completion for this command suggests only non-running workspaces by default; when `--force` is specified, all workspaces are suggested
 - JSON output format is useful for scripting and automation
 - When using `--output json`, errors are also returned in JSON format for consistent parsing
 - **JSON error handling**: When `--output json` is used, errors are written to stdout (not stderr) in JSON format, and the CLI exits with code 1. Always check the exit code to determine success/failure

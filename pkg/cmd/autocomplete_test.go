@@ -451,6 +451,174 @@ func TestNewOutputFlagCompletion(t *testing.T) {
 	})
 }
 
+func TestCompleteRemoveWorkspaceID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("without --force returns only non-running workspace IDs", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		storageDir := t.TempDir()
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("failed to create manager: %v", err)
+		}
+
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("failed to register fake runtime: %v", err)
+		}
+
+		sourceDir1 := t.TempDir()
+		instance1, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourceDir1,
+			ConfigDir: filepath.Join(sourceDir1, ".kortex"),
+		})
+		if err != nil {
+			t.Fatalf("failed to create instance1: %v", err)
+		}
+		addedInstance1, err := manager.Add(ctx, instances.AddOptions{Instance: instance1, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("failed to add instance1: %v", err)
+		}
+
+		sourceDir2 := t.TempDir()
+		instance2, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourceDir2,
+			ConfigDir: filepath.Join(sourceDir2, ".kortex"),
+		})
+		if err != nil {
+			t.Fatalf("failed to create instance2: %v", err)
+		}
+		addedInstance2, err := manager.Add(ctx, instances.AddOptions{Instance: instance2, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("failed to add instance2: %v", err)
+		}
+
+		// Start instance1 so it is running
+		if err := manager.Start(ctx, addedInstance1.GetID()); err != nil {
+			t.Fatalf("failed to start instance1: %v", err)
+		}
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "")
+		cmd.Flags().Bool("force", false, "")
+
+		completions, directive := completeRemoveWorkspaceID(cmd, []string{}, "")
+
+		// Only instance2 (stopped) should appear
+		if len(completions) != 2 {
+			t.Errorf("Expected 2 completions (ID and name for non-running), got %d: %v", len(completions), completions)
+		}
+
+		for _, completion := range completions {
+			if completion == addedInstance1.GetID() || completion == addedInstance1.GetName() {
+				t.Errorf("Running instance should not appear in completions without --force, got %s", completion)
+			}
+		}
+
+		foundID := false
+		foundName := false
+		for _, completion := range completions {
+			if completion == addedInstance2.GetID() {
+				foundID = true
+			}
+			if completion == addedInstance2.GetName() {
+				foundName = true
+			}
+		}
+		if !foundID {
+			t.Errorf("Expected stopped instance ID %s in completions, got %v", addedInstance2.GetID(), completions)
+		}
+		if !foundName {
+			t.Errorf("Expected stopped instance name %s in completions, got %v", addedInstance2.GetName(), completions)
+		}
+
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("Expected ShellCompDirectiveNoFileComp, got %v", directive)
+		}
+	})
+
+	t.Run("with --force returns all workspace IDs including running", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		storageDir := t.TempDir()
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("failed to create manager: %v", err)
+		}
+
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("failed to register fake runtime: %v", err)
+		}
+
+		sourceDir1 := t.TempDir()
+		instance1, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourceDir1,
+			ConfigDir: filepath.Join(sourceDir1, ".kortex"),
+		})
+		if err != nil {
+			t.Fatalf("failed to create instance1: %v", err)
+		}
+		addedInstance1, err := manager.Add(ctx, instances.AddOptions{Instance: instance1, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("failed to add instance1: %v", err)
+		}
+
+		sourceDir2 := t.TempDir()
+		instance2, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourceDir2,
+			ConfigDir: filepath.Join(sourceDir2, ".kortex"),
+		})
+		if err != nil {
+			t.Fatalf("failed to create instance2: %v", err)
+		}
+		addedInstance2, err := manager.Add(ctx, instances.AddOptions{Instance: instance2, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("failed to add instance2: %v", err)
+		}
+
+		// Start instance1 so it is running
+		if err := manager.Start(ctx, addedInstance1.GetID()); err != nil {
+			t.Fatalf("failed to start instance1: %v", err)
+		}
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "")
+		cmd.Flags().Bool("force", false, "")
+		if err := cmd.Flags().Set("force", "true"); err != nil {
+			t.Fatalf("failed to set --force flag: %v", err)
+		}
+
+		completions, directive := completeRemoveWorkspaceID(cmd, []string{}, "")
+
+		// Both instances (ID + name each) should appear
+		if len(completions) != 4 {
+			t.Errorf("Expected 4 completions (ID and name for each instance), got %d: %v", len(completions), completions)
+		}
+
+		expected := []string{
+			addedInstance1.GetID(), addedInstance1.GetName(),
+			addedInstance2.GetID(), addedInstance2.GetName(),
+		}
+		completionSet := make(map[string]bool, len(completions))
+		for _, c := range completions {
+			completionSet[c] = true
+		}
+		for _, e := range expected {
+			if !completionSet[e] {
+				t.Errorf("Expected %s in completions, got %v", e, completions)
+			}
+		}
+
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("Expected ShellCompDirectiveNoFileComp, got %v", directive)
+		}
+	})
+}
+
 func TestCompleteRuntimeFlag(t *testing.T) {
 	t.Parallel()
 

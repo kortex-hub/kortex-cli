@@ -727,6 +727,125 @@ func TestWorkspaceRemoveCmd_E2E(t *testing.T) {
 	})
 }
 
+func TestWorkspaceRemoveCmd_Force(t *testing.T) {
+	t.Parallel()
+
+	t.Run("removes running workspace with --force flag", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		instance, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourcesDir,
+			ConfigDir: filepath.Join(sourcesDir, ".kortex"),
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance: %v", err)
+		}
+
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		addedInstance, err := manager.Add(ctx, instances.AddOptions{Instance: instance, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("Failed to add instance: %v", err)
+		}
+
+		// Start the instance so it is running
+		if err := manager.Start(ctx, addedInstance.GetID()); err != nil {
+			t.Fatalf("Failed to start instance: %v", err)
+		}
+
+		// Remove with --force
+		rootCmd := NewRootCmd()
+		rootCmd.SetArgs([]string{"workspace", "remove", addedInstance.GetID(), "--storage", storageDir, "--force"})
+
+		var output bytes.Buffer
+		rootCmd.SetOut(&output)
+
+		err = rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Expected no error with --force on running workspace, got %v", err)
+		}
+
+		// Verify output is the instance ID
+		result := strings.TrimSpace(output.String())
+		if result != addedInstance.GetID() {
+			t.Errorf("Expected output to be '%s', got: '%s'", addedInstance.GetID(), result)
+		}
+
+		// Verify workspace is removed
+		instancesList, err := manager.List()
+		if err != nil {
+			t.Fatalf("Failed to list instances: %v", err)
+		}
+		if len(instancesList) != 0 {
+			t.Errorf("Expected 0 instances after removal, got %d", len(instancesList))
+		}
+	})
+
+	t.Run("fails to remove running workspace without --force flag", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		instance, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourcesDir,
+			ConfigDir: filepath.Join(sourcesDir, ".kortex"),
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance: %v", err)
+		}
+
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		addedInstance, err := manager.Add(ctx, instances.AddOptions{Instance: instance, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("Failed to add instance: %v", err)
+		}
+
+		// Start the instance so it is running
+		if err := manager.Start(ctx, addedInstance.GetID()); err != nil {
+			t.Fatalf("Failed to start instance: %v", err)
+		}
+
+		// Try to remove without --force
+		rootCmd := NewRootCmd()
+		rootCmd.SetArgs([]string{"workspace", "remove", addedInstance.GetID(), "--storage", storageDir})
+
+		err = rootCmd.Execute()
+		if err == nil {
+			t.Fatal("Expected error when removing running workspace without --force, got nil")
+		}
+
+		// Verify workspace is still present
+		instancesList, err := manager.List()
+		if err != nil {
+			t.Fatalf("Failed to list instances: %v", err)
+		}
+		if len(instancesList) != 1 {
+			t.Errorf("Expected 1 instance (workspace should not be removed), got %d", len(instancesList))
+		}
+	})
+}
+
 func TestWorkspaceRemoveCmd_Examples(t *testing.T) {
 	t.Parallel()
 
@@ -745,7 +864,7 @@ func TestWorkspaceRemoveCmd_Examples(t *testing.T) {
 	}
 
 	// Verify we have the expected number of examples
-	expectedCount := 3
+	expectedCount := 4
 	if len(commands) != expectedCount {
 		t.Errorf("Expected %d example commands, got %d", expectedCount, len(commands))
 	}

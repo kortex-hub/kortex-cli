@@ -38,6 +38,7 @@ type workspaceRemoveCmd struct {
 	nameOrID string
 	output   string
 	showLogs bool
+	force    bool
 }
 
 // preRun validates the parameters and flags
@@ -125,6 +126,13 @@ func (w *workspaceRemoveCmd) run(cmd *cobra.Command, args []string) error {
 	// Get the actual ID (in case user provided a name)
 	instanceID := instance.GetID()
 
+	// If force flag is set and instance is running, stop it first
+	if w.force && instance.GetRuntimeData().State == api.WorkspaceStateRunning {
+		if err := w.manager.Stop(ctx, instanceID); err != nil {
+			return outputErrorIfJSON(cmd, w.output, fmt.Errorf("failed to stop running workspace: %w", err))
+		}
+	}
+
 	// Delete the instance
 	err = w.manager.Delete(ctx, instanceID)
 	if err != nil {
@@ -172,15 +180,19 @@ kortex-cli workspace remove abc123
 kortex-cli workspace remove my-project
 
 # Remove workspace and show runtime command output
-kortex-cli workspace remove abc123 --show-logs`,
+kortex-cli workspace remove abc123 --show-logs
+
+# Remove a running workspace (stops it first)
+kortex-cli workspace remove abc123 --force`,
 		Args:              cobra.ExactArgs(1),
-		ValidArgsFunction: completeNonRunningWorkspaceID,
+		ValidArgsFunction: completeRemoveWorkspaceID,
 		PreRunE:           c.preRun,
 		RunE:              c.run,
 	}
 
 	cmd.Flags().StringVarP(&c.output, "output", "o", "", "Output format (supported: json)")
 	cmd.Flags().BoolVar(&c.showLogs, "show-logs", false, "Show stdout and stderr from runtime commands")
+	cmd.Flags().BoolVarP(&c.force, "force", "f", false, "Stop the workspace if it is running before removing it")
 
 	cmd.RegisterFlagCompletionFunc("output", newOutputFlagCompletion([]string{"json"}))
 
