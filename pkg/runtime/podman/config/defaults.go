@@ -82,6 +82,7 @@ func defaultGooseConfig() *AgentConfig {
 		Packages: []string{},
 		RunCommands: []string{
 			"cd /tmp && curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | CONFIGURE=false bash",
+			fmt.Sprintf("mkdir -p /home/%s/.config/goose", constants.ContainerUser),
 		},
 		TerminalCommand: []string{"goose"},
 	}

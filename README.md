@@ -252,6 +252,147 @@ Claude Code finds this file on startup and skips onboarding.
 - This approach keeps your workspace self-contained — other developers using the same project are not affected, and your local `~/.claude` directory is not exposed inside the container
 - To apply changes to the settings, remove and re-register the workspace: `kortex-cli remove <workspace-id>` then `kortex-cli init` again
 
+### Using Goose Agent with a Model from Vertex AI
+
+This scenario demonstrates how to configure the Goose agent in a kortex-cli workspace using Vertex AI as the backend, covering credential injection, sharing your local gcloud configuration, and pre-configuring the default model.
+
+#### Authenticating with Vertex AI
+
+Goose can use Google Cloud Vertex AI as its backend. Authentication relies on Application Default Credentials (ADC) provided by the `gcloud` CLI. Mount your local `~/.config/gcloud` directory to make your host credentials available inside the workspace, and set the `GCP_PROJECT_ID`, `GCP_LOCATION`, and `GOOSE_PROVIDER` environment variables to tell Goose which project and region to use.
+
+Create or edit `~/.kortex-cli/config/agents.json`:
+
+```json
+{
+  "goose": {
+    "environment": [
+      {
+        "name": "GOOSE_PROVIDER",
+        "value": "gcp_vertex_ai"
+      },
+      {
+        "name": "GCP_PROJECT_ID",
+        "value": "my-gcp-project"
+      },
+      {
+        "name": "GCP_LOCATION",
+        "value": "my-region"
+      }
+    ],
+    "mounts": [
+      {"host": "$HOME/.config/gcloud", "target": "$HOME/.config/gcloud"}
+    ]
+  }
+}
+```
+
+The `~/.config/gcloud` directory contains your Application Default Credentials and active account configuration. It is mounted read-only so that credentials are available inside the workspace while the host configuration remains unmodified.
+
+Then register and start the workspace:
+
+```bash
+# Register a workspace with the Podman runtime and Goose agent
+kortex-cli init /path/to/project --runtime podman --agent goose
+
+# Start the workspace
+kortex-cli start my-project
+
+# Connect — Goose starts with Vertex AI configured
+kortex-cli terminal my-project
+```
+
+#### Sharing Local Goose Settings
+
+To reuse your host Goose settings (model preferences, provider configuration, etc.) inside the workspace, mount the `~/.config/goose` directory.
+
+Edit `~/.kortex-cli/config/agents.json` to add the mount alongside the Vertex AI configuration:
+
+```json
+{
+  "goose": {
+    "environment": [
+      {
+        "name": "GOOSE_PROVIDER",
+        "value": "gcp_vertex_ai"
+      },
+      {
+        "name": "GCP_PROJECT_ID",
+        "value": "my-gcp-project"
+      },
+      {
+        "name": "GCP_LOCATION",
+        "value": "my-region"
+      }
+    ],
+    "mounts": [
+      {"host": "$HOME/.config/gcloud", "target": "$HOME/.config/gcloud"},
+      {"host": "$HOME/.config/goose", "target": "$HOME/.config/goose"}
+    ]
+  }
+}
+```
+
+The `~/.config/goose` directory contains your Goose configuration (settings, model preferences, etc.). It is mounted read-write so that changes made inside the workspace are persisted back to your host.
+
+#### Using Default Settings
+
+If you want to pre-configure Goose with default settings without exposing your local `~/.config/goose` directory inside the container, create default settings files that are baked into the container image at workspace registration time. This is an alternative to mounting your local Goose settings — use one approach or the other, not both.
+
+**Automatic Onboarding Skip**
+
+When you register a workspace with the Goose agent, kortex-cli automatically sets `GOOSE_TELEMETRY_ENABLED` to `false` in the Goose config file if it is not already defined, so Goose skips its telemetry prompt on first launch.
+
+**Step 1: Create the agent settings directory**
+
+```bash
+mkdir -p ~/.kortex-cli/config/goose/.config/goose
+```
+
+**Step 2: Write the default Goose settings file**
+
+As an example, you can configure the model and enable telemetry:
+
+```bash
+cat > ~/.kortex-cli/config/goose/.config/goose/config.yaml << 'EOF'
+GOOSE_MODEL: "claude-sonnet-4-6"
+GOOSE_TELEMETRY_ENABLED: true
+EOF
+```
+
+**Fields:**
+
+- `GOOSE_MODEL` - The model identifier Goose uses for its AI interactions
+- `GOOSE_TELEMETRY_ENABLED` - Whether Goose sends usage telemetry; set to `true` to opt in, or omit to have kortex-cli default it to `false`
+
+**Step 3: Register and start the workspace**
+
+```bash
+# Register a workspace — the settings file is embedded in the container image
+kortex-cli init /path/to/project --runtime podman --agent goose
+
+# Start the workspace
+kortex-cli start my-project
+
+# Connect — Goose starts with the configured provider and model
+kortex-cli terminal my-project
+```
+
+When `init` runs, kortex-cli:
+1. Reads all files from `~/.kortex-cli/config/goose/` (e.g., your provider and model settings)
+2. Automatically sets `GOOSE_TELEMETRY_ENABLED: false` in `.config/goose/config.yaml` if the key is not already defined
+3. Copies the final settings into the container image at `/home/agent/.config/goose/config.yaml`
+
+Goose finds this file on startup and uses the pre-configured settings without prompting.
+
+**Notes:**
+
+- **Telemetry is disabled automatically** — even if you don't create any settings files, kortex-cli ensures Goose starts without the telemetry prompt
+- If you prefer to enable telemetry, set `GOOSE_TELEMETRY_ENABLED: true` in `~/.kortex-cli/config/goose/.config/goose/config.yaml`
+- The settings are baked into the container image at `init` time, not mounted at runtime — changes to the files on the host require re-registering the workspace to take effect
+- Any file placed under `~/.kortex-cli/config/goose/` is copied into the container home directory, preserving the directory structure (e.g., `~/.kortex-cli/config/goose/.config/goose/config.yaml` becomes `/home/agent/.config/goose/config.yaml` inside the container)
+- This approach keeps your workspace self-contained — other developers using the same project are not affected, and your local `~/.config/goose` directory is not exposed inside the container
+- To apply changes to the settings, remove and re-register the workspace: `kortex-cli remove <workspace-id>` then `kortex-cli init` again
+
 ### Using Cursor CLI Agent
 
 This scenario demonstrates how to configure the Cursor agent in a kortex-cli workspace, covering API key injection, sharing your local Cursor settings, and pre-configuring the default model.
