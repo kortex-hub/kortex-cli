@@ -55,7 +55,20 @@ For supported agents (e.g., Claude), kortex-cli automatically modifies settings 
 
 This means you can optionally customize agent preferences (theme, etc.) in the settings files, and kortex-cli will automatically add the onboarding flags.
 
-**Implementation:** `manager.readAgentSettings(storageDir, agentName)` in `pkg/instances/manager.go` walks this directory and returns a `map[string][]byte` (relative forward-slash path → content). If the agent is registered in the agent registry, the manager calls the agent's `SkipOnboarding()` method to modify the settings. The final map is passed to the runtime via `runtime.CreateParams.AgentSettings`. The Podman runtime writes the files into the build context and adds a `COPY --chown=agent:agent agent-settings/. /home/agent/` instruction to the Containerfile.
+**Model Configuration:**
+
+When the `--model` flag is provided during `init`, kortex-cli calls the agent's `SetModel()` method to configure the model in the settings files:
+
+1. After `SkipOnboarding()` is called, if a model ID is specified, `SetModel()` is called
+2. The agent sets the appropriate model field in its settings:
+   - Claude: `model` field in `.claude/settings.json`
+   - Goose: `GOOSE_MODEL` field in `.config/goose/config.yaml`
+   - Cursor: `model` object in `.cursor/cli-config.json`
+3. The `--model` flag takes precedence over any model already defined in the settings files
+
+This allows users to quickly specify a model without manually editing settings files.
+
+**Implementation:** `manager.readAgentSettings(storageDir, agentName)` in `pkg/instances/manager.go` walks this directory and returns a `map[string][]byte` (relative forward-slash path → content). If the agent is registered in the agent registry, the manager calls the agent's `SkipOnboarding()` method to modify the settings. If a model ID is provided, the manager then calls the agent's `SetModel()` method to configure the model in the appropriate settings file. The final map is passed to the runtime via `runtime.CreateParams.AgentSettings`. The Podman runtime writes the files into the build context and adds a `COPY --chown=agent:agent agent-settings/. /home/agent/` instruction to the Containerfile.
 
 ## Key Components
 
@@ -254,6 +267,7 @@ addedInstance, err := manager.Add(ctx, instances.AddOptions{
     WorkspaceConfig: workspaceConfig,  // From .kortex/workspace.json or --workspace-configuration directory
     Project:         "custom-project",  // Optional override
     Agent:           "claude",          // Optional agent name
+    Model:           "claude-sonnet-4", // Optional model ID (takes precedence over settings)
 })
 ```
 
@@ -262,7 +276,9 @@ The Manager's `Add()` method:
 2. Loads project config (global `""` + project-specific merged)
 3. Loads agent config (if agent name provided)
 4. Merges configs: workspace → global → project → agent
-5. Passes merged config to runtime for injection into workspace
+5. Calls agent's `SkipOnboarding()` if agent is registered
+6. Calls agent's `SetModel()` if model is specified (takes precedence over settings)
+7. Passes merged config to runtime for injection into workspace
 
 ## Merging Behavior
 

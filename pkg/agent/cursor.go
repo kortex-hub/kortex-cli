@@ -25,6 +25,9 @@ import (
 	"time"
 )
 
+// CursorCLIConfigPath is the path to Cursor's CLI configuration file.
+const CursorCLIConfigPath = ".cursor/cli-config.json"
+
 // cursorAgent is the implementation of Agent for Cursor.
 type cursorAgent struct{}
 
@@ -63,6 +66,43 @@ func (c *cursorAgent) SkipOnboarding(settings map[string][]byte, workspaceSource
 	}
 
 	settings[filePath] = contentJSON
+	return settings, nil
+}
+
+// SetModel configures the model ID in Cursor settings.
+// It sets the model object in cli-config.json with the specified model ID.
+// All other fields in the settings file are preserved.
+func (c *cursorAgent) SetModel(settings map[string][]byte, modelID string) (map[string][]byte, error) {
+	if settings == nil {
+		settings = make(map[string][]byte)
+	}
+
+	var existingContent []byte
+	var exists bool
+	if existingContent, exists = settings[CursorCLIConfigPath]; !exists {
+		existingContent = []byte("{}")
+	}
+
+	var config map[string]interface{}
+	if err := json.Unmarshal(existingContent, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse existing %s: %w", CursorCLIConfigPath, err)
+	}
+
+	config["model"] = map[string]interface{}{
+		"modelId":          modelID,
+		"displayModelId":   modelID,
+		"displayName":      modelID,
+		"displayNameShort": modelID,
+		"maxMode":          false,
+	}
+	config["hasChangedDefaultModel"] = true
+
+	modifiedContent, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal modified %s: %w", CursorCLIConfigPath, err)
+	}
+
+	settings[CursorCLIConfigPath] = modifiedContent
 	return settings, nil
 }
 

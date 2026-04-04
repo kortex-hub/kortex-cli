@@ -184,7 +184,7 @@ To reuse your host Claude Code settings (preferences, custom instructions, etc.)
 - Run `gcloud auth application-default login` on your host machine before starting the workspace to ensure valid credentials are available
 - The `$HOME/.config/gcloud` mount is read-only to prevent the workspace from modifying your host credentials
 - No `ANTHROPIC_API_KEY` is needed when using Vertex AI — credentials are provided via the mounted gcloud configuration
-- To pin a specific Claude model, add a `ANTHROPIC_MODEL` environment variable (e.g., `"claude-opus-4-5"`)
+- To pin a specific Claude model, use `--model` flag during `init` (e.g., `--model claude-sonnet-4-20250514`), which takes precedence over any model in default settings, or add an `ANTHROPIC_MODEL` environment variable (e.g., `"claude-opus-4-5"`)
 
 ### Starting Claude with Default Settings
 
@@ -361,7 +361,7 @@ EOF
 
 **Fields:**
 
-- `GOOSE_MODEL` - The model identifier Goose uses for its AI interactions
+- `GOOSE_MODEL` - The model identifier Goose uses for its AI interactions. Alternatively, use `--model` flag during `init` to set this (the flag takes precedence over this setting)
 - `GOOSE_TELEMETRY_ENABLED` - Whether Goose sends usage telemetry; set to `true` to opt in, or omit to have kortex-cli default it to `false`
 
 **Step 3: Register and start the workspace**
@@ -496,23 +496,18 @@ Create or edit `~/.kortex-cli/config/agents.json` to inject the API key. No moun
 mkdir -p ~/.kortex-cli/config/cursor/.cursor
 ```
 
-**Step 3: Write the default Cursor settings file**
+**Step 3: Write the default Cursor settings file (optional)**
 
-As an example, you can configure a default model:
+You can optionally pre-configure Cursor with additional settings by creating a `cli-config.json` file:
 
 ```bash
 cat > ~/.kortex-cli/config/cursor/.cursor/cli-config.json << 'EOF'
 {
   "model": {
-    "modelId": "claude-4.5-opus-high-thinking",
-    "displayModelId": "claude-4.5-opus-high-thinking",
-    "displayName": "Opus 4.5 Thinking",
-    "displayNameShort": "Opus 4.5 Thinking",
-    "aliases": [
-      "opus",
-      "opus-4.5",
-      "opus-4-5"
-    ],
+    "modelId": "my-preferred-model",
+    "displayModelId": "my-preferred-model",
+    "displayName": "My Preferred Model",
+    "displayNameShort": "My Model",
     "maxMode": false
   },
   "hasChangedDefaultModel": true
@@ -524,14 +519,18 @@ EOF
 
 - `model.modelId` - The model identifier used internally by Cursor
 - `model.displayName` / `model.displayNameShort` - Human-readable model names shown in the UI
-- `model.aliases` - Shorthand names that can be used to reference the model
 - `model.maxMode` - Whether to enable max mode for this model
 - `hasChangedDefaultModel` - Tells Cursor that the model selection is intentional and should not prompt the user to choose a model
+
+**Note:** Using the `--model` flag during `init` is the preferred way to configure the model, as it automatically sets all model fields correctly.
 
 **Step 4: Register and start the workspace**
 
 ```bash
-# Register a workspace — the settings file is embedded in the container image
+# Register a workspace with a specific model using the --model flag (recommended)
+kortex-cli init /path/to/project --runtime podman --agent cursor --model my-model-id
+
+# Or register without --model to use settings from cli-config.json
 kortex-cli init /path/to/project --runtime podman --agent cursor
 
 # Start the workspace
@@ -542,14 +541,16 @@ kortex-cli terminal my-project
 ```
 
 When `init` runs, kortex-cli:
-1. Reads all files from `~/.kortex-cli/config/cursor/` (e.g., your model settings)
-2. Automatically creates the workspace trust file so Cursor skips its trust dialog
-3. Copies the final settings into the container image at `/home/agent/.cursor/cli-config.json`
+1. Reads all files from `~/.kortex-cli/config/cursor/` (e.g., your settings)
+2. If `--model` is specified, updates `cli-config.json` with the model configuration (takes precedence over any existing model in settings files)
+3. Automatically creates the workspace trust file so Cursor skips its trust dialog
+4. Copies the final settings into the container image at `/home/agent/.cursor/cli-config.json`
 
 Cursor finds this file on startup and uses the pre-configured model without prompting.
 
 **Notes:**
 
+- **Model configuration**: Use `--model` flag during `init` to set the model (e.g., `--model my-model-id`). This takes precedence over any model defined in settings files
 - The settings are baked into the container image at `init` time, not mounted at runtime — changes to the files on the host require re-registering the workspace to take effect
 - Any file placed under `~/.kortex-cli/config/cursor/` is copied into the container home directory, preserving the directory structure (e.g., `~/.kortex-cli/config/cursor/.cursor/cli-config.json` becomes `/home/agent/.cursor/cli-config.json` inside the container)
 - To apply changes to the settings, remove and re-register the workspace: `kortex-cli remove <workspace-id>` then `kortex-cli init` again
@@ -1872,6 +1873,7 @@ kortex-cli init [sources-directory] [flags]
 
 - `--runtime, -r <type>` - Runtime to use for the workspace (required if `KORTEX_CLI_DEFAULT_RUNTIME` is not set)
 - `--agent, -a <name>` - Agent to use for the workspace (required if `KORTEX_CLI_DEFAULT_AGENT` is not set)
+- `--model, -m <id>` - Model ID to configure for the agent (optional, uses agent's default if not specified)
 - `--workspace-configuration <path>` - Directory for workspace configuration files (default: `<sources-directory>/.kortex`)
 - `--name, -n <name>` - Human-readable name for the workspace (default: generated from sources directory)
 - `--project, -p <identifier>` - Custom project identifier to override auto-detection (default: auto-detected from git repository or source directory)
@@ -1907,6 +1909,11 @@ kortex-cli init /path/to/myproject --runtime podman --agent claude --project "my
 **Register with custom configuration location:**
 ```bash
 kortex-cli init /path/to/myproject --runtime podman --agent claude --workspace-configuration /path/to/config
+```
+
+**Register with a specific model:**
+```bash
+kortex-cli init /path/to/myproject --runtime podman --agent claude --model claude-sonnet-4-20250514
 ```
 
 **Register and start immediately:**
@@ -2073,6 +2080,7 @@ kortex-cli init /tmp/workspace --runtime podman --agent claude
 
 - **Runtime is required**: You must specify a runtime using either the `--runtime` flag or the `KORTEX_CLI_DEFAULT_RUNTIME` environment variable
 - **Agent is required**: You must specify an agent using either the `--agent` flag or the `KORTEX_CLI_DEFAULT_AGENT` environment variable
+- **Model is optional**: Use `--model` to specify a model ID for the agent. The flag takes precedence over any model defined in the agent's default settings files (`~/.kortex-cli/config/<agent>/`). If not provided, the agent uses its default model or the one configured in settings. All agents support model configuration: Claude (via `.claude/settings.json`), Goose (via `config.yaml`), and Cursor (via `.cursor/cli-config.json`)
 - **Project auto-detection**: The project identifier is automatically detected from git repository information or source directory path. Use `--project` flag to override with a custom identifier
 - **Auto-start**: Use the `--start` flag or set `KORTEX_CLI_INIT_AUTO_START=1` to automatically start the workspace after registration, combining `init` and `start` into a single operation
 - All directory paths are converted to absolute paths for consistency

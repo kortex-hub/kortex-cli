@@ -24,8 +24,10 @@ import (
 )
 
 const (
+	// ClaudeJSONPath is the relative path to the claude.json file.
+	ClaudeJSONPath = ".claude.json"
 	// ClaudeSettingsPath is the relative path to the Claude settings file.
-	ClaudeSettingsPath = ".claude.json"
+	ClaudeSettingsPath = ".claude/settings.json"
 )
 
 // claudeAgent is the implementation of Agent for Claude Code.
@@ -54,14 +56,14 @@ func (c *claudeAgent) SkipOnboarding(settings map[string][]byte, workspaceSource
 
 	var existingContent []byte
 	var exists bool
-	if existingContent, exists = settings[ClaudeSettingsPath]; !exists {
+	if existingContent, exists = settings[ClaudeJSONPath]; !exists {
 		existingContent = []byte("{}")
 	}
 
 	// Parse into map to preserve all unknown fields
 	var config map[string]interface{}
 	if err := json.Unmarshal(existingContent, &config); err != nil {
-		return nil, fmt.Errorf("failed to parse existing %s: %w", ClaudeSettingsPath, err)
+		return nil, fmt.Errorf("failed to parse existing %s: %w", ClaudeJSONPath, err)
 	}
 
 	// Set hasCompletedOnboarding
@@ -97,6 +99,36 @@ func (c *claudeAgent) SkipOnboarding(settings map[string][]byte, workspaceSource
 	projects[workspaceSourcesPath] = projectSettings
 
 	// Marshal final result
+	modifiedContent, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal modified %s: %w", ClaudeJSONPath, err)
+	}
+
+	settings[ClaudeJSONPath] = modifiedContent
+	return settings, nil
+}
+
+// SetModel configures the model ID in Claude settings.
+// It sets the model field in .claude/settings.json.
+// All other fields in the settings file are preserved.
+func (c *claudeAgent) SetModel(settings map[string][]byte, modelID string) (map[string][]byte, error) {
+	if settings == nil {
+		settings = make(map[string][]byte)
+	}
+
+	var existingContent []byte
+	var exists bool
+	if existingContent, exists = settings[ClaudeSettingsPath]; !exists {
+		existingContent = []byte("{}")
+	}
+
+	var config map[string]interface{}
+	if err := json.Unmarshal(existingContent, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse existing %s: %w", ClaudeSettingsPath, err)
+	}
+
+	config["model"] = modelID
+
 	modifiedContent, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal modified %s: %w", ClaudeSettingsPath, err)

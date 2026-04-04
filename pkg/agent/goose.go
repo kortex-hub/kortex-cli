@@ -29,6 +29,7 @@ const (
 	GooseConfigPath = ".config/goose/config.yaml"
 
 	gooseTelemetryKey = "GOOSE_TELEMETRY_ENABLED"
+	gooseModelKey     = "GOOSE_MODEL"
 )
 
 // gooseAgent is the implementation of Agent for Goose.
@@ -70,6 +71,35 @@ func (g *gooseAgent) SkipOnboarding(settings map[string][]byte, _ string) (map[s
 	if _, defined := config[gooseTelemetryKey]; !defined {
 		config[gooseTelemetryKey] = false
 	}
+
+	modifiedContent, err := yaml.Marshal(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal modified %s: %w", GooseConfigPath, err)
+	}
+
+	settings[GooseConfigPath] = modifiedContent
+	return settings, nil
+}
+
+// SetModel configures the model ID in Goose settings.
+// It sets the GOOSE_MODEL key in the config file.
+// All other fields in the settings file are preserved.
+func (g *gooseAgent) SetModel(settings map[string][]byte, modelID string) (map[string][]byte, error) {
+	if settings == nil {
+		settings = make(map[string][]byte)
+	}
+
+	var config map[string]interface{}
+	if content, exists := settings[GooseConfigPath]; exists {
+		if err := yaml.Unmarshal(content, &config); err != nil {
+			return nil, fmt.Errorf("failed to parse existing %s: %w", GooseConfigPath, err)
+		}
+	}
+	if config == nil {
+		config = make(map[string]interface{})
+	}
+
+	config[gooseModelKey] = modelID
 
 	modifiedContent, err := yaml.Marshal(config)
 	if err != nil {

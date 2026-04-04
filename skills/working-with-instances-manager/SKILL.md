@@ -52,6 +52,7 @@ addedInstance, err := manager.Add(ctx, instances.AddOptions{
     WorkspaceConfig: workspaceConfig,  // From .kortex/workspace.json
     Project:         "custom-project",  // Optional: overrides auto-detection
     Agent:           "claude",          // Optional: agent name for agent-specific config
+    Model:           "claude-sonnet-4", // Optional: model ID for agent (takes precedence over settings)
 })
 if err != nil {
     return fmt.Errorf("failed to add instance: %w", err)
@@ -65,7 +66,8 @@ The `Add()` method:
 4. Merges configs: workspace → global → project → agent
 5. Reads agent settings files from `<storage-dir>/config/<agent>/` into `map[string][]byte`
 6. Calls agent's `SkipOnboarding()` method if agent is registered (e.g., Claude agent automatically sets onboarding flags)
-7. Passes merged config and modified agent settings to runtime for injection into workspace
+7. Calls agent's `SetModel()` method if model is specified (takes precedence over model in settings files)
+8. Passes merged config and modified agent settings to runtime for injection into workspace
 
 ### List - Get All Instances
 

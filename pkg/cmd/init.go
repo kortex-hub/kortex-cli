@@ -43,6 +43,7 @@ type initCmd struct {
 	runtime            string
 	project            string
 	agent              string
+	model              string
 	absSourcesDir      string
 	absConfigDir       string
 	manager            instances.Manager
@@ -229,6 +230,7 @@ func (i *initCmd) run(cmd *cobra.Command, args []string) error {
 		WorkspaceConfig: i.workspaceConfig,
 		Project:         i.project,
 		Agent:           i.agent,
+		Model:           i.model,
 	})
 	if err != nil {
 		return outputErrorIfJSON(cmd, i.output, err)
@@ -310,6 +312,9 @@ kortex-cli init --runtime podman --agent claude --name my-project
 # Register with custom project identifier
 kortex-cli init --runtime podman --agent goose --project my-custom-project
 
+# Register with a specific model
+kortex-cli init --runtime podman --agent claude --model claude-sonnet-4-20250514
+
 # Register and start workspace
 kortex-cli init --runtime podman --agent claude --start
 
@@ -338,6 +343,9 @@ kortex-cli init --runtime podman --agent claude --show-logs`,
 
 	// Add agent flag
 	cmd.Flags().StringVarP(&c.agent, "agent", "a", "", "Agent name for loading agent-specific configuration (required if KORTEX_CLI_DEFAULT_AGENT is not set)")
+
+	// Add model flag
+	cmd.Flags().StringVarP(&c.model, "model", "m", "", "Model ID to configure for the agent (optional)")
 
 	// Add start flag
 	cmd.Flags().BoolVar(&c.start, "start", false, "Start the workspace after registration (can also be set via KORTEX_CLI_INIT_AUTO_START environment variable)")
