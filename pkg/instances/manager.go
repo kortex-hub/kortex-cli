@@ -56,6 +56,8 @@ type AddOptions struct {
 	Project string
 	// Agent is an optional agent name for loading agent-specific configuration
 	Agent string
+	// Model is an optional model ID to configure for the agent
+	Model string
 }
 
 // Manager handles instance storage and operations
@@ -230,6 +232,14 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 			agentSettings, err = agentImpl.SkipOnboarding(agentSettings, workspaceSourcesPath)
 			if err != nil {
 				return nil, fmt.Errorf("failed to apply agent onboarding settings: %w", err)
+			}
+
+			// Set model if specified
+			if opts.Model != "" {
+				agentSettings, err = agentImpl.SetModel(agentSettings, opts.Model)
+				if err != nil {
+					return nil, fmt.Errorf("failed to apply agent model settings: %w", err)
+				}
 			}
 		}
 		// If agent not found in registry, use settings as-is (not all agents may be implemented)

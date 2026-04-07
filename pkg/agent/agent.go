@@ -28,4 +28,10 @@ type Agent interface {
 	// onboarding flags set appropriately.
 	// Returns the modified settings map, or an error if modification fails.
 	SkipOnboarding(settings map[string][]byte, workspaceSourcesPath string) (map[string][]byte, error)
+	// SetModel configures the model ID in the agent settings.
+	// It takes the current agent settings map (path -> content) and the model ID,
+	// and returns the modified settings with the model configured.
+	// If the agent does not support model configuration, settings are returned unchanged.
+	// Returns the modified settings map, or an error if modification fails.
+	SetModel(settings map[string][]byte, modelID string) (map[string][]byte, error)
 }

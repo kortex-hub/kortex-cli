@@ -193,6 +193,98 @@ func (g *fakeSequentialGenerator) Generate() string {
 	return id
 }
 
+// trackingAgent is a test double for the Agent interface that tracks method calls
+type trackingAgent struct {
+	name                   string
+	skipOnboardingCalled   bool
+	skipOnboardingSettings map[string][]byte
+	skipOnboardingPath     string
+	setModelCalled         bool
+	setModelSettings       map[string][]byte
+	setModelID             string
+	mu                     sync.Mutex
+}
+
+// Compile-time check to ensure trackingAgent implements agent.Agent interface
+var _ agent.Agent = (*trackingAgent)(nil)
+
+func newTrackingAgent(name string) *trackingAgent {
+	return &trackingAgent{name: name}
+}
+
+func (t *trackingAgent) Name() string {
+	return t.name
+}
+
+func (t *trackingAgent) SkipOnboarding(settings map[string][]byte, workspaceSourcesPath string) (map[string][]byte, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.skipOnboardingCalled = true
+	t.skipOnboardingSettings = settings
+	t.skipOnboardingPath = workspaceSourcesPath
+	if settings == nil {
+		settings = make(map[string][]byte)
+	}
+	return settings, nil
+}
+
+func (t *trackingAgent) SetModel(settings map[string][]byte, modelID string) (map[string][]byte, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.setModelCalled = true
+	t.setModelSettings = settings
+	t.setModelID = modelID
+	if settings == nil {
+		settings = make(map[string][]byte)
+	}
+	return settings, nil
+}
+
+func (t *trackingAgent) WasSetModelCalled() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.setModelCalled
+}
+
+func (t *trackingAgent) GetSetModelID() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.setModelID
+}
+
+func (t *trackingAgent) WasSkipOnboardingCalled() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.skipOnboardingCalled
+}
+
+// erroringSetModelAgent is a test double that returns an error from SetModel
+type erroringSetModelAgent struct {
+	name string
+}
+
+// Compile-time check to ensure erroringSetModelAgent implements agent.Agent interface
+var _ agent.Agent = (*erroringSetModelAgent)(nil)
+
+func newErroringSetModelAgent(name string) *erroringSetModelAgent {
+	return &erroringSetModelAgent{name: name}
+}
+
+func (e *erroringSetModelAgent) Name() string {
+	return e.name
+}
+
+func (e *erroringSetModelAgent) SkipOnboarding(settings map[string][]byte, _ string) (map[string][]byte, error) {
+	if settings == nil {
+		settings = make(map[string][]byte)
+	}
+	return settings, nil
+}
+
+func (e *erroringSetModelAgent) SetModel(_ map[string][]byte, _ string) (map[string][]byte, error) {
+	return nil, errors.New("simulated SetModel error")
+}
+
 // newTestRegistry creates a runtime registry with a fake runtime for testing
 func newTestRegistry(storageDir string) runtime.Registry {
 	runtimesDir := filepath.Join(storageDir, RuntimesSubdirectory)
@@ -2836,6 +2928,264 @@ func TestManager_Add_AppliesAgentOnboarding(t *testing.T) {
 		// Verify error message mentions agent onboarding
 		if !strings.Contains(err.Error(), "agent onboarding") {
 			t.Errorf("Add() error = %q, want error containing 'agent onboarding'", err.Error())
+		}
+	})
+}
+
+func TestManager_Add_AppliesAgentModel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("calls agent SetModel when model is specified", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		manager, err := NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		// Register fake runtime
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		// Register tracking agent to verify SetModel is called
+		trackingAgent := newTrackingAgent("test-agent")
+		if err := manager.RegisterAgent("test-agent", trackingAgent); err != nil {
+			t.Fatalf("Failed to register tracking agent: %v", err)
+		}
+
+		// Create test instance
+		instanceTmpDir := t.TempDir()
+		sourceDir := filepath.Join(instanceTmpDir, "source")
+		configDir := filepath.Join(instanceTmpDir, "config")
+		if err := os.MkdirAll(sourceDir, 0755); err != nil {
+			t.Fatalf("Failed to create source directory: %v", err)
+		}
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			t.Fatalf("Failed to create config directory: %v", err)
+		}
+
+		inst, err := NewInstance(NewInstanceParams{
+			SourceDir: sourceDir,
+			ConfigDir: configDir,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance: %v", err)
+		}
+
+		// Add instance with agent and model
+		added, err := manager.Add(context.Background(), AddOptions{
+			Instance:    inst,
+			RuntimeType: "fake",
+			Agent:       "test-agent",
+			Model:       "model-from-flag",
+		})
+		if err != nil {
+			t.Fatalf("Add() error = %v", err)
+		}
+
+		// Verify instance was created
+		if added == nil {
+			t.Fatal("Add() returned nil instance")
+		}
+
+		// Verify SetModel was called
+		if !trackingAgent.WasSetModelCalled() {
+			t.Error("SetModel() was not called")
+		}
+
+		// Verify SetModel was called with the correct model ID
+		if trackingAgent.GetSetModelID() != "model-from-flag" {
+			t.Errorf("SetModel() called with model ID %q, want %q", trackingAgent.GetSetModelID(), "model-from-flag")
+		}
+
+		// Verify SkipOnboarding was also called
+		if !trackingAgent.WasSkipOnboardingCalled() {
+			t.Error("SkipOnboarding() was not called")
+		}
+	})
+
+	t.Run("does not call SetModel when model is empty", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		manager, err := NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		// Register fake runtime
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		// Register tracking agent to verify SetModel is not called
+		trackingAgent := newTrackingAgent("test-agent")
+		if err := manager.RegisterAgent("test-agent", trackingAgent); err != nil {
+			t.Fatalf("Failed to register tracking agent: %v", err)
+		}
+
+		// Create test instance
+		instanceTmpDir := t.TempDir()
+		sourceDir := filepath.Join(instanceTmpDir, "source")
+		configDir := filepath.Join(instanceTmpDir, "config")
+		if err := os.MkdirAll(sourceDir, 0755); err != nil {
+			t.Fatalf("Failed to create source directory: %v", err)
+		}
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			t.Fatalf("Failed to create config directory: %v", err)
+		}
+
+		inst, err := NewInstance(NewInstanceParams{
+			SourceDir: sourceDir,
+			ConfigDir: configDir,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance: %v", err)
+		}
+
+		// Add instance with agent but no model
+		added, err := manager.Add(context.Background(), AddOptions{
+			Instance:    inst,
+			RuntimeType: "fake",
+			Agent:       "test-agent",
+			Model:       "", // Empty model
+		})
+		if err != nil {
+			t.Fatalf("Add() error = %v", err)
+		}
+
+		// Verify instance was created
+		if added == nil {
+			t.Fatal("Add() returned nil instance")
+		}
+
+		// Verify SetModel was NOT called
+		if trackingAgent.WasSetModelCalled() {
+			t.Error("SetModel() should not be called when model is empty")
+		}
+
+		// Verify SkipOnboarding was still called
+		if !trackingAgent.WasSkipOnboardingCalled() {
+			t.Error("SkipOnboarding() was not called")
+		}
+	})
+
+	t.Run("does not call SetModel when agent is not registered", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		manager, err := NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		// Register fake runtime
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		// Note: Not registering any agent
+
+		// Create test instance
+		instanceTmpDir := t.TempDir()
+		sourceDir := filepath.Join(instanceTmpDir, "source")
+		configDir := filepath.Join(instanceTmpDir, "config")
+		if err := os.MkdirAll(sourceDir, 0755); err != nil {
+			t.Fatalf("Failed to create source directory: %v", err)
+		}
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			t.Fatalf("Failed to create config directory: %v", err)
+		}
+
+		inst, err := NewInstance(NewInstanceParams{
+			SourceDir: sourceDir,
+			ConfigDir: configDir,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance: %v", err)
+		}
+
+		// Add instance with unknown agent and model - should succeed (agent settings used as-is)
+		added, err := manager.Add(context.Background(), AddOptions{
+			Instance:    inst,
+			RuntimeType: "fake",
+			Agent:       "unknown-agent",
+			Model:       "some-model",
+		})
+		if err != nil {
+			t.Fatalf("Add() error = %v", err)
+		}
+
+		// Verify instance was created
+		if added == nil {
+			t.Fatal("Add() returned nil instance")
+		}
+
+		if added.GetID() == "" {
+			t.Error("Add() returned instance with empty ID")
+		}
+	})
+
+	t.Run("propagates SetModel errors", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		manager, err := NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		// Register fake runtime
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		// Register agent that errors on SetModel but not SkipOnboarding
+		erroringAgent := newErroringSetModelAgent("erroring-agent")
+		if err := manager.RegisterAgent("erroring-agent", erroringAgent); err != nil {
+			t.Fatalf("Failed to register erroring agent: %v", err)
+		}
+
+		// Create test instance
+		instanceTmpDir := t.TempDir()
+		sourceDir := filepath.Join(instanceTmpDir, "source")
+		configDir := filepath.Join(instanceTmpDir, "config")
+		if err := os.MkdirAll(sourceDir, 0755); err != nil {
+			t.Fatalf("Failed to create source directory: %v", err)
+		}
+		if err := os.MkdirAll(configDir, 0755); err != nil {
+			t.Fatalf("Failed to create config directory: %v", err)
+		}
+
+		inst, err := NewInstance(NewInstanceParams{
+			SourceDir: sourceDir,
+			ConfigDir: configDir,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance: %v", err)
+		}
+
+		// Add instance with erroring agent and model - should fail due to SetModel error
+		_, err = manager.Add(context.Background(), AddOptions{
+			Instance:    inst,
+			RuntimeType: "fake",
+			Agent:       "erroring-agent",
+			Model:       "some-model",
+		})
+		if err == nil {
+			t.Fatal("Add() should return error when SetModel fails")
+		}
+
+		// Verify error message mentions agent model settings
+		if !strings.Contains(err.Error(), "agent model settings") {
+			t.Errorf("Add() error = %q, want error containing 'agent model settings'", err.Error())
+		}
+
+		// Verify the underlying error is propagated
+		if !strings.Contains(err.Error(), "simulated SetModel error") {
+			t.Errorf("Add() error = %q, want error containing 'simulated SetModel error'", err.Error())
 		}
 	})
 }

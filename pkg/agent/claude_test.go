@@ -44,9 +44,9 @@ func TestClaude_SkipOnboarding_NoExistingSettings(t *testing.T) {
 	}
 
 	// Verify .claude.json was created
-	claudeJSON, exists := result[ClaudeSettingsPath]
+	claudeJSON, exists := result[ClaudeJSONPath]
 	if !exists {
-		t.Fatalf("Expected %s to be created", ClaudeSettingsPath)
+		t.Fatalf("Expected %s to be created", ClaudeJSONPath)
 	}
 
 	// Parse and verify content
@@ -90,8 +90,8 @@ func TestClaude_SkipOnboarding_NilSettings(t *testing.T) {
 		t.Fatal("Expected non-nil result map")
 	}
 
-	if _, exists := result[ClaudeSettingsPath]; !exists {
-		t.Errorf("Expected %s to be created", ClaudeSettingsPath)
+	if _, exists := result[ClaudeJSONPath]; !exists {
+		t.Errorf("Expected %s to be created", ClaudeJSONPath)
 	}
 }
 
@@ -123,7 +123,7 @@ func TestClaude_SkipOnboarding_PreservesUnknownFields(t *testing.T) {
 	}
 
 	settings := map[string][]byte{
-		ClaudeSettingsPath: existingJSON,
+		ClaudeJSONPath: existingJSON,
 	}
 
 	result, err := agent.SkipOnboarding(settings, "/workspace/sources")
@@ -133,7 +133,7 @@ func TestClaude_SkipOnboarding_PreservesUnknownFields(t *testing.T) {
 
 	// Parse result
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeSettingsPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -226,7 +226,7 @@ func TestClaude_SkipOnboarding_DifferentWorkspacePaths(t *testing.T) {
 			}
 
 			var config map[string]interface{}
-			if err := json.Unmarshal(result[ClaudeSettingsPath], &config); err != nil {
+			if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
 				t.Fatalf("Failed to parse result JSON: %v", err)
 			}
 
@@ -269,7 +269,7 @@ func TestClaude_SkipOnboarding_UpdatesExistingProject(t *testing.T) {
 	}
 
 	settings := map[string][]byte{
-		ClaudeSettingsPath: existingJSON,
+		ClaudeJSONPath: existingJSON,
 	}
 
 	result, err := agent.SkipOnboarding(settings, "/workspace/sources")
@@ -278,7 +278,7 @@ func TestClaude_SkipOnboarding_UpdatesExistingProject(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeSettingsPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -309,7 +309,7 @@ func TestClaude_SkipOnboarding_InvalidJSON(t *testing.T) {
 	agent := NewClaude()
 
 	settings := map[string][]byte{
-		ClaudeSettingsPath: []byte("invalid json {{{"),
+		ClaudeJSONPath: []byte("invalid json {{{"),
 	}
 
 	_, err := agent.SkipOnboarding(settings, "/workspace/sources")
@@ -330,7 +330,7 @@ func TestClaude_SkipOnboarding_EmptyWorkspacePath(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeSettingsPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -347,5 +347,149 @@ func TestClaude_SkipOnboarding_EmptyWorkspacePath(t *testing.T) {
 
 	if trust, ok := projectSettings["hasTrustDialogAccepted"].(bool); !ok || !trust {
 		t.Errorf("hasTrustDialogAccepted = %v, want true", projectSettings["hasTrustDialogAccepted"])
+	}
+}
+
+func TestClaude_SetModel_NoExistingSettings(t *testing.T) {
+	t.Parallel()
+
+	agent := NewClaude()
+	settings := make(map[string][]byte)
+
+	result, err := agent.SetModel(settings, "model-from-flag")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	claudeJSON, exists := result[ClaudeSettingsPath]
+	if !exists {
+		t.Fatalf("Expected %s to be created", ClaudeSettingsPath)
+	}
+
+	var config map[string]interface{}
+	if err := json.Unmarshal(claudeJSON, &config); err != nil {
+		t.Fatalf("Failed to parse result JSON: %v", err)
+	}
+
+	if model, ok := config["model"].(string); !ok || model != "model-from-flag" {
+		t.Errorf("model = %v, want %q", config["model"], "model-from-flag")
+	}
+}
+
+func TestClaude_SetModel_NilSettings(t *testing.T) {
+	t.Parallel()
+
+	agent := NewClaude()
+
+	result, err := agent.SetModel(nil, "model-from-flag")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Expected non-nil result map")
+	}
+
+	if _, exists := result[ClaudeSettingsPath]; !exists {
+		t.Errorf("Expected %s to be created", ClaudeSettingsPath)
+	}
+}
+
+func TestClaude_SetModel_PreservesExistingFields(t *testing.T) {
+	t.Parallel()
+
+	agent := NewClaude()
+
+	existingSettings := map[string]interface{}{
+		"customField":  "custom value",
+		"anotherField": 123,
+	}
+
+	existingJSON, err := json.Marshal(existingSettings)
+	if err != nil {
+		t.Fatalf("Failed to marshal existing settings: %v", err)
+	}
+
+	settings := map[string][]byte{
+		ClaudeSettingsPath: existingJSON,
+	}
+
+	result, err := agent.SetModel(settings, "model-from-flag")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := json.Unmarshal(result[ClaudeSettingsPath], &config); err != nil {
+		t.Fatalf("Failed to parse result JSON: %v", err)
+	}
+
+	// Verify model was set
+	if model, ok := config["model"].(string); !ok || model != "model-from-flag" {
+		t.Errorf("model = %v, want %q", config["model"], "model-from-flag")
+	}
+
+	// Verify existing fields are preserved
+	if customField, ok := config["customField"].(string); !ok || customField != "custom value" {
+		t.Errorf("customField = %v, want %q", config["customField"], "custom value")
+	}
+
+	if anotherField, ok := config["anotherField"].(float64); !ok || anotherField != 123 {
+		t.Errorf("anotherField = %v, want 123", config["anotherField"])
+	}
+}
+
+func TestClaude_SetModel_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
+	agent := NewClaude()
+
+	settings := map[string][]byte{
+		ClaudeSettingsPath: []byte("invalid json {{{"),
+	}
+
+	_, err := agent.SetModel(settings, "model-from-flag")
+	if err == nil {
+		t.Error("Expected error for invalid JSON, got nil")
+	}
+}
+
+func TestClaude_SetModel_OverwritesExistingModel(t *testing.T) {
+	t.Parallel()
+
+	agent := NewClaude()
+
+	existingSettings := map[string]interface{}{
+		"model":      "original-model",
+		"otherField": true,
+	}
+
+	existingJSON, err := json.Marshal(existingSettings)
+	if err != nil {
+		t.Fatalf("Failed to marshal existing settings: %v", err)
+	}
+
+	settings := map[string][]byte{
+		ClaudeSettingsPath: existingJSON,
+	}
+
+	result, err := agent.SetModel(settings, "model-from-flag")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := json.Unmarshal(result[ClaudeSettingsPath], &config); err != nil {
+		t.Fatalf("Failed to parse result JSON: %v", err)
+	}
+
+	// Verify model was overwritten
+	if model, ok := config["model"].(string); !ok || model != "model-from-flag" {
+		t.Errorf("model = %v, want %q (should overwrite existing)", config["model"], "model-from-flag")
+	}
+
+	// Verify other fields are preserved
+	if otherField, ok := config["otherField"].(bool); !ok || !otherField {
+		t.Errorf("otherField = %v, want true", config["otherField"])
 	}
 }

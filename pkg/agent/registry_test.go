@@ -32,7 +32,11 @@ func (f *fakeAgent) Name() string {
 	return f.name
 }
 
-func (f *fakeAgent) SkipOnboarding(settings map[string][]byte, workspaceSourcesPath string) (map[string][]byte, error) {
+func (f *fakeAgent) SkipOnboarding(settings map[string][]byte, _ string) (map[string][]byte, error) {
+	return settings, nil
+}
+
+func (f *fakeAgent) SetModel(settings map[string][]byte, _ string) (map[string][]byte, error) {
 	return settings, nil
 }
 

@@ -183,3 +183,129 @@ func TestGoose_SkipOnboarding_InvalidYAML(t *testing.T) {
 		t.Error("Expected error for invalid YAML, got nil")
 	}
 }
+
+func TestGoose_SetModel_NoExistingSettings(t *testing.T) {
+	t.Parallel()
+
+	agent := NewGoose()
+	settings := make(map[string][]byte)
+
+	result, err := agent.SetModel(settings, "model-from-flag")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	configYAML, exists := result[GooseConfigPath]
+	if !exists {
+		t.Fatalf("Expected %s to be created", GooseConfigPath)
+	}
+
+	var config map[string]interface{}
+	if err := yaml.Unmarshal(configYAML, &config); err != nil {
+		t.Fatalf("Failed to parse result YAML: %v", err)
+	}
+
+	if model, ok := config[gooseModelKey].(string); !ok || model != "model-from-flag" {
+		t.Errorf("%s = %v, want %q", gooseModelKey, config[gooseModelKey], "model-from-flag")
+	}
+}
+
+func TestGoose_SetModel_NilSettings(t *testing.T) {
+	t.Parallel()
+
+	agent := NewGoose()
+
+	result, err := agent.SetModel(nil, "model-from-flag")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Expected non-nil result map")
+	}
+
+	if _, exists := result[GooseConfigPath]; !exists {
+		t.Errorf("Expected %s to be created", GooseConfigPath)
+	}
+}
+
+func TestGoose_SetModel_PreservesExistingFields(t *testing.T) {
+	t.Parallel()
+
+	agent := NewGoose()
+
+	existingContent := []byte("GOOSE_TELEMETRY_ENABLED: false\nGOOSE_PROVIDER: \"anthropic\"\n")
+	settings := map[string][]byte{
+		GooseConfigPath: existingContent,
+	}
+
+	result, err := agent.SetModel(settings, "model-from-flag")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := yaml.Unmarshal(result[GooseConfigPath], &config); err != nil {
+		t.Fatalf("Failed to parse result YAML: %v", err)
+	}
+
+	// Verify model was set
+	if model, ok := config[gooseModelKey].(string); !ok || model != "model-from-flag" {
+		t.Errorf("%s = %v, want %q", gooseModelKey, config[gooseModelKey], "model-from-flag")
+	}
+
+	// Verify existing fields are preserved
+	if val, ok := config[gooseTelemetryKey]; !ok || val != false {
+		t.Errorf("%s = %v, want false", gooseTelemetryKey, val)
+	}
+
+	if provider, ok := config["GOOSE_PROVIDER"].(string); !ok || provider != "anthropic" {
+		t.Errorf("GOOSE_PROVIDER = %v, want %q", config["GOOSE_PROVIDER"], "anthropic")
+	}
+}
+
+func TestGoose_SetModel_InvalidYAML(t *testing.T) {
+	t.Parallel()
+
+	agent := NewGoose()
+
+	settings := map[string][]byte{
+		GooseConfigPath: []byte("invalid: yaml: :::"),
+	}
+
+	_, err := agent.SetModel(settings, "model-from-flag")
+	if err == nil {
+		t.Error("Expected error for invalid YAML, got nil")
+	}
+}
+
+func TestGoose_SetModel_OverwritesExistingModel(t *testing.T) {
+	t.Parallel()
+
+	agent := NewGoose()
+
+	existingContent := []byte("GOOSE_MODEL: \"original-model\"\nGOOSE_TELEMETRY_ENABLED: false\n")
+	settings := map[string][]byte{
+		GooseConfigPath: existingContent,
+	}
+
+	result, err := agent.SetModel(settings, "model-from-flag")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := yaml.Unmarshal(result[GooseConfigPath], &config); err != nil {
+		t.Fatalf("Failed to parse result YAML: %v", err)
+	}
+
+	// Verify model was overwritten
+	if model, ok := config[gooseModelKey].(string); !ok || model != "model-from-flag" {
+		t.Errorf("%s = %v, want %q (should overwrite existing)", gooseModelKey, config[gooseModelKey], "model-from-flag")
+	}
+
+	// Verify other fields are preserved
+	if val, ok := config[gooseTelemetryKey]; !ok || val != false {
+		t.Errorf("%s = %v, want false", gooseTelemetryKey, val)
+	}
+}

@@ -1833,6 +1833,72 @@ func TestInitCmd_E2E(t *testing.T) {
 		}
 	})
 
+	t.Run("registers workspace with model flag", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+		modelID := "model-from-flag"
+
+		rootCmd := NewRootCmd()
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir, "--model", modelID})
+
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		// Verify instance was created
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		instancesList, err := manager.List()
+		if err != nil {
+			t.Fatalf("Failed to list instances: %v", err)
+		}
+
+		if len(instancesList) != 1 {
+			t.Fatalf("Expected 1 instance, got %d", len(instancesList))
+		}
+
+		// Note: The model is passed to the agent's SetModel method and written to agent settings.
+		// The fake runtime doesn't persist agent settings, so we can only verify the command succeeded.
+		// The agent's SetModel functionality is tested in pkg/agent/*_test.go
+	})
+
+	t.Run("registers workspace with model flag using short form", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+		modelID := "model-from-short-flag"
+
+		rootCmd := NewRootCmd()
+		rootCmd.SetArgs([]string{"--storage", storageDir, "init", "--runtime", "fake", "--agent", "test-agent", sourcesDir, "-m", modelID})
+
+		err := rootCmd.Execute()
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		// Verify instance was created
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		instancesList, err := manager.List()
+		if err != nil {
+			t.Fatalf("Failed to list instances: %v", err)
+		}
+
+		if len(instancesList) != 1 {
+			t.Fatalf("Expected 1 instance, got %d", len(instancesList))
+		}
+	})
+
 	t.Run("registers and starts workspace with --start flag", func(t *testing.T) {
 		t.Parallel()
 
@@ -2280,7 +2346,7 @@ func TestInitCmd_Examples(t *testing.T) {
 	}
 
 	// Verify we have the expected number of examples
-	expectedCount := 7
+	expectedCount := 8
 	if len(commands) != expectedCount {
 		t.Errorf("Expected %d example commands, got %d", expectedCount, len(commands))
 	}
