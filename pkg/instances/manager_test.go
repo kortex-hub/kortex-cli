@@ -1877,7 +1877,7 @@ func TestManager_generateUniqueName(t *testing.T) {
 				ID:         "id1",
 				Name:       "myproject",
 				SourceDir:  "/home/user/myproject",
-				ConfigDir:  "/home/user/myproject/.kortex",
+				ConfigDir:  "/home/user/myproject/.kaiden",
 				Accessible: true,
 			}),
 		}

@@ -19,7 +19,7 @@ The config system manages **workspace configuration** for injecting environment 
 ## Overview
 
 The multi-level configuration system allows users to customize workspace settings at different levels:
-- **Workspace-level config** (`.kortex/workspace.json`) - Shared project configuration committed to repository
+- **Workspace-level config** (`.kaiden/workspace.json`) - Shared project configuration committed to repository
   - Can be configured using the `--workspace-configuration` flag of the `init` command (path to directory containing `workspace.json`)
 - **Project-specific config** (`~/.kortex-cli/config/projects.json`) - User's custom config for specific projects
 - **Global config** (empty string `""` key in `projects.json`) - Settings applied to all projects
@@ -85,7 +85,7 @@ All user-specific configuration files are stored under the storage directory (de
 
 - **Agent configs**: `<storage-dir>/config/agents.json`
 - **Project configs**: `<storage-dir>/config/projects.json`
-- **Workspace configs**: `.kortex/workspace.json` (in workspace directory)
+- **Workspace configs**: `.kaiden/workspace.json` (in workspace directory)
   - Created/configured via `kortex-cli init --workspace-configuration <directory-path>`
 
 ## Configuration Precedence
@@ -94,7 +94,7 @@ Configurations are merged from lowest to highest priority (highest wins):
 1. **Agent-specific configuration** (from `agents.json`) - HIGHEST PRIORITY
 2. **Project-specific configuration** (from `projects.json` using project ID)
 3. **Global project configuration** (from `projects.json` using empty string `""` key)
-4. **Workspace-level configuration** (from `.kortex/workspace.json`) - LOWEST PRIORITY
+4. **Workspace-level configuration** (from `.kaiden/workspace.json`) - LOWEST PRIORITY
 
 ## Configuration Structure
 
@@ -224,7 +224,7 @@ import (
 )
 
 // Create a config manager for a workspace
-cfg, err := config.NewConfig("/path/to/workspace/.kortex")
+cfg, err := config.NewConfig("/path/to/workspace/.kaiden")
 if err != nil {
     return err
 }
@@ -264,7 +264,7 @@ The Manager handles all configuration loading and merging automatically:
 addedInstance, err := manager.Add(ctx, instances.AddOptions{
     Instance:        instance,
     RuntimeType:     "fake",
-    WorkspaceConfig: workspaceConfig,  // From .kortex/workspace.json or --workspace-configuration directory
+    WorkspaceConfig: workspaceConfig,  // From .kaiden/workspace.json or --workspace-configuration directory
     Project:         "custom-project",  // Optional override
     Agent:           "claude",          // Optional agent name
     Model:           "claude-sonnet-4", // Optional model ID (takes precedence over settings)

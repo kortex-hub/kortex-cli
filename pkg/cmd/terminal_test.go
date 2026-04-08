@@ -108,7 +108,7 @@ func TestTerminalCmd_E2E(t *testing.T) {
 
 		storageDir := t.TempDir()
 		sourceDir := t.TempDir()
-		configDir := filepath.Join(sourceDir, ".kortex")
+		configDir := filepath.Join(sourceDir, ".kaiden")
 		os.MkdirAll(configDir, 0755)
 
 		// Initialize a workspace

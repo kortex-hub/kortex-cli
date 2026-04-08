@@ -30,7 +30,7 @@ func TestNewConfig(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		cfg, err := NewConfig(configDir)
 		if err != nil {
@@ -74,7 +74,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		// Create the config directory
 		err := os.MkdirAll(configDir, 0755)
@@ -131,7 +131,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		// Create the config directory but no workspace.json
 		err := os.MkdirAll(configDir, 0755)
@@ -154,7 +154,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		// Don't create the directory
 		cfg, err := NewConfig(configDir)
@@ -172,7 +172,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		// Create the config directory
 		err := os.MkdirAll(configDir, 0755)
@@ -205,7 +205,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		// Create the config directory
 		err := os.MkdirAll(configDir, 0755)
@@ -242,7 +242,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		// Create the config directory
 		err := os.MkdirAll(configDir, 0755)
@@ -285,7 +285,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		// Create the config directory
 		err := os.MkdirAll(configDir, 0755)
@@ -328,7 +328,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		// Create the config directory
 		err := os.MkdirAll(configDir, 0755)
@@ -371,7 +371,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		// Create the config directory
 		err := os.MkdirAll(configDir, 0755)
@@ -414,7 +414,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		// Create the config directory
 		err := os.MkdirAll(configDir, 0755)
@@ -456,7 +456,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		// Create the config directory
 		err := os.MkdirAll(configDir, 0755)
@@ -497,7 +497,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		// Create the config directory
 		err := os.MkdirAll(configDir, 0755)
@@ -539,7 +539,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		// Create the config directory
 		err := os.MkdirAll(configDir, 0755)
@@ -588,7 +588,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		// Create the config directory
 		err := os.MkdirAll(configDir, 0755)
@@ -630,7 +630,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		// Create the config directory
 		err := os.MkdirAll(configDir, 0755)
@@ -672,7 +672,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		// Create the config directory
 		err := os.MkdirAll(configDir, 0755)
@@ -714,7 +714,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		// Create the config directory
 		err := os.MkdirAll(configDir, 0755)
@@ -773,7 +773,7 @@ func TestConfig_Load(t *testing.T) {
 				t.Parallel()
 
 				tempDir := t.TempDir()
-				configDir := filepath.Join(tempDir, ".kortex")
+				configDir := filepath.Join(tempDir, ".kaiden")
 
 				// Create the config directory
 				err := os.MkdirAll(configDir, 0755)
@@ -818,7 +818,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		err := os.MkdirAll(configDir, 0755)
 		if err != nil {
@@ -854,7 +854,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		err := os.MkdirAll(configDir, 0755)
 		if err != nil {
@@ -890,7 +890,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		err := os.MkdirAll(configDir, 0755)
 		if err != nil {
@@ -926,7 +926,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		err := os.MkdirAll(configDir, 0755)
 		if err != nil {
@@ -962,7 +962,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		err := os.MkdirAll(configDir, 0755)
 		if err != nil {
@@ -998,7 +998,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		err := os.MkdirAll(configDir, 0755)
 		if err != nil {
@@ -1034,7 +1034,7 @@ func TestConfig_Load(t *testing.T) {
 		t.Parallel()
 
 		tempDir := t.TempDir()
-		configDir := filepath.Join(tempDir, ".kortex")
+		configDir := filepath.Join(tempDir, ".kaiden")
 
 		err := os.MkdirAll(configDir, 0755)
 		if err != nil {

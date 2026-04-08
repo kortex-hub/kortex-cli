@@ -31,7 +31,7 @@ Host paths run on the actual operating system (Windows, macOS, or Linux) and mus
 import "path/filepath"
 
 // GOOD: Host paths use filepath.Join
-configDir := filepath.Join(storageDir, ".kortex")
+configDir := filepath.Join(storageDir, ".kaiden")
 runtimeDir := filepath.Join(storageDir, "runtimes", "podman")
 ```
 
@@ -115,11 +115,11 @@ path := filepath.Join(dir, "subdir")  // ✅ Cross-platform
 import "path/filepath"
 
 // GOOD: Cross-platform host path construction
-configDir := filepath.Join(sourceDir, ".kortex")
+configDir := filepath.Join(sourceDir, ".kaiden")
 absPath, err := filepath.Abs(relativePath)
 
 // BAD: Hardcoded separator
-configDir := sourceDir + "/.kortex"  // Don't do this!
+configDir := sourceDir + "/.kaiden"  // Don't do this!
 ```
 
 ### Container Path Construction
@@ -303,7 +303,7 @@ func TestMyFunction_ReturnsPath(t *testing.T) {
     }
 
     // Build expected path using filepath.Join (host path)
-    expectedPath := filepath.Join(sourceDir, ".kortex")
+    expectedPath := filepath.Join(sourceDir, ".kaiden")
     if result != expectedPath {
         t.Errorf("Expected %s, got %s", expectedPath, result)
     }

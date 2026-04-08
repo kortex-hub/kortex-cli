@@ -258,7 +258,7 @@ func TestWorkspaceRemoveCmd_E2E(t *testing.T) {
 
 		instance, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourcesDir,
-			ConfigDir: filepath.Join(sourcesDir, ".kortex"),
+			ConfigDir: filepath.Join(sourcesDir, ".kaiden"),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create instance: %v", err)
@@ -298,7 +298,7 @@ func TestWorkspaceRemoveCmd_E2E(t *testing.T) {
 
 		instance, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourcesDir,
-			ConfigDir: filepath.Join(sourcesDir, ".kortex"),
+			ConfigDir: filepath.Join(sourcesDir, ".kaiden"),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create instance: %v", err)
@@ -390,7 +390,7 @@ func TestWorkspaceRemoveCmd_E2E(t *testing.T) {
 
 		instance1, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourcesDir1,
-			ConfigDir: filepath.Join(sourcesDir1, ".kortex"),
+			ConfigDir: filepath.Join(sourcesDir1, ".kaiden"),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create instance 1: %v", err)
@@ -398,7 +398,7 @@ func TestWorkspaceRemoveCmd_E2E(t *testing.T) {
 
 		instance2, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourcesDir2,
-			ConfigDir: filepath.Join(sourcesDir2, ".kortex"),
+			ConfigDir: filepath.Join(sourcesDir2, ".kaiden"),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create instance 2: %v", err)
@@ -473,7 +473,7 @@ func TestWorkspaceRemoveCmd_E2E(t *testing.T) {
 
 		instance, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourcesDir,
-			ConfigDir: filepath.Join(sourcesDir, ".kortex"),
+			ConfigDir: filepath.Join(sourcesDir, ".kaiden"),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create instance: %v", err)
@@ -534,7 +534,7 @@ func TestWorkspaceRemoveCmd_E2E(t *testing.T) {
 
 		instance, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourcesDir,
-			ConfigDir: filepath.Join(sourcesDir, ".kortex"),
+			ConfigDir: filepath.Join(sourcesDir, ".kaiden"),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create instance: %v", err)
@@ -660,7 +660,7 @@ func TestWorkspaceRemoveCmd_E2E(t *testing.T) {
 
 		instance1, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourcesDir1,
-			ConfigDir: filepath.Join(sourcesDir1, ".kortex"),
+			ConfigDir: filepath.Join(sourcesDir1, ".kaiden"),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create instance 1: %v", err)
@@ -668,7 +668,7 @@ func TestWorkspaceRemoveCmd_E2E(t *testing.T) {
 
 		instance2, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourcesDir2,
-			ConfigDir: filepath.Join(sourcesDir2, ".kortex"),
+			ConfigDir: filepath.Join(sourcesDir2, ".kaiden"),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create instance 2: %v", err)
@@ -744,7 +744,7 @@ func TestWorkspaceRemoveCmd_Force(t *testing.T) {
 
 		instance, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourcesDir,
-			ConfigDir: filepath.Join(sourcesDir, ".kortex"),
+			ConfigDir: filepath.Join(sourcesDir, ".kaiden"),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create instance: %v", err)
@@ -806,7 +806,7 @@ func TestWorkspaceRemoveCmd_Force(t *testing.T) {
 
 		instance, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourcesDir,
-			ConfigDir: filepath.Join(sourcesDir, ".kortex"),
+			ConfigDir: filepath.Join(sourcesDir, ".kaiden"),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create instance: %v", err)

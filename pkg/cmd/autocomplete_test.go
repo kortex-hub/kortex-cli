@@ -50,7 +50,7 @@ func TestCompleteNonRunningWorkspaceID(t *testing.T) {
 
 		// Add first instance
 		sourceDir1 := t.TempDir()
-		configDir1 := filepath.Join(sourceDir1, ".kortex")
+		configDir1 := filepath.Join(sourceDir1, ".kaiden")
 		instance1, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourceDir1,
 			ConfigDir: configDir1,
@@ -68,7 +68,7 @@ func TestCompleteNonRunningWorkspaceID(t *testing.T) {
 
 		// Add second instance
 		sourceDir2 := t.TempDir()
-		configDir2 := filepath.Join(sourceDir2, ".kortex")
+		configDir2 := filepath.Join(sourceDir2, ".kaiden")
 		instance2, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourceDir2,
 			ConfigDir: configDir2,
@@ -223,7 +223,7 @@ func TestCompleteRunningWorkspaceID(t *testing.T) {
 
 		// Add first instance
 		sourceDir1 := t.TempDir()
-		configDir1 := filepath.Join(sourceDir1, ".kortex")
+		configDir1 := filepath.Join(sourceDir1, ".kaiden")
 		instance1, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourceDir1,
 			ConfigDir: configDir1,
@@ -241,7 +241,7 @@ func TestCompleteRunningWorkspaceID(t *testing.T) {
 
 		// Add second instance (will remain non-running)
 		sourceDir2 := t.TempDir()
-		configDir2 := filepath.Join(sourceDir2, ".kortex")
+		configDir2 := filepath.Join(sourceDir2, ".kaiden")
 		instance2, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourceDir2,
 			ConfigDir: configDir2,
@@ -341,7 +341,7 @@ func TestCompleteRunningWorkspaceID(t *testing.T) {
 
 		// Add instance but don't start it
 		sourceDir := t.TempDir()
-		configDir := filepath.Join(sourceDir, ".kortex")
+		configDir := filepath.Join(sourceDir, ".kaiden")
 		instance, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourceDir,
 			ConfigDir: configDir,
@@ -472,7 +472,7 @@ func TestCompleteRemoveWorkspaceID(t *testing.T) {
 		sourceDir1 := t.TempDir()
 		instance1, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourceDir1,
-			ConfigDir: filepath.Join(sourceDir1, ".kortex"),
+			ConfigDir: filepath.Join(sourceDir1, ".kaiden"),
 		})
 		if err != nil {
 			t.Fatalf("failed to create instance1: %v", err)
@@ -485,7 +485,7 @@ func TestCompleteRemoveWorkspaceID(t *testing.T) {
 		sourceDir2 := t.TempDir()
 		instance2, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourceDir2,
-			ConfigDir: filepath.Join(sourceDir2, ".kortex"),
+			ConfigDir: filepath.Join(sourceDir2, ".kaiden"),
 		})
 		if err != nil {
 			t.Fatalf("failed to create instance2: %v", err)
@@ -557,7 +557,7 @@ func TestCompleteRemoveWorkspaceID(t *testing.T) {
 		sourceDir1 := t.TempDir()
 		instance1, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourceDir1,
-			ConfigDir: filepath.Join(sourceDir1, ".kortex"),
+			ConfigDir: filepath.Join(sourceDir1, ".kaiden"),
 		})
 		if err != nil {
 			t.Fatalf("failed to create instance1: %v", err)
@@ -570,7 +570,7 @@ func TestCompleteRemoveWorkspaceID(t *testing.T) {
 		sourceDir2 := t.TempDir()
 		instance2, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourceDir2,
-			ConfigDir: filepath.Join(sourceDir2, ".kortex"),
+			ConfigDir: filepath.Join(sourceDir2, ".kaiden"),
 		})
 		if err != nil {
 			t.Fatalf("failed to create instance2: %v", err)

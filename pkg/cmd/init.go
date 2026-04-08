@@ -159,9 +159,9 @@ func (i *initCmd) preRun(cmd *cobra.Command, args []string) error {
 		return outputErrorIfJSON(cmd, i.output, fmt.Errorf("sources path is not a directory: %s", i.absSourcesDir))
 	}
 
-	// If workspace-configuration flag was not explicitly set, default to .kortex/ inside sources directory
+	// If workspace-configuration flag was not explicitly set, default to .kaiden/ inside sources directory
 	if !cmd.Flags().Changed("workspace-configuration") {
-		i.workspaceConfigDir = filepath.Join(i.sourcesDir, ".kortex")
+		i.workspaceConfigDir = filepath.Join(i.sourcesDir, ".kaiden")
 	}
 
 	// Convert workspace config to absolute path
@@ -299,7 +299,7 @@ func NewInitCmd() *cobra.Command {
 		Long: `Register a new workspace with the specified sources directory and configuration location.
 
 The sources directory defaults to the current directory (.) if not specified.
-The workspace configuration directory defaults to .kortex/ inside the sources directory if not specified.`,
+The workspace configuration directory defaults to .kaiden/ inside the sources directory if not specified.`,
 		Example: `# Register current directory as workspace
 kortex-cli init --runtime podman --agent claude
 
@@ -329,7 +329,7 @@ kortex-cli init --runtime podman --agent claude --show-logs`,
 	}
 
 	// Add workspace-configuration flag
-	cmd.Flags().StringVar(&c.workspaceConfigDir, "workspace-configuration", "", "Directory for workspace configuration (default: <sources-directory>/.kortex)")
+	cmd.Flags().StringVar(&c.workspaceConfigDir, "workspace-configuration", "", "Directory for workspace configuration (default: <sources-directory>/.kaiden)")
 
 	// Add name flag
 	cmd.Flags().StringVarP(&c.name, "name", "n", "", "Name for the workspace (default: generated from sources directory)")

@@ -49,7 +49,7 @@ if err != nil {
 addedInstance, err := manager.Add(ctx, instances.AddOptions{
     Instance:        instance,
     RuntimeType:     "fake",
-    WorkspaceConfig: workspaceConfig,  // From .kortex/workspace.json
+    WorkspaceConfig: workspaceConfig,  // From .kaiden/workspace.json
     Project:         "custom-project",  // Optional: overrides auto-detection
     Agent:           "claude",          // Optional: agent name for agent-specific config
     Model:           "claude-sonnet-4", // Optional: model ID for agent (takes precedence over settings)

@@ -681,7 +681,7 @@ This results in the following layout:
 
 **Step 3: Configure the main branch mount in your local project config**
 
-If you want the agents to have access to the main branch (e.g., to compare changes), add the mount in `~/.kortex-cli/config/projects.json` under the project identifier. This keeps the configuration on your machine only — not all developers of the project may use worktrees, so it does not belong in the repository's `.kortex/workspace.json`.
+If you want the agents to have access to the main branch (e.g., to compare changes), add the mount in `~/.kortex-cli/config/projects.json` under the project identifier. This keeps the configuration on your machine only — not all developers of the project may use worktrees, so it does not belong in the repository's `.kaiden/workspace.json`.
 
 ```json
 {
@@ -768,7 +768,7 @@ $ kortex-cli init /path/to/another-project --runtime podman --agent claude -o js
   "state": "stopped",
   "paths": {
     "source": "/absolute/path/to/another-project",
-    "configuration": "/absolute/path/to/another-project/.kortex"
+    "configuration": "/absolute/path/to/another-project/.kaiden"
   }
 }
 ```
@@ -806,7 +806,7 @@ $ kortex-cli workspace list -o json
       "state": "running",
       "paths": {
         "source": "/absolute/path/to/project",
-        "configuration": "/absolute/path/to/project/.kortex"
+        "configuration": "/absolute/path/to/project/.kaiden"
       }
     },
     {
@@ -817,7 +817,7 @@ $ kortex-cli workspace list -o json
       "state": "stopped",
       "paths": {
         "source": "/absolute/path/to/another-project",
-        "configuration": "/absolute/path/to/another-project/.kortex"
+        "configuration": "/absolute/path/to/another-project/.kaiden"
       }
     }
   ]
@@ -885,7 +885,7 @@ $ kortex-cli workspace list -o json
       "state": "stopped",
       "paths": {
         "source": "/absolute/path/to/another-project",
-        "configuration": "/absolute/path/to/another-project/.kortex"
+        "configuration": "/absolute/path/to/another-project/.kaiden"
       }
     }
   ]
@@ -1391,13 +1391,13 @@ Configuration changes take effect when you **register a new workspace with `init
 
 ## Workspace Configuration
 
-Each workspace can optionally include a configuration file that customizes the environment and mount behavior for that specific workspace. The configuration is stored in a `workspace.json` file within the workspace's configuration directory (typically `.kortex` in the sources directory).
+Each workspace can optionally include a configuration file that customizes the environment and mount behavior for that specific workspace. The configuration is stored in a `workspace.json` file within the workspace's configuration directory (typically `.kaiden` in the sources directory).
 
 ### Configuration File Location
 
 By default, workspace configuration is stored at:
 ```text
-<sources-directory>/.kortex/workspace.json
+<sources-directory>/.kaiden/workspace.json
 ```
 
 The configuration directory (containing `workspace.json`) can be customized using the `--workspace-configuration` flag when registering a workspace with `init`. The flag accepts a directory path, not the file path itself.
@@ -1605,7 +1605,7 @@ kortex-cli supports configuration at multiple levels, allowing you to customize 
 
 ### Configuration Levels
 
-**1. Workspace Configuration** (`.kortex/workspace.json`)
+**1. Workspace Configuration** (`.kaiden/workspace.json`)
 - Stored in your project repository
 - Shared with all developers
 - Used by all agents
@@ -1633,7 +1633,7 @@ kortex-cli supports configuration at multiple levels, allowing you to customize 
 
 When registering a workspace, configurations are merged in this order (later configs override earlier ones):
 
-1. **Workspace** (`.kortex/workspace.json`) - Base configuration from repository
+1. **Workspace** (`.kaiden/workspace.json`) - Base configuration from repository
 2. **Global** (projects.json `""` key) - Your global settings for all projects
 3. **Project** (projects.json specific project) - Your settings for this project
 4. **Agent** (agents.json specific agent) - Your settings for this agent
@@ -1806,7 +1806,7 @@ The system works without any configuration files and merges only the ones that e
 
 ### Example: Complete Multi-Level Setup
 
-**Workspace config** (`.kortex/workspace.json` - committed to git):
+**Workspace config** (`.kaiden/workspace.json` - committed to git):
 ```json
 {
   "environment": [
@@ -1931,7 +1931,7 @@ kortex-cli init [sources-directory] [flags]
 - `--runtime, -r <type>` - Runtime to use for the workspace (required if `KORTEX_CLI_DEFAULT_RUNTIME` is not set)
 - `--agent, -a <name>` - Agent to use for the workspace (required if `KORTEX_CLI_DEFAULT_AGENT` is not set)
 - `--model, -m <id>` - Model ID to configure for the agent (optional, uses agent's default if not specified)
-- `--workspace-configuration <path>` - Directory for workspace configuration files (default: `<sources-directory>/.kortex`)
+- `--workspace-configuration <path>` - Directory for workspace configuration files (default: `<sources-directory>/.kaiden`)
 - `--name, -n <name>` - Human-readable name for the workspace (default: generated from sources directory)
 - `--project, -p <identifier>` - Custom project identifier to override auto-detection (default: auto-detected from git repository or source directory)
 - `--start` - Start the workspace after registration (can also be set via `KORTEX_CLI_INIT_AUTO_START` environment variable)
@@ -1998,7 +1998,7 @@ Registered workspace:
   Project: /absolute/path/to/myproject
   Agent: claude
   Sources directory: /absolute/path/to/myproject
-  Configuration directory: /absolute/path/to/myproject/.kortex
+  Configuration directory: /absolute/path/to/myproject/.kaiden
   State: stopped
 ```
 
@@ -2027,7 +2027,7 @@ Output:
   "state": "stopped",
   "paths": {
     "source": "/absolute/path/to/myproject",
-    "configuration": "/absolute/path/to/myproject/.kortex"
+    "configuration": "/absolute/path/to/myproject/.kaiden"
   }
 }
 ```
@@ -2143,7 +2143,7 @@ kortex-cli init /tmp/workspace --runtime podman --agent claude
 - All directory paths are converted to absolute paths for consistency
 - The workspace ID is a unique identifier generated automatically
 - Workspaces can be listed using the `workspace list` command
-- The default configuration directory (`.kortex`) is created inside the sources directory unless specified otherwise
+- The default configuration directory (`.kaiden`) is created inside the sources directory unless specified otherwise
 - JSON output format is useful for scripting and automation
 - Without `--verbose`, JSON output returns only the workspace ID
 - With `--verbose`, JSON output includes full workspace details (ID, name, agent, paths)
@@ -2179,7 +2179,7 @@ ID: a1b2c3d4e5f6...
   Project: /absolute/path/to/myproject
   Agent: claude
   Sources: /absolute/path/to/myproject
-  Configuration: /absolute/path/to/myproject/.kortex
+  Configuration: /absolute/path/to/myproject/.kaiden
   State: running
 
 ID: f6e5d4c3b2a1...
@@ -2187,7 +2187,7 @@ ID: f6e5d4c3b2a1...
   Project: /absolute/path/to/another-project
   Agent: goose
   Sources: /absolute/path/to/another-project
-  Configuration: /absolute/path/to/another-project/.kortex
+  Configuration: /absolute/path/to/another-project/.kaiden
   State: stopped
 ```
 
@@ -2212,7 +2212,7 @@ Output:
       "state": "running",
       "paths": {
         "source": "/absolute/path/to/myproject",
-        "configuration": "/absolute/path/to/myproject/.kortex"
+        "configuration": "/absolute/path/to/myproject/.kaiden"
       }
     },
     {
@@ -2223,7 +2223,7 @@ Output:
       "state": "stopped",
       "paths": {
         "source": "/absolute/path/to/another-project",
-        "configuration": "/absolute/path/to/another-project/.kortex"
+        "configuration": "/absolute/path/to/another-project/.kaiden"
       }
     }
   ]

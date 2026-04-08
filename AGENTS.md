@@ -139,7 +139,7 @@ When designing JSON storage structures for persistent data, use **nested objects
   "id": "dc610bffa75f21b5b043f98aff12b157fb16fae6c0ac3139c28f85d6defbe017",
   "paths": {
     "source": "/Users/user/project",
-    "configuration": "/Users/user/project/.kortex"
+    "configuration": "/Users/user/project/.kaiden"
   }
 }
 ```
@@ -206,7 +206,7 @@ type Logger interface {
 The config system manages workspace configuration for **injecting environment variables and mounting directories** into workspaces (different from runtime-specific configuration).
 
 **Multi-Level Configuration:**
-- **Workspace-level** (`.kortex/workspace.json`) - Project configuration, set via `--workspace-configuration` flag
+- **Workspace-level** (`.kaiden/workspace.json`) - Project configuration, set via `--workspace-configuration` flag
 - **Project-specific** (`~/.kortex-cli/config/projects.json`) - User's custom config for specific projects
 - **Global** (empty string `""` key in `projects.json`) - Settings applied to all projects
 - **Agent-specific** (`~/.kortex-cli/config/agents.json`) - Per-agent overrides
@@ -316,7 +316,7 @@ import (
 )
 
 // Host path (cross-platform)
-configDir := filepath.Join(storageDir, ".kortex")
+configDir := filepath.Join(storageDir, ".kaiden")
 
 // Container path (always Unix)
 workspacePath := path.Join("/workspace", "sources")

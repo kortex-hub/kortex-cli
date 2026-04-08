@@ -50,7 +50,7 @@ type AddOptions struct {
 	Instance Instance
 	// RuntimeType is the type of runtime to use
 	RuntimeType string
-	// WorkspaceConfig is the workspace-level configuration from .kortex/workspace.json (optional, can be nil)
+	// WorkspaceConfig is the workspace-level configuration from .kaiden/workspace.json (optional, can be nil)
 	WorkspaceConfig *workspace.WorkspaceConfiguration
 	// Project is an optional custom project identifier to override auto-detection
 	Project string

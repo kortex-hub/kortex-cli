@@ -114,7 +114,7 @@ func TestCommands_OutputToStdout(t *testing.T) {
 
 		instance, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourcesDir,
-			ConfigDir: filepath.Join(sourcesDir, ".kortex"),
+			ConfigDir: filepath.Join(sourcesDir, ".kaiden"),
 			Name:      "test-workspace",
 		})
 		if err != nil {
@@ -195,7 +195,7 @@ func TestCommands_OutputToStdout(t *testing.T) {
 
 		instance, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourcesDir,
-			ConfigDir: filepath.Join(sourcesDir, ".kortex"),
+			ConfigDir: filepath.Join(sourcesDir, ".kaiden"),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create instance: %v", err)
@@ -249,7 +249,7 @@ func TestCommands_OutputToStdout(t *testing.T) {
 
 		instance, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourcesDir,
-			ConfigDir: filepath.Join(sourcesDir, ".kortex"),
+			ConfigDir: filepath.Join(sourcesDir, ".kaiden"),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create instance: %v", err)
@@ -307,7 +307,7 @@ func TestCommands_OutputToStdout(t *testing.T) {
 
 		instance, err := instances.NewInstance(instances.NewInstanceParams{
 			SourceDir: sourcesDir,
-			ConfigDir: filepath.Join(sourcesDir, ".kortex"),
+			ConfigDir: filepath.Join(sourcesDir, ".kaiden"),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create instance: %v", err)

@@ -48,7 +48,7 @@ var (
 )
 
 // Config represents a workspace configuration manager.
-// It manages the structure and contents of a workspace configuration directory (typically .kortex).
+// It manages the structure and contents of a workspace configuration directory (typically .kaiden).
 // If the configuration directory does not exist, the config is considered empty.
 type Config interface {
 	// Load reads and parses the workspace configuration from workspace.json.

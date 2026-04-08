@@ -68,7 +68,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 			t.Errorf("Expected absSourcesDir to be %s, got %s", expectedAbsSourcesDir, c.absSourcesDir)
 		}
 
-		expectedConfigDir := filepath.Join(".", ".kortex")
+		expectedConfigDir := filepath.Join(".", ".kaiden")
 		if c.workspaceConfigDir != expectedConfigDir {
 			t.Errorf("Expected workspaceConfigDir to be %s, got %s", expectedConfigDir, c.workspaceConfigDir)
 		}
@@ -113,7 +113,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 			t.Errorf("Expected absSourcesDir to be %s, got %s", expectedAbsSourcesDir, c.absSourcesDir)
 		}
 
-		expectedConfigDir := filepath.Join(sourcesDir, ".kortex")
+		expectedConfigDir := filepath.Join(sourcesDir, ".kaiden")
 		if c.workspaceConfigDir != expectedConfigDir {
 			t.Errorf("Expected workspaceConfigDir to be %s, got %s", expectedConfigDir, c.workspaceConfigDir)
 		}
@@ -270,7 +270,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 			t.Errorf("Expected absSourcesDir to be %s, got %s", expectedAbsSourcesDir, c.absSourcesDir)
 		}
 
-		expectedConfigDir := filepath.Join(relativePath, ".kortex")
+		expectedConfigDir := filepath.Join(relativePath, ".kaiden")
 		if c.workspaceConfigDir != expectedConfigDir {
 			t.Errorf("Expected workspaceConfigDir to be %s, got %s", expectedConfigDir, c.workspaceConfigDir)
 		}
@@ -647,7 +647,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 
 		tempDir := t.TempDir()
 		sourcesDir := t.TempDir()
-		configDir := filepath.Join(sourcesDir, ".kortex")
+		configDir := filepath.Join(sourcesDir, ".kaiden")
 
 		// Create config directory with valid workspace.json
 		err := os.MkdirAll(configDir, 0755)
@@ -693,7 +693,7 @@ func TestInitCmd_PreRun(t *testing.T) {
 
 		tempDir := t.TempDir()
 		sourcesDir := t.TempDir()
-		configDir := filepath.Join(sourcesDir, ".kortex")
+		configDir := filepath.Join(sourcesDir, ".kaiden")
 
 		// Create config directory with invalid workspace.json (both value and secret)
 		err := os.MkdirAll(configDir, 0755)
@@ -953,8 +953,8 @@ func TestInitCmd_E2E(t *testing.T) {
 			t.Errorf("Expected source dir %s, got %s", expectedAbsSourcesDir, inst.GetSourceDir())
 		}
 
-		// Verify config directory defaults to .kortex in current directory
-		expectedConfigDir := filepath.Join(expectedAbsSourcesDir, ".kortex")
+		// Verify config directory defaults to .kaiden in current directory
+		expectedConfigDir := filepath.Join(expectedAbsSourcesDir, ".kaiden")
 		if inst.GetConfigDir() != expectedConfigDir {
 			t.Errorf("Expected config dir %s, got %s", expectedConfigDir, inst.GetConfigDir())
 		}
@@ -1017,7 +1017,7 @@ func TestInitCmd_E2E(t *testing.T) {
 			t.Errorf("Expected source dir %s, got %s", expectedAbsSourcesDir, inst.GetSourceDir())
 		}
 
-		expectedConfigDir := filepath.Join(expectedAbsSourcesDir, ".kortex")
+		expectedConfigDir := filepath.Join(expectedAbsSourcesDir, ".kaiden")
 		if inst.GetConfigDir() != expectedConfigDir {
 			t.Errorf("Expected config dir %s, got %s", expectedConfigDir, inst.GetConfigDir())
 		}
@@ -1221,7 +1221,7 @@ func TestInitCmd_E2E(t *testing.T) {
 			if inst.GetSourceDir() == expectedAbsSourcesDir1 {
 				foundDir1 = true
 				// Verify config dir for first workspace
-				expectedConfigDir1 := filepath.Join(expectedAbsSourcesDir1, ".kortex")
+				expectedConfigDir1 := filepath.Join(expectedAbsSourcesDir1, ".kaiden")
 				if inst.GetConfigDir() != expectedConfigDir1 {
 					t.Errorf("Expected config dir %s for first workspace, got %s", expectedConfigDir1, inst.GetConfigDir())
 				}
@@ -1229,7 +1229,7 @@ func TestInitCmd_E2E(t *testing.T) {
 			if inst.GetSourceDir() == expectedAbsSourcesDir2 {
 				foundDir2 = true
 				// Verify config dir for second workspace
-				expectedConfigDir2 := filepath.Join(expectedAbsSourcesDir2, ".kortex")
+				expectedConfigDir2 := filepath.Join(expectedAbsSourcesDir2, ".kaiden")
 				if inst.GetConfigDir() != expectedConfigDir2 {
 					t.Errorf("Expected config dir %s for second workspace, got %s", expectedConfigDir2, inst.GetConfigDir())
 				}
@@ -1310,7 +1310,7 @@ func TestInitCmd_E2E(t *testing.T) {
 			t.Errorf("Expected verbose output to contain sources directory %s, got: %s", expectedAbsSourcesDir, output)
 		}
 
-		expectedConfigDir := filepath.Join(expectedAbsSourcesDir, ".kortex")
+		expectedConfigDir := filepath.Join(expectedAbsSourcesDir, ".kaiden")
 		if !strings.Contains(output, expectedConfigDir) {
 			t.Errorf("Expected verbose output to contain config directory %s, got: %s", expectedConfigDir, output)
 		}
@@ -2197,7 +2197,7 @@ func TestInitCmd_MultiLevelConfig(t *testing.T) {
 		sourcesDir := t.TempDir()
 
 		// Create workspace config
-		workspaceConfigDir := filepath.Join(sourcesDir, ".kortex")
+		workspaceConfigDir := filepath.Join(sourcesDir, ".kaiden")
 		if err := os.MkdirAll(workspaceConfigDir, 0755); err != nil {
 			t.Fatalf("Failed to create workspace config dir: %v", err)
 		}
