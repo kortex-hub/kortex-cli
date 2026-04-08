@@ -4,7 +4,7 @@ This file provides guidance to AI agents when working with code in this reposito
 
 ## Project Overview
 
-kortex-cli is a command-line interface for launching and managing AI agents (Claude Code, Goose, Cursor) with custom configurations. It provides a unified way to start different agents with specific settings including skills, MCP server connections, and LLM integrations.
+kdn is a command-line interface for launching and managing AI agents (Claude Code, Goose, Cursor) with custom configurations. It provides a unified way to start different agents with specific settings including skills, MCP server connections, and LLM integrations.
 
 ## Build and Test Commands
 
@@ -16,14 +16,14 @@ make build
 ```
 
 ### Execute
-After building, the `kortex-cli` binary will be created in the current directory:
+After building, the `kdn` binary will be created in the current directory:
 
 ```bash
 # Display help and available commands
-./kortex-cli --help
+./kdn --help
 
 # Execute a specific command
-./kortex-cli <command> [flags]
+./kdn <command> [flags]
 ```
 
 ### Run Tests
@@ -73,7 +73,7 @@ make install
 ## Architecture
 
 ### Command Structure (Cobra-based)
-- Entry point: `cmd/kortex-cli/main.go` → calls `cmd.NewRootCmd().Execute()` and handles errors with `os.Exit(1)`
+- Entry point: `cmd/kdn/main.go` → calls `cmd.NewRootCmd().Execute()` and handles errors with `os.Exit(1)`
 - Root command: `pkg/cmd/root.go` exports `NewRootCmd()` which creates and configures the root command
 - Subcommands: Each command is in `pkg/cmd/<command>.go` with a `New<Command>Cmd()` factory function
 - Commands use a factory pattern: each command exports a `New<Command>Cmd()` function that returns `*cobra.Command`
@@ -84,7 +84,7 @@ make install
 Global flags are defined as persistent flags in `pkg/cmd/root.go` and are available to all commands.
 
 #### Accessing the --storage Flag
-The `--storage` flag specifies the directory where kortex-cli stores all its files. The default path is computed at runtime using `os.UserHomeDir()` and `filepath.Join()` to ensure cross-platform compatibility (Linux, macOS, Windows). The default is `$HOME/.kortex-cli` with a fallback to `.kortex-cli` in the current directory if the home directory cannot be determined.
+The `--storage` flag specifies the directory where kdn stores all its files. The default path is computed at runtime using `os.UserHomeDir()` and `filepath.Join()` to ensure cross-platform compatibility (Linux, macOS, Windows). The default is `$HOME/.kortex-cli` with a fallback to `.kortex-cli` in the current directory if the home directory cannot be determined.
 
 **Environment Variable**: The `KORTEX_CLI_STORAGE` environment variable can be used to set the storage directory path. The flag `--storage` will override the environment variable if both are specified.
 

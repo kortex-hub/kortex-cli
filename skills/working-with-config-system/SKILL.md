@@ -29,7 +29,7 @@ These configurations control what gets injected **into** workspaces (environment
 
 ## Agent Default Settings Files
 
-In addition to the env/mount configuration above, kortex-cli supports **default settings files** that are baked directly into the workspace image at `init` time.
+In addition to the env/mount configuration above, kdn supports **default settings files** that are baked directly into the workspace image at `init` time.
 
 **Location:** `~/.kortex-cli/config/<agent>/` (one directory per agent name)
 
@@ -46,18 +46,18 @@ This is distinct from `agents.json`:
 
 **Automatic Onboarding Configuration:**
 
-For supported agents (e.g., Claude), kortex-cli automatically modifies settings files to skip onboarding prompts:
+For supported agents (e.g., Claude), kdn automatically modifies settings files to skip onboarding prompts:
 
 1. Files are read from `config/<agent>/` (e.g., `config/claude/.claude.json`)
 2. If the agent is registered, its `SkipOnboarding()` method is called
 3. The agent automatically adds necessary flags (e.g., `hasCompletedOnboarding`, `hasTrustDialogAccepted`)
 4. Modified settings are embedded into the container image
 
-This means you can optionally customize agent preferences (theme, etc.) in the settings files, and kortex-cli will automatically add the onboarding flags.
+This means you can optionally customize agent preferences (theme, etc.) in the settings files, and kdn will automatically add the onboarding flags.
 
 **Model Configuration:**
 
-When the `--model` flag is provided during `init`, kortex-cli calls the agent's `SetModel()` method to configure the model in the settings files:
+When the `--model` flag is provided during `init`, kdn calls the agent's `SetModel()` method to configure the model in the settings files:
 
 1. After `SkipOnboarding()` is called, if a model ID is specified, `SetModel()` is called
 2. The agent sets the appropriate model field in its settings:
@@ -86,7 +86,7 @@ All user-specific configuration files are stored under the storage directory (de
 - **Agent configs**: `<storage-dir>/config/agents.json`
 - **Project configs**: `<storage-dir>/config/projects.json`
 - **Workspace configs**: `.kaiden/workspace.json` (in workspace directory)
-  - Created/configured via `kortex-cli init --workspace-configuration <directory-path>`
+  - Created/configured via `kdn init --workspace-configuration <directory-path>`
 
 ## Configuration Precedence
 
@@ -129,7 +129,7 @@ Use the `--workspace-configuration` flag with the `init` command to specify a di
 
 ```bash
 # Create workspace with custom configuration directory
-kortex-cli init /path/to/workspace --workspace-configuration /path/to/config-dir
+kdn init /path/to/workspace --workspace-configuration /path/to/config-dir
 # This will look for /path/to/config-dir/workspace.json
 ```
 

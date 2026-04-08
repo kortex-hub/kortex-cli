@@ -33,10 +33,10 @@ func New<Parent>Cmd() *cobra.Command {
         Short: "Short description of the parent command category",
         Long:  `Long description explaining what this command category does and what subcommands are available.`,
         Example: `# Show available subcommands
-kortex-cli <parent> --help
+kdn <parent> --help
 
 # Execute a subcommand
-kortex-cli <parent> <subcommand>`,
+kdn <parent> <subcommand>`,
         Args: cobra.NoArgs,  // Parent commands typically don't accept args directly
     }
 
@@ -66,13 +66,13 @@ func NewWorkspaceCmd() *cobra.Command {
 
 Use these commands to initialize, list, and remove workspace configurations.`,
         Example: `# Show available workspace subcommands
-kortex-cli workspace --help
+kdn workspace --help
 
 # List all workspaces
-kortex-cli workspace list
+kdn workspace list
 
 # Remove a workspace
-kortex-cli workspace remove <id>`,
+kdn workspace remove <id>`,
         Args: cobra.NoArgs,
     }
 
@@ -113,10 +113,10 @@ func NewWorkspaceListCmd() *cobra.Command {
         Short: "List all workspaces",
         Long:  `List all initialized workspace instances with their details.`,
         Example: `# List all workspaces
-kortex-cli workspace list
+kdn workspace list
 
 # List with JSON output
-kortex-cli workspace list --output json`,
+kdn workspace list --output json`,
         Args:    cobra.NoArgs,
         PreRunE: c.preRun,
         RunE:    c.run,
@@ -357,16 +357,16 @@ func NewWorkspaceCmd() *cobra.Command {
 Use these commands to initialize new workspaces, list existing ones, and remove
 workspaces that are no longer needed.`,
         Example: `# Show available workspace subcommands
-kortex-cli workspace --help
+kdn workspace --help
 
 # List all workspaces
-kortex-cli workspace list
+kdn workspace list
 
 # Remove a workspace
-kortex-cli workspace remove <id>
+kdn workspace remove <id>
 
 # Initialize a new workspace
-kortex-cli workspace init /path/to/project`,
+kdn workspace init /path/to/project`,
         Args: cobra.NoArgs,
     }
 

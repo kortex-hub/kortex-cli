@@ -1,6 +1,6 @@
 ---
 name: working-with-runtime-system
-description: Guide to understanding and working with the kortex-cli runtime system architecture
+description: Guide to understanding and working with the kdn runtime system architecture
 argument-hint: ""
 ---
 
@@ -10,7 +10,7 @@ The runtime system provides a pluggable architecture for managing workspaces on 
 
 ## Overview
 
-The runtime system enables kortex-cli to support multiple backend platforms through a common interface. Each runtime implementation handles the platform-specific details of creating, starting, stopping, and managing workspace instances.
+The runtime system enables kdn to support multiple backend platforms through a common interface. Each runtime implementation handles the platform-specific details of creating, starting, stopping, and managing workspace instances.
 
 ## Key Components
 

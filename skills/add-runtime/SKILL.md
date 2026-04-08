@@ -1,12 +1,12 @@
 ---
 name: add-runtime
-description: Add a new runtime implementation to the kortex-cli runtime system
+description: Add a new runtime implementation to the kdn runtime system
 argument-hint: <runtime-name>
 ---
 
 # Add Runtime Skill
 
-This skill guides you through adding a new runtime implementation to the kortex-cli runtime system.
+This skill guides you through adding a new runtime implementation to the kdn runtime system.
 
 ## What are Runtimes?
 
@@ -394,7 +394,7 @@ make test
 make build
 
 # Test with CLI (if runtime is available on your system)
-./kortex-cli init --runtime <runtime-name>
+./kdn init --runtime <runtime-name>
 ```
 
 ## Required Interfaces
@@ -597,16 +597,16 @@ After implementing a Podman runtime:
 
 ```bash
 # Initialize workspace with Podman runtime
-./kortex-cli init --runtime podman
+./kdn init --runtime podman
 
 # Start workspace
-./kortex-cli workspace start <workspace-id>
+./kdn workspace start <workspace-id>
 
 # Stop workspace
-./kortex-cli workspace stop <workspace-id>
+./kdn workspace stop <workspace-id>
 
 # Remove workspace
-./kortex-cli workspace remove <workspace-id>
+./kdn workspace remove <workspace-id>
 ```
 
 ## Notes

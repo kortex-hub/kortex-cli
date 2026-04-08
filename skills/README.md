@@ -20,8 +20,8 @@ Each skill is contained in its own subdirectory with a `SKILL.md` file that defi
 - **implementing-command-patterns**: Advanced patterns for implementing commands including flag binding, JSON output, and interactive sessions
 
 ### Runtime Development
-- **add-runtime**: Add a new runtime implementation to the kortex-cli runtime system
-- **working-with-runtime-system**: Guide to understanding and working with the kortex-cli runtime system architecture
+- **add-runtime**: Add a new runtime implementation to the kdn runtime system
+- **working-with-runtime-system**: Guide to understanding and working with the kdn runtime system architecture
 
 ### Configuration & Integration
 - **working-with-config-system**: Guide to workspace configuration for environment variables and mount points at multiple levels

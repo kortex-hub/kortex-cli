@@ -85,7 +85,7 @@ func NewListCmd() *cobra.Command {
 The `AdaptExampleForAlias()` helper function (from `pkg/cmd/helpers.go`) automatically adapts examples for the alias:
 
 **What it does:**
-- Replaces the target command with the alias **only in command lines** (lines starting with `kortex-cli`)
+- Replaces the target command with the alias **only in command lines** (lines starting with `kdn`)
 - **Preserves comments unchanged** (lines starting with `#`)
 - Maintains formatting and indentation
 
@@ -93,17 +93,17 @@ The `AdaptExampleForAlias()` helper function (from `pkg/cmd/helpers.go`) automat
 ```bash
 # Original (from workspace list):
 # List all workspaces
-kortex-cli workspace list
+kdn workspace list
 
 # List in JSON format
-kortex-cli workspace list --output json
+kdn workspace list --output json
 
 # After AdaptExampleForAlias(..., "workspace list", "list"):
 # List all workspaces
-kortex-cli list
+kdn list
 
 # List in JSON format
-kortex-cli list --output json
+kdn list --output json
 ```
 
 ### 3. Register the Alias Command

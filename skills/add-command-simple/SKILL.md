@@ -48,13 +48,13 @@ func New<Command>Cmd() *cobra.Command {
         Short: "Short description of the command",
         Long:  `Long description of what the command does.`,
         Example: `# Basic usage
-kortex-cli <command> arg1
+kdn <command> arg1
 
 # With verbose output
-kortex-cli <command> arg1 --verbose
+kdn <command> arg1 --verbose
 
 # With other flags
-kortex-cli <command> arg1 --flag value`,
+kdn <command> arg1 --flag value`,
         Args:    cobra.ExactArgs(1),  // Or NoArgs, MinimumNArgs(1), MaximumNArgs(1), etc.
         PreRunE: c.preRun,
         RunE:    c.run,

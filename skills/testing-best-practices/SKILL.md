@@ -6,7 +6,7 @@ argument-hint: ""
 
 # Testing Best Practices
 
-This skill covers general testing best practices for the kortex-cli project, including parallel test execution and using fake objects for testability.
+This skill covers general testing best practices for the kdn project, including parallel test execution and using fake objects for testability.
 
 ## Parallel Test Execution
 
