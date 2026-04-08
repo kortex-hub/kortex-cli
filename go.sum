@@ -13,8 +13,8 @@ github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/kortex-hub/kortex-cli-api/cli/go v0.1.10 h1:dDZhUoBPiDGvJr40bvXdiP3FsoIM3EgeA7BjFHjg33Y=
 github.com/kortex-hub/kortex-cli-api/cli/go v0.1.10/go.mod h1:jWKudiw26CIjuOsROQ80FOuuk2m2/5BVkuATpmD5xQQ=
-github.com/kortex-hub/kortex-cli-api/workspace-configuration/go v0.1.10 h1:A+vCatr8SC5syjP6spFnHvR/D8UJ0lshHcuLaZ8Lmz0=
-github.com/kortex-hub/kortex-cli-api/workspace-configuration/go v0.1.10/go.mod h1:N4tLoDdBbAPYJ9ALLfYbqYScydJb546JgKQ6EjHswLw=
+github.com/kortex-hub/kortex-cli-api/workspace-configuration/go v0.1.11 h1:0WaRz20oMpRv8GLAHHhGHcjtMl+aTVouZSPkpI2IvkY=
+github.com/kortex-hub/kortex-cli-api/workspace-configuration/go v0.1.11/go.mod h1:N4tLoDdBbAPYJ9ALLfYbqYScydJb546JgKQ6EjHswLw=
 github.com/mattn/go-colorable v0.1.14 h1:9A9LHSqF/7dyVVX6g0U9cwm9pG3kP9gSzcuIPHPsaIE=
 github.com/mattn/go-colorable v0.1.14/go.mod h1:6LmQG8QLFO4G5z1gPvYEzlUgJ2wF+stgPZH1UqBm1s8=
 github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
