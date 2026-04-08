@@ -1,9 +1,9 @@
-# kortex-cli
+# kdn
 
 [![codecov](https://codecov.io/gh/kortex-hub/kortex-cli/branch/main/graph/badge.svg)](https://codecov.io/gh/kortex-hub/kortex-cli)
 [![Documentation](https://img.shields.io/badge/documentation-blue)](https://kortex-hub.github.io/kortex-cli/)
 
-kortex-cli is a command-line interface for launching and managing AI agents in isolated, reproducible workspaces. It creates runtime-based environments (containers, VMs, or other backends) where agents run with your project source code mounted, automatically configured and ready to use — no manual onboarding or setup required.
+kdn is a command-line interface for launching and managing AI agents in isolated, reproducible workspaces. It creates runtime-based environments (containers, VMs, or other backends) where agents run with your project source code mounted, automatically configured and ready to use — no manual onboarding or setup required.
 
 The architecture is built around pluggable runtimes. The first supported runtime is **Podman**, which creates container-based workspaces using a custom Fedora image. Additional runtimes (e.g., MicroVM, Kubernetes) can be added to support other execution environments.
 
@@ -36,16 +36,16 @@ The architecture is built around pluggable runtimes. The first supported runtime
 make build
 ```
 
-This creates the `kortex-cli` binary in the current directory.
+This creates the `kdn` binary in the current directory.
 
 ### Run
 
 ```bash
 # Display help and available commands
-./kortex-cli --help
+./kdn --help
 
 # Execute a specific command
-./kortex-cli <command> [flags]
+./kdn <command> [flags]
 ```
 
 ### Install
@@ -69,7 +69,7 @@ make test-coverage
 ## Glossary
 
 ### Agent
-An AI assistant that can perform tasks autonomously. In kortex-cli, agents are the different AI tools (Claude Code, Goose, Cursor) that can be launched and configured.
+An AI assistant that can perform tasks autonomously. In kdn, agents are the different AI tools (Claude Code, Goose, Cursor) that can be launched and configured.
 
 ### LLM (Large Language Model)
 The underlying AI model that powers the agents. Examples include Claude (by Anthropic), GPT (by OpenAI), and other language models.
@@ -78,13 +78,13 @@ The underlying AI model that powers the agents. Examples include Claude (by Anth
 A standardized protocol for connecting AI agents to external data sources and tools. MCP servers provide agents with additional capabilities like database access, API integrations, or file system operations.
 
 ### Runtime
-The environment where workspaces run. kortex-cli supports multiple runtimes (e.g., Podman containers), allowing workspaces to be hosted on different backends depending on your needs.
+The environment where workspaces run. kdn supports multiple runtimes (e.g., Podman containers), allowing workspaces to be hosted on different backends depending on your needs.
 
 ### Skills
 Pre-configured capabilities or specialized functions that can be enabled for an agent. Skills extend what an agent can do, such as code review, testing, or specific domain knowledge.
 
 ### Workspace
-A registered directory containing your project source code and its configuration. Each workspace is tracked by kortex-cli with a unique ID and a human-readable name. Workspaces can be accessed using either their ID or name in all commands (start, stop, remove, terminal).
+A registered directory containing your project source code and its configuration. Each workspace is tracked by kdn with a unique ID and a human-readable name. Workspaces can be accessed using either their ID or name in all commands (start, stop, remove, terminal).
 
 ## Scenarios
 
@@ -136,13 +136,13 @@ Create or edit `~/.kortex-cli/config/agents.json` to add the required environmen
 
 ```bash
 # Register a workspace with the Podman runtime and Claude agent
-kortex-cli init /path/to/project --runtime podman --agent claude
+kdn init /path/to/project --runtime podman --agent claude
 
 # Start the workspace (using name or ID)
-kortex-cli start my-project
+kdn start my-project
 
 # Connect to the workspace — Claude Code will use Vertex AI automatically
-kortex-cli terminal my-project
+kdn terminal my-project
 ```
 
 When Claude Code starts, it detects `ANTHROPIC_VERTEX_PROJECT_ID` and `CLOUD_ML_REGION` and routes all requests to Vertex AI using the mounted application default credentials.
@@ -188,11 +188,11 @@ To reuse your host Claude Code settings (preferences, custom instructions, etc.)
 
 ### Starting Claude with Default Settings
 
-This scenario demonstrates how to pre-configure Claude Code's settings so that when it starts inside a workspace, it skips the interactive onboarding flow and uses your preferred defaults. kortex-cli automatically handles the onboarding flags, and you can optionally customize other settings like theme preferences.
+This scenario demonstrates how to pre-configure Claude Code's settings so that when it starts inside a workspace, it skips the interactive onboarding flow and uses your preferred defaults. kdn automatically handles the onboarding flags, and you can optionally customize other settings like theme preferences.
 
 **Automatic Onboarding Skip**
 
-When you register a workspace with the Claude agent, kortex-cli automatically:
+When you register a workspace with the Claude agent, kdn automatically:
 - Sets `hasCompletedOnboarding: true` to skip the first-run wizard
 - Sets `hasTrustDialogAccepted: true` for the workspace sources directory (the exact path is determined by the runtime)
 
@@ -222,22 +222,22 @@ EOF
 
 - `theme` - The UI theme for Claude Code (e.g., `"dark"`, `"light"`, `"dark-daltonized"`)
 
-You don't need to set `hasCompletedOnboarding` or `hasTrustDialogAccepted` — kortex-cli adds these automatically when creating the workspace.
+You don't need to set `hasCompletedOnboarding` or `hasTrustDialogAccepted` — kdn adds these automatically when creating the workspace.
 
 **Step 3: Register and start the workspace**
 
 ```bash
 # Register a workspace — the settings file is embedded in the container image
-kortex-cli init /path/to/project --runtime podman --agent claude
+kdn init /path/to/project --runtime podman --agent claude
 
 # Start the workspace (using name or ID)
-kortex-cli start my-project
+kdn start my-project
 
 # Connect — Claude Code starts directly without onboarding
-kortex-cli terminal my-project
+kdn terminal my-project
 ```
 
-When `init` runs, kortex-cli:
+When `init` runs, kdn:
 1. Reads all files from `~/.kortex-cli/config/claude/` (e.g., your theme preferences)
 2. Automatically adds `hasCompletedOnboarding: true` and marks the workspace sources directory as trusted (the path is determined by the runtime)
 3. Copies the final merged settings into the container image at `/home/agent/.claude.json`
@@ -246,15 +246,15 @@ Claude Code finds this file on startup and skips onboarding.
 
 **Notes:**
 
-- **Onboarding is skipped automatically** — even if you don't create any settings files, kortex-cli ensures Claude starts without prompts
+- **Onboarding is skipped automatically** — even if you don't create any settings files, kdn ensures Claude starts without prompts
 - The settings are baked into the container image at `init` time, not mounted at runtime — changes to the files on the host require re-registering the workspace to take effect
 - Any file placed under `~/.kortex-cli/config/claude/` is copied into the container home directory, preserving the directory structure (e.g., `~/.kortex-cli/config/claude/.some-tool/config` becomes `/home/agent/.some-tool/config` inside the container)
 - This approach keeps your workspace self-contained — other developers using the same project are not affected, and your local `~/.claude` directory is not exposed inside the container
-- To apply changes to the settings, remove and re-register the workspace: `kortex-cli remove <workspace-id>` then `kortex-cli init` again
+- To apply changes to the settings, remove and re-register the workspace: `kdn remove <workspace-id>` then `kdn init` again
 
 ### Using Goose Agent with a Model from Vertex AI
 
-This scenario demonstrates how to configure the Goose agent in a kortex-cli workspace using Vertex AI as the backend, covering credential injection, sharing your local gcloud configuration, and pre-configuring the default model.
+This scenario demonstrates how to configure the Goose agent in a kdn workspace using Vertex AI as the backend, covering credential injection, sharing your local gcloud configuration, and pre-configuring the default model.
 
 #### Authenticating with Vertex AI
 
@@ -292,13 +292,13 @@ Then register and start the workspace:
 
 ```bash
 # Register a workspace with the Podman runtime and Goose agent
-kortex-cli init /path/to/project --runtime podman --agent goose
+kdn init /path/to/project --runtime podman --agent goose
 
 # Start the workspace
-kortex-cli start my-project
+kdn start my-project
 
 # Connect — Goose starts with Vertex AI configured
-kortex-cli terminal my-project
+kdn terminal my-project
 ```
 
 #### Sharing Local Goose Settings
@@ -340,7 +340,7 @@ If you want to pre-configure Goose with default settings without exposing your l
 
 **Automatic Onboarding Skip**
 
-When you register a workspace with the Goose agent, kortex-cli automatically sets `GOOSE_TELEMETRY_ENABLED` to `false` in the Goose config file if it is not already defined, so Goose skips its telemetry prompt on first launch.
+When you register a workspace with the Goose agent, kdn automatically sets `GOOSE_TELEMETRY_ENABLED` to `false` in the Goose config file if it is not already defined, so Goose skips its telemetry prompt on first launch.
 
 **Step 1: Create the agent settings directory**
 
@@ -362,22 +362,22 @@ EOF
 **Fields:**
 
 - `GOOSE_MODEL` - The model identifier Goose uses for its AI interactions. Alternatively, use `--model` flag during `init` to set this (the flag takes precedence over this setting)
-- `GOOSE_TELEMETRY_ENABLED` - Whether Goose sends usage telemetry; set to `true` to opt in, or omit to have kortex-cli default it to `false`
+- `GOOSE_TELEMETRY_ENABLED` - Whether Goose sends usage telemetry; set to `true` to opt in, or omit to have kdn default it to `false`
 
 **Step 3: Register and start the workspace**
 
 ```bash
 # Register a workspace — the settings file is embedded in the container image
-kortex-cli init /path/to/project --runtime podman --agent goose
+kdn init /path/to/project --runtime podman --agent goose
 
 # Start the workspace
-kortex-cli start my-project
+kdn start my-project
 
 # Connect — Goose starts with the configured provider and model
-kortex-cli terminal my-project
+kdn terminal my-project
 ```
 
-When `init` runs, kortex-cli:
+When `init` runs, kdn:
 1. Reads all files from `~/.kortex-cli/config/goose/` (e.g., your provider and model settings)
 2. Automatically sets `GOOSE_TELEMETRY_ENABLED: false` in `.config/goose/config.yaml` if the key is not already defined
 3. Copies the final settings into the container image at `/home/agent/.config/goose/config.yaml`
@@ -386,16 +386,16 @@ Goose finds this file on startup and uses the pre-configured settings without pr
 
 **Notes:**
 
-- **Telemetry is disabled automatically** — even if you don't create any settings files, kortex-cli ensures Goose starts without the telemetry prompt
+- **Telemetry is disabled automatically** — even if you don't create any settings files, kdn ensures Goose starts without the telemetry prompt
 - If you prefer to enable telemetry, set `GOOSE_TELEMETRY_ENABLED: true` in `~/.kortex-cli/config/goose/.config/goose/config.yaml`
 - The settings are baked into the container image at `init` time, not mounted at runtime — changes to the files on the host require re-registering the workspace to take effect
 - Any file placed under `~/.kortex-cli/config/goose/` is copied into the container home directory, preserving the directory structure (e.g., `~/.kortex-cli/config/goose/.config/goose/config.yaml` becomes `/home/agent/.config/goose/config.yaml` inside the container)
 - This approach keeps your workspace self-contained — other developers using the same project are not affected, and your local `~/.config/goose` directory is not exposed inside the container
-- To apply changes to the settings, remove and re-register the workspace: `kortex-cli remove <workspace-id>` then `kortex-cli init` again
+- To apply changes to the settings, remove and re-register the workspace: `kdn remove <workspace-id>` then `kdn init` again
 
 ### Using Cursor CLI Agent
 
-This scenario demonstrates how to configure the Cursor agent in a kortex-cli workspace, covering API key injection, sharing your local Cursor settings, and pre-configuring the default model.
+This scenario demonstrates how to configure the Cursor agent in a kdn workspace, covering API key injection, sharing your local Cursor settings, and pre-configuring the default model.
 
 #### Defining the Cursor API Key via a Secret
 
@@ -430,16 +430,16 @@ Create or edit `~/.kortex-cli/config/agents.json` to inject the secret as an env
 
 ```bash
 # Register a workspace with the Podman runtime and Cursor agent
-kortex-cli init /path/to/project --runtime podman --agent cursor
+kdn init /path/to/project --runtime podman --agent cursor
 
 # Start the workspace
-kortex-cli start my-project
+kdn start my-project
 
 # Connect — Cursor starts with the API key available
-kortex-cli terminal my-project
+kdn terminal my-project
 ```
 
-The secret name (`cursor-api-key`) must match the `secret` field value in your configuration. At workspace creation time, kortex-cli passes the secret to Podman, which injects it as the `CURSOR_API_KEY` environment variable inside the container.
+The secret name (`cursor-api-key`) must match the `secret` field value in your configuration. At workspace creation time, kdn passes the secret to Podman, which injects it as the `CURSOR_API_KEY` environment variable inside the container.
 
 #### Sharing Local Cursor Settings
 
@@ -471,7 +471,7 @@ If you want to pre-configure Cursor with default settings without exposing your 
 
 **Automatic Onboarding Skip**
 
-When you register a workspace with the Cursor agent, kortex-cli automatically creates a `.workspace-trusted` file in the Cursor projects directory for the workspace sources path, so Cursor skips its workspace trust dialog on first launch.
+When you register a workspace with the Cursor agent, kdn automatically creates a `.workspace-trusted` file in the Cursor projects directory for the workspace sources path, so Cursor skips its workspace trust dialog on first launch.
 
 **Step 1: Configure the agent environment**
 
@@ -528,19 +528,19 @@ EOF
 
 ```bash
 # Register a workspace with a specific model using the --model flag (recommended)
-kortex-cli init /path/to/project --runtime podman --agent cursor --model my-model-id
+kdn init /path/to/project --runtime podman --agent cursor --model my-model-id
 
 # Or register without --model to use settings from cli-config.json
-kortex-cli init /path/to/project --runtime podman --agent cursor
+kdn init /path/to/project --runtime podman --agent cursor
 
 # Start the workspace
-kortex-cli start my-project
+kdn start my-project
 
 # Connect — Cursor starts with the configured model
-kortex-cli terminal my-project
+kdn terminal my-project
 ```
 
-When `init` runs, kortex-cli:
+When `init` runs, kdn:
 1. Reads all files from `~/.kortex-cli/config/cursor/` (e.g., your settings)
 2. If `--model` is specified, updates `cli-config.json` with the model configuration (takes precedence over any existing model in settings files)
 3. Automatically creates the workspace trust file so Cursor skips its trust dialog
@@ -553,7 +553,7 @@ Cursor finds this file on startup and uses the pre-configured model without prom
 - **Model configuration**: Use `--model` flag during `init` to set the model (e.g., `--model my-model-id`). This takes precedence over any model defined in settings files
 - The settings are baked into the container image at `init` time, not mounted at runtime — changes to the files on the host require re-registering the workspace to take effect
 - Any file placed under `~/.kortex-cli/config/cursor/` is copied into the container home directory, preserving the directory structure (e.g., `~/.kortex-cli/config/cursor/.cursor/cli-config.json` becomes `/home/agent/.cursor/cli-config.json` inside the container)
-- To apply changes to the settings, remove and re-register the workspace: `kortex-cli remove <workspace-id>` then `kortex-cli init` again
+- To apply changes to the settings, remove and re-register the workspace: `kdn remove <workspace-id>` then `kdn init` again
 - This approach keeps your workspace self-contained — other developers using the same project are not affected, and your local `~/.cursor` directory is not exposed inside the container
 - Do not combine this approach with the `~/.cursor` mount from the previous section — the mounted directory would override the baked-in defaults at runtime
 
@@ -585,7 +585,7 @@ The `GH_TOKEN` variable is automatically picked up by the `gh` CLI and other Git
 
 **For a specific project**
 
-Use the project identifier as the key instead. The identifier is the git remote URL (without `.git`) as detected by kortex-cli during `init`:
+Use the project identifier as the key instead. The identifier is the git remote URL (without `.git`) as detected by kdn during `init`:
 
 ```json
 {
@@ -641,15 +641,15 @@ echo "$GITHUB_TOKEN" | podman secret create github-token -
 podman secret create github-token /path/to/token-file
 ```
 
-The secret name (`github-token` here) must match the `secret` field value in your configuration. At workspace creation time, kortex-cli passes `--secret github-token,type=env,target=GH_TOKEN` to Podman, which injects the secret value as the `GH_TOKEN` environment variable inside the container.
+The secret name (`github-token` here) must match the `secret` field value in your configuration. At workspace creation time, kdn passes `--secret github-token,type=env,target=GH_TOKEN` to Podman, which injects the secret value as the `GH_TOKEN` environment variable inside the container.
 
 Podman secrets are stored locally on the host and never written to the container image.
 
 **Notes:**
 
 - The `secret` field references a secret by name rather than embedding the token value directly, keeping credentials out of the configuration file
-- The project identifier used as the key must match what kortex-cli detected during `init` — run `kortex-cli list -o json` to see the project field for each registered workspace
-- Configuration changes in `projects.json` take effect the next time you run `kortex-cli init` for that workspace; already-registered workspaces need to be removed and re-registered
+- The project identifier used as the key must match what kdn detected during `init` — run `kdn list -o json` to see the project field for each registered workspace
+- Configuration changes in `projects.json` take effect the next time you run `kdn init` for that workspace; already-registered workspaces need to be removed and re-registered
 
 ### Working with Git Worktrees
 
@@ -698,20 +698,20 @@ If you want the agents to have access to the main branch (e.g., to compare chang
 **Step 4: Register a workspace for each worktree**
 
 ```bash
-kortex-cli init /path/to/my-project/feature-a --runtime podman --agent claude
-kortex-cli init /path/to/my-project/feature-b --runtime podman --agent claude
+kdn init /path/to/my-project/feature-a --runtime podman --agent claude
+kdn init /path/to/my-project/feature-b --runtime podman --agent claude
 ```
 
 **Step 5: Start and connect to each workspace independently**
 
 ```bash
 # Start both workspaces (using names or IDs)
-kortex-cli start feature-a
-kortex-cli start feature-b
+kdn start feature-a
+kdn start feature-b
 
 # Connect to each agent in separate terminals
-kortex-cli terminal feature-a
-kortex-cli terminal feature-b
+kdn terminal feature-a
+kdn terminal feature-b
 ```
 
 Each agent runs independently in its own container, operating on its own branch without interfering with the other.
@@ -728,7 +728,7 @@ This scenario demonstrates how to manage workspaces programmatically using JSON 
 **Step 1: Check existing workspaces**
 
 ```bash
-$ kortex-cli workspace list -o json
+$ kdn workspace list -o json
 ```
 
 ```json
@@ -742,7 +742,7 @@ Exit code: `0` (success, but no workspaces registered)
 **Step 2: Register a new workspace**
 
 ```bash
-$ kortex-cli init /path/to/project --runtime podman --agent claude -o json
+$ kdn init /path/to/project --runtime podman --agent claude -o json
 ```
 
 ```json
@@ -756,7 +756,7 @@ Exit code: `0` (success)
 **Step 3: Register with verbose output to get full details**
 
 ```bash
-$ kortex-cli init /path/to/another-project --runtime podman --agent claude -o json -v
+$ kdn init /path/to/another-project --runtime podman --agent claude -o json -v
 ```
 
 ```json
@@ -778,7 +778,7 @@ Exit code: `0` (success)
 **Step 3a: Register and start immediately with auto-start flag**
 
 ```bash
-$ kortex-cli init /path/to/third-project --runtime podman --agent claude -o json --start
+$ kdn init /path/to/third-project --runtime podman --agent claude -o json --start
 ```
 
 ```json
@@ -792,7 +792,7 @@ Exit code: `0` (success, workspace is running)
 **Step 4: List all workspaces**
 
 ```bash
-$ kortex-cli workspace list -o json
+$ kdn workspace list -o json
 ```
 
 ```json
@@ -829,7 +829,7 @@ Exit code: `0` (success)
 **Step 5: Start a workspace**
 
 ```bash
-$ kortex-cli workspace start 2c5f16046476be368fcada501ac6cdc6bbd34ea80eb9ceb635530c0af64681ea -o json
+$ kdn workspace start 2c5f16046476be368fcada501ac6cdc6bbd34ea80eb9ceb635530c0af64681ea -o json
 ```
 
 ```json
@@ -843,7 +843,7 @@ Exit code: `0` (success)
 **Step 6: Stop a workspace**
 
 ```bash
-$ kortex-cli workspace stop 2c5f16046476be368fcada501ac6cdc6bbd34ea80eb9ceb635530c0af64681ea -o json
+$ kdn workspace stop 2c5f16046476be368fcada501ac6cdc6bbd34ea80eb9ceb635530c0af64681ea -o json
 ```
 
 ```json
@@ -857,7 +857,7 @@ Exit code: `0` (success)
 **Step 7: Remove a workspace**
 
 ```bash
-$ kortex-cli workspace remove 2c5f16046476be368fcada501ac6cdc6bbd34ea80eb9ceb635530c0af64681ea -o json
+$ kdn workspace remove 2c5f16046476be368fcada501ac6cdc6bbd34ea80eb9ceb635530c0af64681ea -o json
 ```
 
 ```json
@@ -871,7 +871,7 @@ Exit code: `0` (success)
 **Step 8: Verify removal**
 
 ```bash
-$ kortex-cli workspace list -o json
+$ kdn workspace list -o json
 ```
 
 ```json
@@ -901,7 +901,7 @@ All errors are returned in JSON format when using `--output json`, with the erro
 **Error: Non-existent directory**
 
 ```bash
-$ kortex-cli init /tmp/no-exist --runtime podman --agent claude -o json
+$ kdn init /tmp/no-exist --runtime podman --agent claude -o json
 ```
 
 ```json
@@ -915,7 +915,7 @@ Exit code: `1` (error)
 **Error: Workspace not found**
 
 ```bash
-$ kortex-cli workspace remove unknown-id -o json
+$ kdn workspace remove unknown-id -o json
 ```
 
 ```json
@@ -941,7 +941,7 @@ Exit code: `1` (error)
 #!/bin/bash
 
 # Register a workspace
-output=$(kortex-cli init /path/to/project --runtime podman --agent claude -o json)
+output=$(kdn init /path/to/project --runtime podman --agent claude -o json)
 exit_code=$?
 
 if [ $exit_code -eq 0 ]; then
@@ -956,7 +956,7 @@ fi
 
 ## Environment Variables
 
-kortex-cli supports environment variables for configuring default behavior.
+kdn supports environment variables for configuring default behavior.
 
 ### `KORTEX_CLI_DEFAULT_RUNTIME`
 
@@ -966,7 +966,7 @@ Sets the default runtime to use when registering a workspace with the `init` com
 
 ```bash
 export KORTEX_CLI_DEFAULT_RUNTIME=fake
-kortex-cli init /path/to/project --agent claude
+kdn init /path/to/project --agent claude
 ```
 
 **Priority:**
@@ -984,10 +984,10 @@ The runtime is determined in the following order (highest to lowest priority):
 export KORTEX_CLI_DEFAULT_RUNTIME=fake
 
 # Register a workspace using the environment variable
-kortex-cli init /path/to/project --agent claude
+kdn init /path/to/project --agent claude
 
 # Override the environment variable with the flag
-kortex-cli init /path/to/another-project --agent claude --runtime podman
+kdn init /path/to/another-project --agent claude --runtime podman
 ```
 
 **Notes:**
@@ -1005,7 +1005,7 @@ Sets the default agent to use when registering a workspace with the `init` comma
 
 ```bash
 export KORTEX_CLI_DEFAULT_AGENT=claude
-kortex-cli init /path/to/project --runtime podman
+kdn init /path/to/project --runtime podman
 ```
 
 **Priority:**
@@ -1023,10 +1023,10 @@ The agent is determined in the following order (highest to lowest priority):
 export KORTEX_CLI_DEFAULT_AGENT=claude
 
 # Register a workspace using the environment variable
-kortex-cli init /path/to/project --runtime podman
+kdn init /path/to/project --runtime podman
 
 # Override the environment variable with the flag
-kortex-cli init /path/to/another-project --runtime podman --agent goose
+kdn init /path/to/another-project --runtime podman --agent goose
 ```
 
 **Notes:**
@@ -1039,13 +1039,13 @@ kortex-cli init /path/to/another-project --runtime podman --agent goose
 
 ### `KORTEX_CLI_STORAGE`
 
-Sets the default storage directory where kortex-cli stores its data files.
+Sets the default storage directory where kdn stores its data files.
 
 **Usage:**
 
 ```bash
 export KORTEX_CLI_STORAGE=/custom/path/to/storage
-kortex-cli init /path/to/project --runtime podman --agent claude
+kdn init /path/to/project --runtime podman --agent claude
 ```
 
 **Priority:**
@@ -1063,11 +1063,11 @@ The storage directory is determined in the following order (highest to lowest pr
 export KORTEX_CLI_STORAGE=/var/lib/kortex
 
 # All commands will use this storage directory
-kortex-cli init /path/to/project --runtime podman --agent claude
-kortex-cli list
+kdn init /path/to/project --runtime podman --agent claude
+kdn list
 
 # Override the environment variable with the flag
-kortex-cli list --storage /tmp/kortex-storage
+kdn list --storage /tmp/kortex-storage
 ```
 
 ### `KORTEX_CLI_INIT_AUTO_START`
@@ -1078,7 +1078,7 @@ Automatically starts a workspace after registration when using the `init` comman
 
 ```bash
 export KORTEX_CLI_INIT_AUTO_START=1
-kortex-cli init /path/to/project --runtime podman --agent claude
+kdn init /path/to/project --runtime podman --agent claude
 ```
 
 **Priority:**
@@ -1105,12 +1105,12 @@ Any other value (including `0`, `false`, `no`, or empty string) will not trigger
 export KORTEX_CLI_INIT_AUTO_START=1
 
 # Register and start a workspace automatically
-kortex-cli init /path/to/project --runtime podman --agent claude
+kdn init /path/to/project --runtime podman --agent claude
 # Workspace is now running
 
 # Override the environment variable with the flag
 export KORTEX_CLI_INIT_AUTO_START=0
-kortex-cli init /path/to/another-project --runtime podman --agent claude --start
+kdn init /path/to/another-project --runtime podman --agent claude --start
 # Workspace is started despite env var being 0
 ```
 
@@ -1197,7 +1197,7 @@ The container's working directory is set to `/workspace/sources`, which is where
 
 ```bash
 # Register a workspace with the Podman runtime
-kortex-cli init /path/to/project --runtime podman --agent claude
+kdn init /path/to/project --runtime podman --agent claude
 ```
 
 **User Experience:**
@@ -1225,7 +1225,7 @@ After registration, you can start the workspace:
 
 ```bash
 # Start the workspace
-kortex-cli start <workspace-id>
+kdn start <workspace-id>
 ```
 
 **Note:** When using `--output json`, all progress spinners are hidden to avoid polluting the JSON output.
@@ -1369,14 +1369,14 @@ Configuration changes take effect when you **register a new workspace with `init
 2. Register a new workspace (this creates the Containerfile and builds the image):
    ```bash
    # Using Claude agent
-   kortex-cli init /path/to/project --runtime podman --agent claude
+   kdn init /path/to/project --runtime podman --agent claude
    # or using Goose agent
-   kortex-cli init /path/to/project --runtime podman --agent goose
+   kdn init /path/to/project --runtime podman --agent goose
    ```
 
 3. Start the workspace:
    ```bash
-   kortex-cli start <workspace-id>
+   kdn start <workspace-id>
    ```
 
 **Notes:**
@@ -1500,11 +1500,11 @@ Paths can also be absolute (e.g., `/absolute/path`).
 
 ### Configuration Validation
 
-When you register a workspace with `kortex-cli init`, the configuration is automatically validated. If `workspace.json` exists and contains invalid data, the registration will fail with a descriptive error message.
+When you register a workspace with `kdn init`, the configuration is automatically validated. If `workspace.json` exists and contains invalid data, the registration will fail with a descriptive error message.
 
 **Example - Invalid configuration (both value and secret set):**
 ```bash
-$ kortex-cli init /path/to/project --runtime podman --agent claude
+$ kdn init /path/to/project --runtime podman --agent claude
 ```
 ```text
 Error: workspace configuration validation failed: invalid workspace configuration:
@@ -1513,7 +1513,7 @@ environment variable "API_KEY" (index 0) has both value and secret set
 
 **Example - Invalid configuration (missing host in mount):**
 ```bash
-$ kortex-cli init /path/to/project --runtime podman --agent claude
+$ kdn init /path/to/project --runtime podman --agent claude
 ```
 ```text
 Error: workspace configuration validation failed: invalid workspace configuration:
@@ -1601,7 +1601,7 @@ mount at index 0 is missing host
 
 ## Multi-Level Configuration
 
-kortex-cli supports configuration at multiple levels, allowing you to customize workspace settings for different contexts. Configurations are automatically merged with proper precedence, making it easy to share common settings while still allowing project and agent-specific customization.
+kdn supports configuration at multiple levels, allowing you to customize workspace settings for different contexts. Configurations are automatically merged with proper precedence, making it easy to share common settings while still allowing project and agent-specific customization.
 
 ### Configuration Levels
 
@@ -1642,7 +1642,7 @@ When registering a workspace, configurations are merged in this order (later con
 
 ### Storage Location
 
-User-specific configurations are stored in the kortex-cli storage directory:
+User-specific configurations are stored in the kdn storage directory:
 
 - **Default location**: `~/.kortex-cli/config/`
 - **Custom location**: Set via `--storage` flag or `KORTEX_CLI_STORAGE` environment variable
@@ -1773,12 +1773,12 @@ This enables debug mode only when using the Claude agent.
 
 **Register workspace with agent-specific config:**
 ```bash
-kortex-cli init --runtime podman --agent claude
+kdn init --runtime podman --agent claude
 ```
 
 **Register workspace with custom project:**
 ```bash
-kortex-cli init --runtime podman --project my-custom-project --agent goose
+kdn init --runtime podman --project my-custom-project --agent goose
 ```
 
 **Note:** The `--agent` flag is required (or set `KORTEX_CLI_DEFAULT_AGENT` environment variable) when registering a workspace.
@@ -1849,32 +1849,32 @@ The system works without any configuration files and merges only the ones that e
 }
 ```
 
-**Result when running** `kortex-cli init --runtime podman --agent claude`:
+**Result when running** `kdn init --runtime podman --agent claude`:
 - Environment: `NODE_ENV=development`, `DEBUG=true`, `CLAUDE_VERBOSE=true`
 - Mounts: `$HOME/.gitconfig`, `$HOME/.ssh`
 
 ## Commands
 
-### `info` - Display Information About kortex-cli
+### `info` - Display Information About kdn
 
 Displays version, available agents, and supported runtimes.
 
 #### Usage
 
 ```bash
-kortex-cli info [flags]
+kdn info [flags]
 ```
 
 #### Flags
 
 - `--output, -o <format>` - Output format (supported: `json`)
-- `--storage <path>` - Storage directory for kortex-cli data (default: `$HOME/.kortex-cli`)
+- `--storage <path>` - Storage directory for kdn data (default: `$HOME/.kortex-cli`)
 
 #### Examples
 
 **Show info (human-readable format):**
 ```bash
-kortex-cli info
+kdn info
 ```
 Output:
 ```text
@@ -1885,7 +1885,7 @@ Runtimes: fake, podman
 
 **Show info in JSON format:**
 ```bash
-kortex-cli info --output json
+kdn info --output json
 ```
 Output:
 ```json
@@ -1903,7 +1903,7 @@ Output:
 
 **Show info using short flag:**
 ```bash
-kortex-cli info -o json
+kdn info -o json
 ```
 
 #### Notes
@@ -1914,12 +1914,12 @@ kortex-cli info -o json
 
 ### `init` - Register a New Workspace
 
-Registers a new workspace with kortex-cli, making it available for agent launch and configuration.
+Registers a new workspace with kdn, making it available for agent launch and configuration.
 
 #### Usage
 
 ```bash
-kortex-cli init [sources-directory] [flags]
+kdn init [sources-directory] [flags]
 ```
 
 #### Arguments
@@ -1938,57 +1938,57 @@ kortex-cli init [sources-directory] [flags]
 - `--verbose, -v` - Show detailed output including all workspace information
 - `--output, -o <format>` - Output format (supported: `json`)
 - `--show-logs` - Show stdout and stderr from runtime commands (cannot be combined with `--output json`)
-- `--storage <path>` - Storage directory for kortex-cli data (default: `$HOME/.kortex-cli`)
+- `--storage <path>` - Storage directory for kdn data (default: `$HOME/.kortex-cli`)
 
 #### Examples
 
 **Register the current directory:**
 ```bash
-kortex-cli init --runtime podman --agent claude
+kdn init --runtime podman --agent claude
 ```
 Output: `a1b2c3d4e5f6...` (workspace ID)
 
 **Register a specific directory:**
 ```bash
-kortex-cli init /path/to/myproject --runtime podman --agent claude
+kdn init /path/to/myproject --runtime podman --agent claude
 ```
 
 **Register with a custom name:**
 ```bash
-kortex-cli init /path/to/myproject --runtime podman --agent claude --name "my-awesome-project"
+kdn init /path/to/myproject --runtime podman --agent claude --name "my-awesome-project"
 ```
 
 **Register with a custom project identifier:**
 ```bash
-kortex-cli init /path/to/myproject --runtime podman --agent claude --project "my project"
+kdn init /path/to/myproject --runtime podman --agent claude --project "my project"
 ```
 
 **Register with custom configuration location:**
 ```bash
-kortex-cli init /path/to/myproject --runtime podman --agent claude --workspace-configuration /path/to/config
+kdn init /path/to/myproject --runtime podman --agent claude --workspace-configuration /path/to/config
 ```
 
 **Register with a specific model:**
 ```bash
-kortex-cli init /path/to/myproject --runtime podman --agent claude --model claude-sonnet-4-20250514
+kdn init /path/to/myproject --runtime podman --agent claude --model claude-sonnet-4-20250514
 ```
 
 **Register and start immediately:**
 ```bash
-kortex-cli init /path/to/myproject --runtime podman --agent claude --start
+kdn init /path/to/myproject --runtime podman --agent claude --start
 ```
 Output: `a1b2c3d4e5f6...` (workspace ID, workspace is now running)
 
 **Register and start using environment variable:**
 ```bash
 export KORTEX_CLI_INIT_AUTO_START=1
-kortex-cli init /path/to/myproject --runtime podman --agent claude
+kdn init /path/to/myproject --runtime podman --agent claude
 ```
 Output: `a1b2c3d4e5f6...` (workspace ID, workspace is now running)
 
 **View detailed output:**
 ```bash
-kortex-cli init --runtime podman --agent claude --verbose
+kdn init --runtime podman --agent claude --verbose
 ```
 Output:
 ```text
@@ -2004,7 +2004,7 @@ Registered workspace:
 
 **JSON output (default - ID only):**
 ```bash
-kortex-cli init /path/to/myproject --runtime podman --agent claude --output json
+kdn init /path/to/myproject --runtime podman --agent claude --output json
 ```
 Output:
 ```json
@@ -2015,7 +2015,7 @@ Output:
 
 **JSON output with verbose flag (full workspace details):**
 ```bash
-kortex-cli init /path/to/myproject --runtime podman --agent claude --output json --verbose
+kdn init /path/to/myproject --runtime podman --agent claude --output json --verbose
 ```
 Output:
 ```json
@@ -2034,37 +2034,37 @@ Output:
 
 **JSON output with short flags:**
 ```bash
-kortex-cli init -r fake -a claude -o json -v
+kdn init -r fake -a claude -o json -v
 ```
 
 **Show runtime command output (e.g., image build logs):**
 ```bash
-kortex-cli init --runtime podman --agent claude --show-logs
+kdn init --runtime podman --agent claude --show-logs
 ```
 
 #### Workspace Naming
 
 - If `--name` is not provided, the name is automatically generated from the last component of the sources directory path
-- If a workspace with the same name already exists, kortex-cli automatically appends an increment (`-2`, `-3`, etc.) to ensure uniqueness
+- If a workspace with the same name already exists, kdn automatically appends an increment (`-2`, `-3`, etc.) to ensure uniqueness
 
 **Examples:**
 ```bash
 # First workspace in /home/user/project
-kortex-cli init /home/user/project --runtime podman --agent claude
+kdn init /home/user/project --runtime podman --agent claude
 # Name: "project"
 
 # Second workspace with the same directory name
-kortex-cli init /home/user/another-location/project --runtime podman --agent claude --name "project"
+kdn init /home/user/another-location/project --runtime podman --agent claude --name "project"
 # Name: "project-2"
 
 # Third workspace with the same name
-kortex-cli init /tmp/project --runtime podman --agent claude --name "project"
+kdn init /tmp/project --runtime podman --agent claude --name "project"
 # Name: "project-3"
 ```
 
 #### Project Detection
 
-When registering a workspace, kortex-cli automatically detects and stores a project identifier. This allows grouping workspaces that belong to the same project, even across different branches, forks, or subdirectories.
+When registering a workspace, kdn automatically detects and stores a project identifier. This allows grouping workspaces that belong to the same project, even across different branches, forks, or subdirectories.
 
 **The project is determined using the following rules:**
 
@@ -2087,11 +2087,11 @@ The project is the repository remote URL (without `.git` suffix) plus the worksp
 # origin:   https://github.com/myuser/kortex-cli.git (fork)
 
 # Workspace at repository root
-kortex-cli init /home/user/kortex-cli --runtime podman --agent claude
+kdn init /home/user/kortex-cli --runtime podman --agent claude
 # Project: https://github.com/kortex-hub/kortex-cli/
 
 # Workspace in subdirectory
-kortex-cli init /home/user/kortex-cli/pkg/git --runtime podman --agent claude
+kdn init /home/user/kortex-cli/pkg/git --runtime podman --agent claude
 # Project: https://github.com/kortex-hub/kortex-cli/pkg/git
 ```
 
@@ -2107,11 +2107,11 @@ The project is the repository root directory path plus the workspace's relative 
 **Example - Local repository:**
 ```bash
 # Workspace at repository root
-kortex-cli init /home/user/local-repo --runtime podman --agent claude
+kdn init /home/user/local-repo --runtime podman --agent claude
 # Project: /home/user/local-repo
 
 # Workspace in subdirectory
-kortex-cli init /home/user/local-repo/pkg/utils --runtime podman --agent claude
+kdn init /home/user/local-repo/pkg/utils --runtime podman --agent claude
 # Project: /home/user/local-repo/pkg/utils
 ```
 
@@ -2121,7 +2121,7 @@ The project is the workspace source directory path:
 
 **Example - Regular directory:**
 ```bash
-kortex-cli init /tmp/workspace --runtime podman --agent claude
+kdn init /tmp/workspace --runtime podman --agent claude
 # Project: /tmp/workspace
 ```
 
@@ -2152,25 +2152,25 @@ kortex-cli init /tmp/workspace --runtime podman --agent claude
 
 ### `workspace list` - List All Registered Workspaces
 
-Lists all workspaces that have been registered with kortex-cli. Also available as the shorter alias `list`.
+Lists all workspaces that have been registered with kdn. Also available as the shorter alias `list`.
 
 #### Usage
 
 ```bash
-kortex-cli workspace list [flags]
-kortex-cli list [flags]
+kdn workspace list [flags]
+kdn list [flags]
 ```
 
 #### Flags
 
 - `--output, -o <format>` - Output format (supported: `json`)
-- `--storage <path>` - Storage directory for kortex-cli data (default: `$HOME/.kortex-cli`)
+- `--storage <path>` - Storage directory for kdn data (default: `$HOME/.kortex-cli`)
 
 #### Examples
 
 **List all workspaces (human-readable format):**
 ```bash
-kortex-cli workspace list
+kdn workspace list
 ```
 Output:
 ```text
@@ -2193,12 +2193,12 @@ ID: f6e5d4c3b2a1...
 
 **Use the short alias:**
 ```bash
-kortex-cli list
+kdn list
 ```
 
 **List workspaces in JSON format:**
 ```bash
-kortex-cli workspace list --output json
+kdn workspace list --output json
 ```
 Output:
 ```json
@@ -2232,7 +2232,7 @@ Output:
 
 **List with short flag:**
 ```bash
-kortex-cli list -o json
+kdn list -o json
 ```
 
 #### Notes
@@ -2249,8 +2249,8 @@ Starts a registered workspace by its name or ID. Also available as the shorter a
 #### Usage
 
 ```bash
-kortex-cli workspace start NAME|ID [flags]
-kortex-cli start NAME|ID [flags]
+kdn workspace start NAME|ID [flags]
+kdn start NAME|ID [flags]
 ```
 
 #### Arguments
@@ -2261,39 +2261,39 @@ kortex-cli start NAME|ID [flags]
 
 - `--output, -o <format>` - Output format (supported: `json`)
 - `--show-logs` - Show stdout and stderr from runtime commands (cannot be combined with `--output json`)
-- `--storage <path>` - Storage directory for kortex-cli data (default: `$HOME/.kortex-cli`)
+- `--storage <path>` - Storage directory for kdn data (default: `$HOME/.kortex-cli`)
 
 #### Examples
 
 **Start a workspace by ID:**
 ```bash
-kortex-cli workspace start a1b2c3d4e5f6...
+kdn workspace start a1b2c3d4e5f6...
 ```
 Output: `a1b2c3d4e5f6...` (ID of started workspace)
 
 **Start a workspace by name:**
 ```bash
-kortex-cli workspace start my-project
+kdn workspace start my-project
 ```
 Output: `a1b2c3d4e5f6...` (ID of started workspace)
 
 **Use the short alias:**
 ```bash
-kortex-cli start my-project
+kdn start my-project
 ```
 
 **View workspace names and IDs before starting:**
 ```bash
 # First, list all workspaces to find the name or ID
-kortex-cli list
+kdn list
 
 # Then start the desired workspace (using either name or ID)
-kortex-cli start my-project
+kdn start my-project
 ```
 
 **JSON output:**
 ```bash
-kortex-cli workspace start a1b2c3d4e5f6... --output json
+kdn workspace start a1b2c3d4e5f6... --output json
 ```
 Output:
 ```json
@@ -2304,19 +2304,19 @@ Output:
 
 **JSON output with short flag:**
 ```bash
-kortex-cli start a1b2c3d4e5f6... -o json
+kdn start a1b2c3d4e5f6... -o json
 ```
 
 **Show runtime command output:**
 ```bash
-kortex-cli workspace start a1b2c3d4e5f6... --show-logs
+kdn workspace start a1b2c3d4e5f6... --show-logs
 ```
 
 #### Error Handling
 
 **Workspace not found (text format):**
 ```bash
-kortex-cli start invalid-id
+kdn start invalid-id
 ```
 Output:
 ```text
@@ -2326,7 +2326,7 @@ Use 'workspace list' to see available workspaces
 
 **Workspace not found (JSON format):**
 ```bash
-kortex-cli start invalid-id --output json
+kdn start invalid-id --output json
 ```
 Output:
 ```json
@@ -2352,8 +2352,8 @@ Stops a running workspace by its name or ID. Also available as the shorter alias
 #### Usage
 
 ```bash
-kortex-cli workspace stop NAME|ID [flags]
-kortex-cli stop NAME|ID [flags]
+kdn workspace stop NAME|ID [flags]
+kdn stop NAME|ID [flags]
 ```
 
 #### Arguments
@@ -2364,39 +2364,39 @@ kortex-cli stop NAME|ID [flags]
 
 - `--output, -o <format>` - Output format (supported: `json`)
 - `--show-logs` - Show stdout and stderr from runtime commands (cannot be combined with `--output json`)
-- `--storage <path>` - Storage directory for kortex-cli data (default: `$HOME/.kortex-cli`)
+- `--storage <path>` - Storage directory for kdn data (default: `$HOME/.kortex-cli`)
 
 #### Examples
 
 **Stop a workspace by ID:**
 ```bash
-kortex-cli workspace stop a1b2c3d4e5f6...
+kdn workspace stop a1b2c3d4e5f6...
 ```
 Output: `a1b2c3d4e5f6...` (ID of stopped workspace)
 
 **Stop a workspace by name:**
 ```bash
-kortex-cli workspace stop my-project
+kdn workspace stop my-project
 ```
 Output: `a1b2c3d4e5f6...` (ID of stopped workspace)
 
 **Use the short alias:**
 ```bash
-kortex-cli stop my-project
+kdn stop my-project
 ```
 
 **View workspace names and IDs before stopping:**
 ```bash
 # First, list all workspaces to find the name or ID
-kortex-cli list
+kdn list
 
 # Then stop the desired workspace (using either name or ID)
-kortex-cli stop my-project
+kdn stop my-project
 ```
 
 **JSON output:**
 ```bash
-kortex-cli workspace stop a1b2c3d4e5f6... --output json
+kdn workspace stop a1b2c3d4e5f6... --output json
 ```
 Output:
 ```json
@@ -2407,19 +2407,19 @@ Output:
 
 **JSON output with short flag:**
 ```bash
-kortex-cli stop a1b2c3d4e5f6... -o json
+kdn stop a1b2c3d4e5f6... -o json
 ```
 
 **Show runtime command output:**
 ```bash
-kortex-cli workspace stop a1b2c3d4e5f6... --show-logs
+kdn workspace stop a1b2c3d4e5f6... --show-logs
 ```
 
 #### Error Handling
 
 **Workspace not found (text format):**
 ```bash
-kortex-cli stop invalid-id
+kdn stop invalid-id
 ```
 Output:
 ```text
@@ -2429,7 +2429,7 @@ Use 'workspace list' to see available workspaces
 
 **Workspace not found (JSON format):**
 ```bash
-kortex-cli stop invalid-id --output json
+kdn stop invalid-id --output json
 ```
 Output:
 ```json
@@ -2455,8 +2455,8 @@ Connects to a running workspace with an interactive terminal session. Also avail
 #### Usage
 
 ```bash
-kortex-cli workspace terminal NAME|ID [COMMAND...] [flags]
-kortex-cli terminal NAME|ID [COMMAND...] [flags]
+kdn workspace terminal NAME|ID [COMMAND...] [flags]
+kdn terminal NAME|ID [COMMAND...] [flags]
 ```
 
 #### Arguments
@@ -2466,56 +2466,56 @@ kortex-cli terminal NAME|ID [COMMAND...] [flags]
 
 #### Flags
 
-- `--storage <path>` - Storage directory for kortex-cli data (default: `$HOME/.kortex-cli`)
+- `--storage <path>` - Storage directory for kdn data (default: `$HOME/.kortex-cli`)
 
 #### Examples
 
 **Connect using the default agent command (by ID):**
 ```bash
-kortex-cli workspace terminal a1b2c3d4e5f6...
+kdn workspace terminal a1b2c3d4e5f6...
 ```
 
 **Connect using the default agent command (by name):**
 ```bash
-kortex-cli workspace terminal my-project
+kdn workspace terminal my-project
 ```
 
 This starts an interactive session with the default agent (typically Claude Code) inside the running workspace container.
 
 **Use the short alias:**
 ```bash
-kortex-cli terminal my-project
+kdn terminal my-project
 ```
 
 **Run a bash shell:**
 ```bash
-kortex-cli terminal my-project bash
+kdn terminal my-project bash
 ```
 
-**Run a command with flags (use -- to prevent kortex-cli from parsing them):**
+**Run a command with flags (use -- to prevent kdn from parsing them):**
 ```bash
-kortex-cli terminal a1b2c3d4e5f6... -- bash -c 'echo hello'
+kdn terminal a1b2c3d4e5f6... -- bash -c 'echo hello'
 ```
 
-The `--` separator tells kortex-cli to stop parsing flags and pass everything after it directly to the container. This is useful when your command includes flags that would otherwise be interpreted by kortex-cli.
+The `--` separator tells kdn to stop parsing flags and pass everything after it directly to the container. This is useful when your command includes flags that would otherwise be interpreted by kdn.
 
 **List workspaces and connect to a running one:**
 ```bash
 # First, list all workspaces to find the ID
-kortex-cli list
+kdn list
 
 # Start a workspace if it's not running
-kortex-cli start a1b2c3d4e5f6...
+kdn start a1b2c3d4e5f6...
 
 # Then connect with a terminal
-kortex-cli terminal a1b2c3d4e5f6...
+kdn terminal a1b2c3d4e5f6...
 ```
 
 #### Error Handling
 
 **Workspace not found:**
 ```bash
-kortex-cli terminal invalid-id
+kdn terminal invalid-id
 ```
 Output:
 ```text
@@ -2525,7 +2525,7 @@ Use 'workspace list' to see available workspaces
 
 **Workspace not running:**
 ```bash
-kortex-cli terminal a1b2c3d4e5f6...
+kdn terminal a1b2c3d4e5f6...
 ```
 Output:
 ```text
@@ -2534,8 +2534,8 @@ Error: instance is not running (current state: created)
 
 In this case, you need to start the workspace first:
 ```bash
-kortex-cli start a1b2c3d4e5f6...
-kortex-cli terminal a1b2c3d4e5f6...
+kdn start a1b2c3d4e5f6...
+kdn terminal a1b2c3d4e5f6...
 ```
 
 #### Notes
@@ -2546,7 +2546,7 @@ kortex-cli terminal a1b2c3d4e5f6...
   - For example, if the workspace was created with `--agent claude`, it will use the command defined in `claude.json` (typically `["claude"]`)
   - This ensures you connect directly to the configured agent
 - You can override the default by providing a custom command (e.g., `bash`, `python`, or any executable available in the container)
-- Use the `--` separator when your command includes flags to prevent kortex-cli from trying to parse them
+- Use the `--` separator when your command includes flags to prevent kdn from trying to parse them
 - The terminal session is fully interactive with stdin/stdout/stderr connected to your terminal
 - The command execution happens inside the workspace's container/runtime environment
 - JSON output is **not supported** for this command as it's inherently interactive
@@ -2559,8 +2559,8 @@ Removes a registered workspace by its name or ID. Also available as the shorter 
 #### Usage
 
 ```bash
-kortex-cli workspace remove NAME|ID [flags]
-kortex-cli remove NAME|ID [flags]
+kdn workspace remove NAME|ID [flags]
+kdn remove NAME|ID [flags]
 ```
 
 #### Arguments
@@ -2572,45 +2572,45 @@ kortex-cli remove NAME|ID [flags]
 - `--force, -f` - Stop the workspace if it is running before removing it
 - `--output, -o <format>` - Output format (supported: `json`)
 - `--show-logs` - Show stdout and stderr from runtime commands (cannot be combined with `--output json`)
-- `--storage <path>` - Storage directory for kortex-cli data (default: `$HOME/.kortex-cli`)
+- `--storage <path>` - Storage directory for kdn data (default: `$HOME/.kortex-cli`)
 
 #### Examples
 
 **Remove a workspace by ID:**
 ```bash
-kortex-cli workspace remove a1b2c3d4e5f6...
+kdn workspace remove a1b2c3d4e5f6...
 ```
 Output: `a1b2c3d4e5f6...` (ID of removed workspace)
 
 **Remove a workspace by name:**
 ```bash
-kortex-cli workspace remove my-project
+kdn workspace remove my-project
 ```
 Output: `a1b2c3d4e5f6...` (ID of removed workspace)
 
 **Use the short alias:**
 ```bash
-kortex-cli remove my-project
+kdn remove my-project
 ```
 
 **View workspace names and IDs before removing:**
 ```bash
 # First, list all workspaces to find the name or ID
-kortex-cli list
+kdn list
 
 # Then remove the desired workspace (using either name or ID)
-kortex-cli remove my-project
+kdn remove my-project
 ```
 
 **Remove a running workspace (stops it first):**
 ```bash
-kortex-cli workspace remove a1b2c3d4e5f6... --force
+kdn workspace remove a1b2c3d4e5f6... --force
 ```
 Output: `a1b2c3d4e5f6...` (ID of removed workspace)
 
 **JSON output:**
 ```bash
-kortex-cli workspace remove a1b2c3d4e5f6... --output json
+kdn workspace remove a1b2c3d4e5f6... --output json
 ```
 Output:
 ```json
@@ -2621,19 +2621,19 @@ Output:
 
 **JSON output with short flag:**
 ```bash
-kortex-cli remove a1b2c3d4e5f6... -o json
+kdn remove a1b2c3d4e5f6... -o json
 ```
 
 **Show runtime command output:**
 ```bash
-kortex-cli workspace remove a1b2c3d4e5f6... --show-logs
+kdn workspace remove a1b2c3d4e5f6... --show-logs
 ```
 
 #### Error Handling
 
 **Workspace not found (text format):**
 ```bash
-kortex-cli remove invalid-id
+kdn remove invalid-id
 ```
 Output:
 ```text
@@ -2643,7 +2643,7 @@ Use 'workspace list' to see available workspaces
 
 **Workspace not found (JSON format):**
 ```bash
-kortex-cli remove invalid-id --output json
+kdn remove invalid-id --output json
 ```
 Output:
 ```json
@@ -2658,18 +2658,18 @@ Attempting to remove a running workspace without `--force` will fail because the
 
 ```bash
 # Stop first, then remove
-kortex-cli stop a1b2c3d4e5f6...
-kortex-cli remove a1b2c3d4e5f6...
+kdn stop a1b2c3d4e5f6...
+kdn remove a1b2c3d4e5f6...
 
 # Or remove in one step
-kortex-cli remove a1b2c3d4e5f6... --force
+kdn remove a1b2c3d4e5f6... --force
 ```
 
 #### Notes
 
 - You can specify the workspace using either its name or ID (both can be obtained using the `workspace list` or `list` command)
 - The command always outputs the workspace ID, even when removed by name
-- Removing a workspace only unregisters it from kortex-cli; it does not delete any files from the sources or configuration directories
+- Removing a workspace only unregisters it from kdn; it does not delete any files from the sources or configuration directories
 - If the workspace name or ID is not found, the command will fail with a helpful error message
 - Use `--force` to automatically stop a running workspace before removing it; without this flag, removing a running workspace will fail
 - Tab completion for this command suggests only non-running workspaces by default; when `--force` is specified, all workspaces are suggested
