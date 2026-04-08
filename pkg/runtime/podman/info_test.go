@@ -57,23 +57,23 @@ func TestInfo_Success(t *testing.T) {
 		{
 			name:          "running container",
 			containerID:   "abc123def456",
-			output:        "abc123def456|running|kortex-cli-test\n",
+			output:        "abc123def456|running|kdn-test\n",
 			expectedState: api.WorkspaceStateRunning,
-			expectedImage: "kortex-cli-test",
+			expectedImage: "kdn-test",
 		},
 		{
 			name:          "stopped container",
 			containerID:   "xyz789ghi012",
-			output:        "xyz789ghi012|exited|kortex-cli-stopped\n",
+			output:        "xyz789ghi012|exited|kdn-stopped\n",
 			expectedState: api.WorkspaceStateStopped,
-			expectedImage: "kortex-cli-stopped",
+			expectedImage: "kdn-stopped",
 		},
 		{
 			name:          "created container",
 			containerID:   "def456jkl789",
-			output:        "def456jkl789|created|kortex-cli-new\n",
+			output:        "def456jkl789|created|kdn-new\n",
 			expectedState: api.WorkspaceStateStopped,
-			expectedImage: "kortex-cli-new",
+			expectedImage: "kdn-new",
 		},
 	}
 
@@ -170,23 +170,23 @@ func TestGetContainerInfo_ParsesOutput(t *testing.T) {
 		{
 			name:          "running container",
 			containerID:   "abc123",
-			output:        "abc123def456|running|kortex-cli-test\n",
+			output:        "abc123def456|running|kdn-test\n",
 			expectedState: api.WorkspaceStateRunning,
-			expectedImage: "kortex-cli-test",
+			expectedImage: "kdn-test",
 		},
 		{
 			name:          "stopped container",
 			containerID:   "xyz789",
-			output:        "xyz789ghi012|exited|kortex-cli-stopped\n",
+			output:        "xyz789ghi012|exited|kdn-stopped\n",
 			expectedState: api.WorkspaceStateStopped,
-			expectedImage: "kortex-cli-stopped",
+			expectedImage: "kdn-stopped",
 		},
 		{
 			name:          "created container",
 			containerID:   "def456",
-			output:        "def456|created|kortex-cli-new\n",
+			output:        "def456|created|kdn-new\n",
 			expectedState: api.WorkspaceStateStopped,
-			expectedImage: "kortex-cli-new",
+			expectedImage: "kdn-new",
 		},
 	}
 

@@ -1209,7 +1209,7 @@ When you register a workspace with the Podman runtime, you'll see progress feedb
 ✓ Temporary build directory created
 ⠋ Generating Containerfile
 ✓ Containerfile generated
-⠋ Building container image: kortex-cli-myproject
+⠋ Building container image: kdn-myproject
 ✓ Container image built
 ⠋ Creating container: myproject
 ✓ Container created
@@ -1218,7 +1218,7 @@ When you register a workspace with the Podman runtime, you'll see progress feedb
 The `init` command will:
 1. Create a temporary build directory - **with progress spinner**
 2. Generate a Containerfile with the configuration above - **with progress spinner**
-3. Build a custom image (tagged as `kortex-cli-<workspace-name>`) - **with progress spinner**
+3. Build a custom image (tagged as `kdn-<workspace-name>`) - **with progress spinner**
 4. Create a container with your source code mounted - **with progress spinner**
 
 After registration, you can start the workspace:

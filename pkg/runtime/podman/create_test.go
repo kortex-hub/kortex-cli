@@ -408,7 +408,7 @@ func TestBuildContainerArgs(t *testing.T) {
 			SourcePath: sourcePath,
 			Agent:      "test_agent",
 		}
-		imageName := "kortex-cli-test-workspace"
+		imageName := "kdn-test-workspace"
 
 		args, err := p.buildContainerArgs(params, imageName)
 		if err != nil {
@@ -421,7 +421,7 @@ func TestBuildContainerArgs(t *testing.T) {
 			"--name", "test-workspace",
 			"-v", fmt.Sprintf("%s:/workspace/sources:Z", sourcePath),
 			"-w", "/workspace/sources",
-			"kortex-cli-test-workspace",
+			"kdn-test-workspace",
 			"sleep", "infinity",
 		}
 
@@ -461,7 +461,7 @@ func TestBuildContainerArgs(t *testing.T) {
 				Environment: &envVars,
 			},
 		}
-		imageName := "kortex-cli-test-workspace"
+		imageName := "kdn-test-workspace"
 
 		args, err := p.buildContainerArgs(params, imageName)
 		if err != nil {
@@ -510,7 +510,7 @@ func TestBuildContainerArgs(t *testing.T) {
 				},
 			},
 		}
-		imageName := "kortex-cli-test-workspace"
+		imageName := "kdn-test-workspace"
 
 		args, err := p.buildContainerArgs(params, imageName)
 		if err != nil {
@@ -547,7 +547,7 @@ func TestBuildContainerArgs(t *testing.T) {
 				},
 			},
 		}
-		imageName := "kortex-cli-test-workspace"
+		imageName := "kdn-test-workspace"
 
 		args, err := p.buildContainerArgs(params, imageName)
 		if err != nil {
@@ -605,7 +605,7 @@ func TestBuildContainerArgs(t *testing.T) {
 				},
 			},
 		}
-		imageName := "kortex-cli-test-workspace"
+		imageName := "kdn-test-workspace"
 
 		args, err := p.buildContainerArgs(params, imageName)
 		if err != nil {
@@ -707,7 +707,7 @@ func TestCreate_StepLogger_Success(t *testing.T) {
 			completed:  "Containerfile generated",
 		},
 		{
-			inProgress: "Building container image: kortex-cli-test-workspace",
+			inProgress: "Building container image: kdn-test-workspace",
 			completed:  "Container image built",
 		},
 		{
@@ -900,7 +900,7 @@ func TestCreate_StepLogger_FailOnBuildImage(t *testing.T) {
 	expectedSteps := []string{
 		"Creating temporary build directory",
 		"Generating Containerfile",
-		"Building container image: kortex-cli-test-workspace",
+		"Building container image: kdn-test-workspace",
 	}
 
 	for i, expected := range expectedSteps {
@@ -971,7 +971,7 @@ func TestCreate_StepLogger_FailOnCreateContainer(t *testing.T) {
 	expectedSteps := []string{
 		"Creating temporary build directory",
 		"Generating Containerfile",
-		"Building container image: kortex-cli-test-workspace",
+		"Building container image: kdn-test-workspace",
 		"Creating container: test-workspace",
 	}
 

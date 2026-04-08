@@ -54,7 +54,7 @@ func TestRemove_Success(t *testing.T) {
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
 		if len(args) >= 1 && args[0] == "inspect" {
 			// Return a stopped container
-			return []byte(fmt.Sprintf("%s|stopped|kortex-cli-test", containerID)), nil
+			return []byte(fmt.Sprintf("%s|stopped|kdn-test", containerID)), nil
 		}
 		return nil, fmt.Errorf("unexpected command: %v", args)
 	}
@@ -118,7 +118,7 @@ func TestRemove_RejectsRunningContainer(t *testing.T) {
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
 		if len(args) >= 1 && args[0] == "inspect" {
 			// Return a running container
-			return []byte(fmt.Sprintf("%s|running|kortex-cli-test", containerID)), nil
+			return []byte(fmt.Sprintf("%s|running|kdn-test", containerID)), nil
 		}
 		return nil, fmt.Errorf("unexpected command: %v", args)
 	}
@@ -155,7 +155,7 @@ func TestRemove_RemoveContainerFailure(t *testing.T) {
 	// Set up OutputFunc to return container info showing stopped state
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
 		if len(args) >= 1 && args[0] == "inspect" {
-			return []byte(fmt.Sprintf("%s|stopped|kortex-cli-test", containerID)), nil
+			return []byte(fmt.Sprintf("%s|stopped|kdn-test", containerID)), nil
 		}
 		return nil, fmt.Errorf("unexpected command: %v", args)
 	}
@@ -255,7 +255,7 @@ func TestRemove_StepLogger_Success(t *testing.T) {
 
 	// Set up OutputFunc to return stopped container info
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
-		output := fmt.Sprintf("%s|exited|kortex-cli-test\n", containerID)
+		output := fmt.Sprintf("%s|exited|kdn-test\n", containerID)
 		return []byte(output), nil
 	}
 
@@ -401,7 +401,7 @@ func TestRemove_StepLogger_FailOnRunningContainer(t *testing.T) {
 
 	// Set up OutputFunc to return a running container
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
-		output := fmt.Sprintf("%s|running|kortex-cli-test\n", containerID)
+		output := fmt.Sprintf("%s|running|kdn-test\n", containerID)
 		return []byte(output), nil
 	}
 
@@ -447,7 +447,7 @@ func TestRemove_StepLogger_FailOnRemoveContainer(t *testing.T) {
 
 	// Set up OutputFunc to return stopped container info
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
-		output := fmt.Sprintf("%s|exited|kortex-cli-test\n", containerID)
+		output := fmt.Sprintf("%s|exited|kdn-test\n", containerID)
 		return []byte(output), nil
 	}
 

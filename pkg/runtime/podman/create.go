@@ -211,7 +211,7 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 	}
 
 	// Build image
-	imageName := fmt.Sprintf("kortex-cli-%s", params.Name)
+	imageName := fmt.Sprintf("kdn-%s", params.Name)
 	stepLogger.Start(fmt.Sprintf("Building container image: %s", imageName), "Container image built")
 	if err := p.buildImage(ctx, imageName, instanceDir); err != nil {
 		stepLogger.Fail(err)

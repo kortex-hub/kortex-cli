@@ -53,7 +53,7 @@ func TestStart_Success(t *testing.T) {
 	// Set up OutputFunc to return container info
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
 		// Simulate podman inspect output
-		output := fmt.Sprintf("%s|running|kortex-cli-test\n", containerID)
+		output := fmt.Sprintf("%s|running|kdn-test\n", containerID)
 		return []byte(output), nil
 	}
 
@@ -80,8 +80,8 @@ func TestStart_Success(t *testing.T) {
 	if info.Info["container_id"] != containerID {
 		t.Errorf("Expected container_id %s, got %s", containerID, info.Info["container_id"])
 	}
-	if info.Info["image_name"] != "kortex-cli-test" {
-		t.Errorf("Expected image_name 'kortex-cli-test', got %s", info.Info["image_name"])
+	if info.Info["image_name"] != "kdn-test" {
+		t.Errorf("Expected image_name 'kdn-test', got %s", info.Info["image_name"])
 	}
 }
 
@@ -138,7 +138,7 @@ func TestStart_StepLogger_Success(t *testing.T) {
 
 	// Set up OutputFunc to return container info
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
-		output := fmt.Sprintf("%s|running|kortex-cli-test\n", containerID)
+		output := fmt.Sprintf("%s|running|kdn-test\n", containerID)
 		return []byte(output), nil
 	}
 
