@@ -38,4 +38,4 @@ mkdocs serve
 
 The website is automatically deployed to GitHub Pages when changes are pushed to the `main` branch.
 
-Website URL: https://kortex-hub.github.io/kortex-cli/
+Website URL: https://openkaiden.github.io/kdn/

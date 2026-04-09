@@ -18,11 +18,11 @@
 site_name: kdn Documentation
 site_description: Command-line interface for launching and managing AI agents (Claude Code, Goose, Cursor) with custom configurations
 site_author: Red Hat
-site_url: https://kortex-hub.github.io/kortex-cli/
+site_url: https://openkaiden.github.io/kdn/
 
 # Repository configuration
-repo_name: kortex-hub/kortex-cli
-repo_url: https://github.com/kortex-hub/kortex-cli
+repo_name: openkaiden/kdn
+repo_url: https://github.com/openkaiden/kdn
 
 # Copyright
 copyright: Copyright &copy; 2026 Red Hat, Inc. Licensed under Apache License 2.0
@@ -128,7 +128,7 @@ markdown_extensions:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/kortex-hub/kortex-cli
+      link: https://github.com/openkaiden/kdn
       name: kdn on GitHub
   generator: false  # Don't show "Made with Material for MkDocs"
 
