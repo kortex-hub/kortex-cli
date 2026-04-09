@@ -43,6 +43,7 @@ type fakeInstance struct {
 	runtime    RuntimeData
 	project    string
 	agent      string
+	model      string
 }
 
 // Compile-time check to ensure fakeInstance implements Instance interface
@@ -85,7 +86,7 @@ func (f *fakeInstance) GetAgent() string {
 }
 
 func (f *fakeInstance) GetModel() string {
-	return ""
+	return f.model
 }
 
 func (f *fakeInstance) Dump() InstanceData {
@@ -112,6 +113,7 @@ type newFakeInstanceParams struct {
 	Runtime    RuntimeData
 	Project    string
 	Agent      string
+	Model      string
 }
 
 // newFakeInstance creates a new fake instance for testing
@@ -125,6 +127,7 @@ func newFakeInstance(params newFakeInstanceParams) Instance {
 		runtime:    params.Runtime,
 		project:    params.Project,
 		agent:      params.Agent,
+		model:      params.Model,
 	}
 }
 
@@ -153,6 +156,7 @@ func fakeInstanceFactory(data InstanceData) (Instance, error) {
 		runtime:    data.Runtime,
 		project:    data.Project,
 		agent:      data.Agent,
+		model:      data.Model,
 	}, nil
 }
 
@@ -1055,6 +1059,31 @@ func TestManager_Start(t *testing.T) {
 			t.Errorf("State from new manager = %v, want 'running'", retrieved.GetRuntimeData().State)
 		}
 	})
+
+	t.Run("preserves model after start", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		tmpDir := t.TempDir()
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), newFakeGitDetector())
+
+		instanceTmpDir := t.TempDir()
+		inst := newFakeInstance(newFakeInstanceParams{
+			SourceDir:  filepath.Join(instanceTmpDir, "source"),
+			ConfigDir:  filepath.Join(instanceTmpDir, "config"),
+			Accessible: true,
+		})
+		added, _ := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake", Model: "claude-sonnet-4-20250514"})
+
+		if err := manager.Start(ctx, added.GetID()); err != nil {
+			t.Fatalf("Start() unexpected error = %v", err)
+		}
+
+		updated, _ := manager.Get(added.GetID())
+		if updated.GetModel() != "claude-sonnet-4-20250514" {
+			t.Errorf("After Start, GetModel() = %q, want %q", updated.GetModel(), "claude-sonnet-4-20250514")
+		}
+	})
 }
 
 func TestManager_Stop(t *testing.T) {
@@ -1281,6 +1310,34 @@ func TestManager_Stop(t *testing.T) {
 		updated, _ := manager.Get(added.GetID())
 		if updated.GetProject() != "https://github.com/kortex-hub/kortex-cli/" {
 			t.Errorf("After Stop, project = %v, want 'https://github.com/kortex-hub/kortex-cli/'", updated.GetProject())
+		}
+	})
+
+	t.Run("preserves model after stop", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		tmpDir := t.TempDir()
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), newFakeGitDetector())
+
+		instanceTmpDir := t.TempDir()
+		inst := newFakeInstance(newFakeInstanceParams{
+			SourceDir:  filepath.Join(instanceTmpDir, "source"),
+			ConfigDir:  filepath.Join(instanceTmpDir, "config"),
+			Accessible: true,
+		})
+		added, _ := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake", Model: "claude-sonnet-4-20250514"})
+
+		if err := manager.Start(ctx, added.GetID()); err != nil {
+			t.Fatalf("Start() unexpected error = %v", err)
+		}
+		if err := manager.Stop(ctx, added.GetID()); err != nil {
+			t.Fatalf("Stop() unexpected error = %v", err)
+		}
+
+		updated, _ := manager.Get(added.GetID())
+		if updated.GetModel() != "claude-sonnet-4-20250514" {
+			t.Errorf("After Stop, GetModel() = %q, want %q", updated.GetModel(), "claude-sonnet-4-20250514")
 		}
 	})
 }

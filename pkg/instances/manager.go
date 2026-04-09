@@ -350,6 +350,7 @@ func (m *manager) Start(ctx context.Context, id string) error {
 		},
 		Project: instanceToStart.GetProject(),
 		Agent:   instanceToStart.GetAgent(),
+		Model:   instanceToStart.GetModel(),
 	}
 
 	instances[index] = updatedInstance
@@ -425,6 +426,7 @@ func (m *manager) Stop(ctx context.Context, id string) error {
 		},
 		Project: instanceToStop.GetProject(),
 		Agent:   instanceToStop.GetAgent(),
+		Model:   instanceToStop.GetModel(),
 	}
 
 	instances[index] = updatedInstance
