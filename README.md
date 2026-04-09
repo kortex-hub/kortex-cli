@@ -1,7 +1,7 @@
 # kdn
 
-[![codecov](https://codecov.io/gh/kortex-hub/kortex-cli/branch/main/graph/badge.svg)](https://codecov.io/gh/kortex-hub/kortex-cli)
-[![Documentation](https://img.shields.io/badge/documentation-blue)](https://kortex-hub.github.io/kortex-cli/)
+[![codecov](https://codecov.io/gh/openkaiden/kortex-cli/branch/main/graph/badge.svg)](https://codecov.io/gh/openkaiden/kortex-cli)
+[![Documentation](https://img.shields.io/badge/documentation-blue)](https://openkaiden.github.io/kortex-cli/)
 
 kdn is a command-line interface for launching and managing AI agents in isolated, reproducible workspaces. It creates runtime-based environments (containers, VMs, or other backends) where agents run with your project source code mounted, automatically configured and ready to use — no manual onboarding or setup required.
 
