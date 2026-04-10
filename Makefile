@@ -18,6 +18,12 @@
 
 # Binary name
 BINARY_NAME=kdn
+# Add .exe extension on Windows
+ifeq ($(OS),Windows_NT)
+    BINARY_EXT=.exe
+else
+    BINARY_EXT=
+endif
 # Build output directory
 BUILD_DIR=.
 # Go command
@@ -33,8 +39,8 @@ help: ## Display this help message
 
 build: ## Build the kdn binary
 build:
-	@echo "Building $(BINARY_NAME)..."
-	$(GO) build -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/kdn
+	@echo "Building $(BINARY_NAME)$(BINARY_EXT)..."
+	$(GO) build -o $(BUILD_DIR)/$(BINARY_NAME)$(BINARY_EXT) ./cmd/kdn
 
 install: ## Install the binary to GOPATH/bin
 	@echo "Installing $(BINARY_NAME)..."
@@ -78,7 +84,7 @@ ci-checks: check-fmt check-vet test ## Run all CI checks
 
 clean: ## Remove build artifacts
 	@echo "Cleaning build artifacts..."
-	@rm -f $(BUILD_DIR)/$(BINARY_NAME)
+	@rm -f $(BUILD_DIR)/$(BINARY_NAME)$(BINARY_EXT)
 	@rm -f coverage.out coverage.html
 	@rm -f *.test
 	@echo "Clean complete."
