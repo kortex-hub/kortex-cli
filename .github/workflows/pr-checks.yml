@@ -47,7 +47,26 @@ jobs:
       - name: Build binary
         run: make build
 
-      - name: Verify binary
+      - name: Check binary extension (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path ./kdn.exe)) { Write-Error "kdn.exe not found"; exit 1 }
+          if (Test-Path ./kdn) { Write-Error "kdn (without .exe) should not exist on Windows"; exit 1 }
+
+      - name: Check binary extension (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          test -f ./kdn
+          test ! -f ./kdn.exe
+
+      - name: Verify binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./kdn.exe version
+
+      - name: Verify binary (Unix)
+        if: runner.os != 'Windows'
         run: ./kdn version
 
       - name: Generate coverage report
