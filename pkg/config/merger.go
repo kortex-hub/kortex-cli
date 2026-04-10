@@ -193,6 +193,11 @@ func mergeSkills(base, override *[]string) *[]string {
 // mergeMCP merges two McpConfiguration objects, with override taking precedence by name.
 // Commands and servers from base are included first; override entries replace base entries
 // with the same name.
+//
+// Cross-type collisions are resolved in favour of the override side: if override defines
+// a command named "foo", any base server named "foo" is dropped, and vice-versa. This
+// prevents the lower-precedence type from silently overwriting the higher-precedence one
+// when an agent flattens both lists into a single mcpServers map.
 func mergeMCP(base, override *workspace.McpConfiguration) *workspace.McpConfiguration {
 	if base == nil && override == nil {
 		return nil
@@ -204,14 +209,89 @@ func mergeMCP(base, override *workspace.McpConfiguration) *workspace.McpConfigur
 		return copyMCP(base)
 	}
 
+	// Build sets of names claimed by each override list so we can resolve cross-type
+	// collisions (e.g. base.Servers["foo"] must lose to override.Commands["foo"]).
+	overrideCmdNames := make(map[string]bool)
+	if override.Commands != nil {
+		for _, cmd := range *override.Commands {
+			overrideCmdNames[cmd.Name] = true
+		}
+	}
+	overrideSrvNames := make(map[string]bool)
+	if override.Servers != nil {
+		for _, srv := range *override.Servers {
+			overrideSrvNames[srv.Name] = true
+		}
+	}
+
 	result := &workspace.McpConfiguration{}
 	result.Commands = mergeMCPCommands(base.Commands, override.Commands)
 	result.Servers = mergeMCPServers(base.Servers, override.Servers)
+
+	// Drop any command whose name was claimed by override.Servers, and any server
+	// whose name was claimed by override.Commands.
+	if result.Commands != nil && len(overrideSrvNames) > 0 {
+		filtered := (*result.Commands)[:0:0]
+		for _, cmd := range *result.Commands {
+			if !overrideSrvNames[cmd.Name] {
+				filtered = append(filtered, cmd)
+			}
+		}
+		if len(filtered) == 0 {
+			result.Commands = nil
+		} else {
+			result.Commands = &filtered
+		}
+	}
+	if result.Servers != nil && len(overrideCmdNames) > 0 {
+		filtered := (*result.Servers)[:0:0]
+		for _, srv := range *result.Servers {
+			if !overrideCmdNames[srv.Name] {
+				filtered = append(filtered, srv)
+			}
+		}
+		if len(filtered) == 0 {
+			result.Servers = nil
+		} else {
+			result.Servers = &filtered
+		}
+	}
 
 	if result.Commands == nil && result.Servers == nil {
 		return nil
 	}
 	return result
+}
+
+// deepCopyMcpCommand returns a deep copy of cmd so that its Args and Env
+// pointer fields do not alias the original.
+func deepCopyMcpCommand(cmd workspace.McpCommand) workspace.McpCommand {
+	if cmd.Args != nil {
+		argsCopy := make([]string, len(*cmd.Args))
+		copy(argsCopy, *cmd.Args)
+		cmd.Args = &argsCopy
+	}
+	if cmd.Env != nil {
+		envCopy := make(map[string]string, len(*cmd.Env))
+		for k, v := range *cmd.Env {
+			envCopy[k] = v
+		}
+		cmd.Env = &envCopy
+	}
+	return cmd
+}
+
+// deepCopyMcpServer returns a deep copy of srv so that its Headers pointer
+// field does not alias the original.
+func deepCopyMcpServer(srv workspace.McpServer) workspace.McpServer {
+	if srv.Headers != nil {
+		hdrs := make(map[string]string, len(*srv.Headers))
+		for k, v := range *srv.Headers {
+			hdrs[k] = v
+		}
+		srv.Headers = &hdrs
+	}
+	return srv
 }
 
 // mergeMCPCommands merges command slices, deduplicating by name (override wins).
@@ -244,7 +324,7 @@ func mergeMCPCommands(base, override *[]workspace.McpCommand) *[]workspace.McpCo
 
 	result := make([]workspace.McpCommand, 0, len(order))
 	for _, name := range order {
-		result = append(result, cmdMap[name])
+		result = append(result, deepCopyMcpCommand(cmdMap[name]))
 	}
 	return &result
 }
@@ -279,7 +359,7 @@ func mergeMCPServers(base, override *[]workspace.McpServer) *[]workspace.McpServ
 
 	result := make([]workspace.McpServer, 0, len(order))
 	for _, name := range order {
-		result = append(result, srvMap[name])
+		result = append(result, deepCopyMcpServer(srvMap[name]))
 	}
 	return &result
 }
@@ -292,12 +372,16 @@ func copyMCP(mcp *workspace.McpConfiguration) *workspace.McpConfiguration {
 	result := &workspace.McpConfiguration{}
 	if mcp.Commands != nil {
 		cmdsCopy := make([]workspace.McpCommand, len(*mcp.Commands))
-		copy(cmdsCopy, *mcp.Commands)
+		for i, cmd := range *mcp.Commands {
+			cmdsCopy[i] = deepCopyMcpCommand(cmd)
+		}
 		result.Commands = &cmdsCopy
 	}
 	if mcp.Servers != nil {
 		srvsCopy := make([]workspace.McpServer, len(*mcp.Servers))
-		copy(srvsCopy, *mcp.Servers)
+		for i, srv := range *mcp.Servers {
+			srvsCopy[i] = deepCopyMcpServer(srv)
+		}
 		result.Servers = &srvsCopy
 	}
 	return result

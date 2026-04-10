@@ -780,6 +780,228 @@ func TestMerger_Merge_MCP_ServersMergedByName(t *testing.T) {
 	}
 }
 
+func TestMerger_Merge_MCP_DeepCopy(t *testing.T) {
+	t.Parallel()
+
+	merger := NewMerger()
+
+	t.Run("mutating merged command Args does not affect base", func(t *testing.T) {
+		t.Parallel()
+
+		args := []string{"--verbose"}
+		base := &workspace.WorkspaceConfiguration{
+			Mcp: &workspace.McpConfiguration{
+				Commands: &[]workspace.McpCommand{
+					{Name: "tool-a", Command: "cmd-a", Args: &args},
+				},
+			},
+		}
+
+		result := merger.Merge(base, nil)
+
+		// Mutate the result's Args slice
+		(*result.Mcp.Commands)[0].Args = &[]string{"--other"}
+
+		// Base must be unaffected
+		if (*(*base.Mcp.Commands)[0].Args)[0] != "--verbose" {
+			t.Error("Mutating merged command Args affected the base input")
+		}
+	})
+
+	t.Run("mutating merged command Env does not affect base", func(t *testing.T) {
+		t.Parallel()
+
+		env := map[string]string{"KEY": "original"}
+		base := &workspace.WorkspaceConfiguration{
+			Mcp: &workspace.McpConfiguration{
+				Commands: &[]workspace.McpCommand{
+					{Name: "tool-a", Command: "cmd-a", Env: &env},
+				},
+			},
+		}
+
+		result := merger.Merge(base, nil)
+
+		// Mutate the result's Env map
+		(*(*result.Mcp.Commands)[0].Env)["KEY"] = "mutated"
+
+		// Base must be unaffected
+		if env["KEY"] != "original" {
+			t.Error("Mutating merged command Env affected the base input")
+		}
+	})
+
+	t.Run("mutating merged server Headers does not affect base", func(t *testing.T) {
+		t.Parallel()
+
+		headers := map[string]string{"Authorization": "Bearer token"}
+		base := &workspace.WorkspaceConfiguration{
+			Mcp: &workspace.McpConfiguration{
+				Servers: &[]workspace.McpServer{
+					{Name: "srv-a", Url: "https://a.example.com", Headers: &headers},
+				},
+			},
+		}
+
+		result := merger.Merge(base, nil)
+
+		// Mutate the result's Headers map
+		(*(*result.Mcp.Servers)[0].Headers)["Authorization"] = "Bearer other"
+
+		// Base must be unaffected
+		if headers["Authorization"] != "Bearer token" {
+			t.Error("Mutating merged server Headers affected the base input")
+		}
+	})
+
+	t.Run("override command Args is independent of override input", func(t *testing.T) {
+		t.Parallel()
+
+		args := []string{"--flag"}
+		override := &workspace.WorkspaceConfiguration{
+			Mcp: &workspace.McpConfiguration{
+				Commands: &[]workspace.McpCommand{
+					{Name: "tool-a", Command: "cmd-a", Args: &args},
+				},
+			},
+		}
+
+		result := merger.Merge(nil, override)
+
+		// Mutate the result's Args slice
+		(*result.Mcp.Commands)[0].Args = &[]string{"--other"}
+
+		// Override must be unaffected
+		if (*(*override.Mcp.Commands)[0].Args)[0] != "--flag" {
+			t.Error("Mutating merged command Args affected the override input")
+		}
+	})
+}
+
+func TestMerger_Merge_MCP_CrossTypeCollision(t *testing.T) {
+	t.Parallel()
+
+	merger := NewMerger()
+
+	t.Run("override command wins over base server with same name", func(t *testing.T) {
+		t.Parallel()
+
+		// base has a server named "foo"; override promotes it to a command – the
+		// command (higher-precedence type) must win and the base server must be gone.
+		base := &workspace.WorkspaceConfiguration{
+			Mcp: &workspace.McpConfiguration{
+				Servers: &[]workspace.McpServer{
+					{Name: "foo", Url: "https://base.example.com"},
+					{Name: "bar", Url: "https://bar.example.com"},
+				},
+			},
+		}
+		override := &workspace.WorkspaceConfiguration{
+			Mcp: &workspace.McpConfiguration{
+				Commands: &[]workspace.McpCommand{
+					{Name: "foo", Command: "foo-cmd"},
+				},
+			},
+		}
+
+		result := merger.Merge(base, override)
+		if result.Mcp == nil {
+			t.Fatal("Expected non-nil Mcp")
+		}
+
+		// "foo" command from override must be present
+		if result.Mcp.Commands == nil || len(*result.Mcp.Commands) != 1 {
+			t.Fatalf("Expected 1 command, got %v", result.Mcp.Commands)
+		}
+		if (*result.Mcp.Commands)[0].Name != "foo" {
+			t.Errorf("Expected command name %q, got %q", "foo", (*result.Mcp.Commands)[0].Name)
+		}
+
+		// "foo" server from base must have been removed; only "bar" should remain
+		if result.Mcp.Servers == nil || len(*result.Mcp.Servers) != 1 {
+			t.Fatalf("Expected 1 server (bar), got %v", result.Mcp.Servers)
+		}
+		if (*result.Mcp.Servers)[0].Name != "bar" {
+			t.Errorf("Expected server name %q, got %q", "bar", (*result.Mcp.Servers)[0].Name)
+		}
+	})
+
+	t.Run("override server wins over base command with same name", func(t *testing.T) {
+		t.Parallel()
+
+		// base has a command named "foo"; override promotes it to a server – the
+		// server (higher-precedence type) must win and the base command must be gone.
+		base := &workspace.WorkspaceConfiguration{
+			Mcp: &workspace.McpConfiguration{
+				Commands: &[]workspace.McpCommand{
+					{Name: "foo", Command: "foo-cmd-base"},
+					{Name: "bar", Command: "bar-cmd"},
+				},
+			},
+		}
+		override := &workspace.WorkspaceConfiguration{
+			Mcp: &workspace.McpConfiguration{
+				Servers: &[]workspace.McpServer{
+					{Name: "foo", Url: "https://override.example.com"},
+				},
+			},
+		}
+
+		result := merger.Merge(base, override)
+		if result.Mcp == nil {
+			t.Fatal("Expected non-nil Mcp")
+		}
+
+		// "foo" server from override must be present
+		if result.Mcp.Servers == nil || len(*result.Mcp.Servers) != 1 {
+			t.Fatalf("Expected 1 server, got %v", result.Mcp.Servers)
+		}
+		if (*result.Mcp.Servers)[0].Name != "foo" {
+			t.Errorf("Expected server name %q, got %q", "foo", (*result.Mcp.Servers)[0].Name)
+		}
+
+		// "foo" command from base must have been removed; only "bar" should remain
+		if result.Mcp.Commands == nil || len(*result.Mcp.Commands) != 1 {
+			t.Fatalf("Expected 1 command (bar), got %v", result.Mcp.Commands)
+		}
+		if (*result.Mcp.Commands)[0].Name != "bar" {
+			t.Errorf("Expected command name %q, got %q", "bar", (*result.Mcp.Commands)[0].Name)
+		}
+	})
+
+	t.Run("collision removes all base entries of losing type", func(t *testing.T) {
+		t.Parallel()
+
+		// When the override claims all server names as commands, the servers list
+		// should become nil rather than an empty slice.
+		base := &workspace.WorkspaceConfiguration{
+			Mcp: &workspace.McpConfiguration{
+				Servers: &[]workspace.McpServer{
+					{Name: "foo", Url: "https://a.example.com"},
+				},
+			},
+		}
+		override := &workspace.WorkspaceConfiguration{
+			Mcp: &workspace.McpConfiguration{
+				Commands: &[]workspace.McpCommand{
+					{Name: "foo", Command: "foo-cmd"},
+				},
+			},
+		}
+
+		result := merger.Merge(base, override)
+		if result.Mcp == nil {
+			t.Fatal("Expected non-nil Mcp")
+		}
+		if result.Mcp.Servers != nil {
+			t.Errorf("Expected Servers to be nil after all entries were displaced, got %v", result.Mcp.Servers)
+		}
+		if result.Mcp.Commands == nil || len(*result.Mcp.Commands) != 1 {
+			t.Fatalf("Expected 1 command, got %v", result.Mcp.Commands)
+		}
+	})
+}
+
 func TestMerger_Merge_MCP_PreservesOtherFields(t *testing.T) {
 	t.Parallel()
 

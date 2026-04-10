@@ -185,14 +185,15 @@ kdn init /path/to/workspace --workspace-configuration /path/to/config-dir
   - The target path is agent-specific (e.g., `$HOME/.claude/skills/<basename>/` for Claude Code)
 - `mcp` - MCP server configuration to inject into the agent's settings (optional)
   - `commands` - List of local command-based MCP servers (stdio transport)
-    - `name` - Unique server name (required, must be unique within commands)
+    - `name` - Unique server name (required, must be unique across both `commands` and `servers`)
     - `command` - Executable to launch (required, e.g., `npx`, `python3`)
     - `args` - Arguments to pass to the command (optional)
     - `env` - Environment variables for the process (optional)
   - `servers` - List of remote URL-based MCP servers (SSE transport)
-    - `name` - Unique server name (required, must be unique within servers)
+    - `name` - Unique server name (required, must be unique across both `commands` and `servers`)
     - `url` - SSE endpoint URL (required)
     - `headers` - HTTP headers to send with requests, e.g., for auth (optional)
+  - Names must be globally unique across both `commands` and `servers` because agents flatten both lists into a single `mcpServers` map
 
 ### Agent Configuration (`agents.json`)
 
