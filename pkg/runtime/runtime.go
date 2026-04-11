@@ -123,8 +123,10 @@ type AgentLister interface {
 //	}
 //
 //	func (r *myRuntime) Terminal(ctx context.Context, instanceID string, agent string, command []string) error {
+//	    // Derive the actual exec target from the instance ID (e.g., workspace container inside a pod)
+//	    target := deriveExecTarget(instanceID)
 //	    // Execute command interactively (stdin/stdout/stderr connected)
-//	    return r.exec.RunInteractive(ctx, "exec", "-it", instanceID, command...)
+//	    return r.exec.RunInteractive(ctx, "exec", "-it", target, command...)
 //	}
 type Terminal interface {
 	// Terminal starts an interactive terminal session inside a running instance.

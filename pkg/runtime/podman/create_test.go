@@ -394,45 +394,64 @@ func TestCreateContainerfile(t *testing.T) {
 	})
 }
 
-func TestBuildContainerArgs(t *testing.T) {
+func TestBuildWorkspaceContainerArgs(t *testing.T) {
 	t.Parallel()
 
 	t.Run("basic args without config", func(t *testing.T) {
 		t.Parallel()
 
 		p := &podmanRuntime{}
-		// Use t.TempDir() for cross-platform path handling
 		sourcePath := t.TempDir()
 		params := runtime.CreateParams{
 			Name:       "test-workspace",
 			SourcePath: sourcePath,
 			Agent:      "test_agent",
 		}
-		imageName := "kdn-test-workspace"
+		podN := podName(params.Name)
+		wsContainer := workspaceContainerName(podN)
+		imageName := podN
 
-		args, err := p.buildContainerArgs(params, imageName)
+		args, err := p.buildWorkspaceContainerArgs(params, podN, wsContainer, imageName)
 		if err != nil {
-			t.Fatalf("buildContainerArgs() failed: %v", err)
+			t.Fatalf("buildWorkspaceContainerArgs() failed: %v", err)
 		}
 
-		// Verify basic structure
-		expectedArgs := []string{
-			"create",
-			"--name", "test-workspace",
-			"-v", fmt.Sprintf("%s:/workspace/sources:Z", sourcePath),
-			"-w", "/workspace/sources",
-			"kdn-test-workspace",
-			"sleep", "infinity",
+		argsStr := strings.Join(args, " ")
+
+		// Verify pod and container flags
+		if !strings.Contains(argsStr, "--pod kdn-test-workspace") {
+			t.Errorf("Expected --pod flag with pod name, got: %s", argsStr)
+		}
+		if !strings.Contains(argsStr, "--name kdn-test-workspace-workspace") {
+			t.Errorf("Expected --name flag with workspace container name, got: %s", argsStr)
 		}
 
-		if len(args) != len(expectedArgs) {
-			t.Fatalf("Expected %d args, got %d\nExpected: %v\nGot: %v", len(expectedArgs), len(args), expectedArgs, args)
-		}
-
-		for i, expected := range expectedArgs {
-			if args[i] != expected {
-				t.Errorf("Arg %d: expected %q, got %q", i, expected, args[i])
+		// Verify proxy env vars are present
+		for _, envFlag := range []string{
+			"HTTP_PROXY=http://localhost:3128",
+			"HTTPS_PROXY=http://localhost:3128",
+			"http_proxy=http://localhost:3128",
+			"https_proxy=http://localhost:3128",
+			"NO_PROXY=localhost,127.0.0.1",
+			"no_proxy=localhost,127.0.0.1",
+		} {
+			if !strings.Contains(argsStr, envFlag) {
+				t.Errorf("Expected proxy env var %q in args: %s", envFlag, argsStr)
 			}
+		}
+
+		// Verify source mount, working dir, image, and command
+		if !strings.Contains(argsStr, fmt.Sprintf("%s:/workspace/sources:Z", sourcePath)) {
+			t.Errorf("Expected source mount, got: %s", argsStr)
+		}
+		if !strings.Contains(argsStr, "-w /workspace/sources") {
+			t.Errorf("Expected working directory, got: %s", argsStr)
+		}
+		if !strings.Contains(argsStr, imageName) {
+			t.Errorf("Expected image name %q, got: %s", imageName, argsStr)
+		}
+		if !strings.Contains(argsStr, "sleep infinity") {
+			t.Errorf("Expected sleep infinity command, got: %s", argsStr)
 		}
 	})
 
@@ -451,7 +470,6 @@ func TestBuildContainerArgs(t *testing.T) {
 			{Name: "EMPTY", Value: &emptyValue},
 		}
 
-		// Use t.TempDir() for cross-platform path handling
 		sourcePath := t.TempDir()
 		params := runtime.CreateParams{
 			Name:       "test-workspace",
@@ -461,11 +479,12 @@ func TestBuildContainerArgs(t *testing.T) {
 				Environment: &envVars,
 			},
 		}
-		imageName := "kdn-test-workspace"
+		podN := podName(params.Name)
+		wsContainer := workspaceContainerName(podN)
 
-		args, err := p.buildContainerArgs(params, imageName)
+		args, err := p.buildWorkspaceContainerArgs(params, podN, wsContainer, podN)
 		if err != nil {
-			t.Fatalf("buildContainerArgs() failed: %v", err)
+			t.Fatalf("buildWorkspaceContainerArgs() failed: %v", err)
 		}
 
 		// Check that environment variables are included
@@ -510,11 +529,12 @@ func TestBuildContainerArgs(t *testing.T) {
 				},
 			},
 		}
-		imageName := "kdn-test-workspace"
+		podN := podName(params.Name)
+		wsContainer := workspaceContainerName(podN)
 
-		args, err := p.buildContainerArgs(params, imageName)
+		args, err := p.buildWorkspaceContainerArgs(params, podN, wsContainer, podN)
 		if err != nil {
-			t.Fatalf("buildContainerArgs() failed: %v", err)
+			t.Fatalf("buildWorkspaceContainerArgs() failed: %v", err)
 		}
 
 		argsStr := strings.Join(args, " ")
@@ -547,11 +567,12 @@ func TestBuildContainerArgs(t *testing.T) {
 				},
 			},
 		}
-		imageName := "kdn-test-workspace"
+		podN := podName(params.Name)
+		wsContainer := workspaceContainerName(podN)
 
-		args, err := p.buildContainerArgs(params, imageName)
+		args, err := p.buildWorkspaceContainerArgs(params, podN, wsContainer, podN)
 		if err != nil {
-			t.Fatalf("buildContainerArgs() failed: %v", err)
+			t.Fatalf("buildWorkspaceContainerArgs() failed: %v", err)
 		}
 
 		// Get user home directory for verification
@@ -605,22 +626,26 @@ func TestBuildContainerArgs(t *testing.T) {
 				},
 			},
 		}
-		imageName := "kdn-test-workspace"
+		podN := podName(params.Name)
+		wsContainer := workspaceContainerName(podN)
+		imageName := podN
 
-		args, err := p.buildContainerArgs(params, imageName)
+		args, err := p.buildWorkspaceContainerArgs(params, podN, wsContainer, imageName)
 		if err != nil {
-			t.Fatalf("buildContainerArgs() failed: %v", err)
+			t.Fatalf("buildWorkspaceContainerArgs() failed: %v", err)
 		}
 
 		// Verify all components are present
 		argsStr := strings.Join(args, " ")
 
-		// Check structure
 		if !strings.Contains(argsStr, "create") {
 			t.Error("Expected 'create' command")
 		}
-		if !strings.Contains(argsStr, "--name test-workspace") {
-			t.Error("Expected container name")
+		if !strings.Contains(argsStr, "--pod kdn-test-workspace") {
+			t.Error("Expected pod name flag")
+		}
+		if !strings.Contains(argsStr, "--name kdn-test-workspace-workspace") {
+			t.Error("Expected workspace container name")
 		}
 		if !strings.Contains(argsStr, "-e DEBUG=true") {
 			t.Error("Expected environment variable")
@@ -696,7 +721,7 @@ func TestCreate_StepLogger_Success(t *testing.T) {
 		t.Errorf("Expected no Fail() calls, got %d", len(fakeLogger.failCalls))
 	}
 
-	// Verify Start was called 4 times with correct messages
+	// Verify Start was called 7 times with correct messages
 	expectedSteps := []stepCall{
 		{
 			inProgress: "Creating temporary build directory",
@@ -711,8 +736,20 @@ func TestCreate_StepLogger_Success(t *testing.T) {
 			completed:  "Container image built",
 		},
 		{
-			inProgress: "Creating container: test-workspace",
-			completed:  "Container created",
+			inProgress: "Building proxy image: kdn-test-workspace-proxy",
+			completed:  "Proxy image built",
+		},
+		{
+			inProgress: "Creating pod: kdn-test-workspace",
+			completed:  "Pod created",
+		},
+		{
+			inProgress: "Creating proxy container",
+			completed:  "Proxy container created",
+		},
+		{
+			inProgress: "Creating workspace container: kdn-test-workspace-workspace",
+			completed:  "Workspace container created",
 		},
 	}
 
@@ -858,7 +895,7 @@ func TestCreate_StepLogger_FailOnBuildImage(t *testing.T) {
 	sourcePath := t.TempDir()
 
 	fakeExec := exec.NewFake()
-	// Make Run fail on build command
+	// Make Run fail on build command (first build = workspace image)
 	fakeExec.RunFunc = func(ctx context.Context, args ...string) error {
 		if len(args) > 0 && args[0] == "build" {
 			return fmt.Errorf("build failed")
@@ -892,7 +929,7 @@ func TestCreate_StepLogger_FailOnBuildImage(t *testing.T) {
 		t.Errorf("Expected Complete() to be called 1 time, got %d", fakeLogger.completeCalls)
 	}
 
-	// Verify Start was called 3 times (create dir, containerfile, build image)
+	// Verify Start was called 3 times (create dir, containerfile, build workspace image)
 	if len(fakeLogger.startCalls) != 3 {
 		t.Fatalf("Expected 3 Start() calls, got %d", len(fakeLogger.startCalls))
 	}
@@ -919,14 +956,14 @@ func TestCreate_StepLogger_FailOnBuildImage(t *testing.T) {
 	}
 }
 
-func TestCreate_StepLogger_FailOnCreateContainer(t *testing.T) {
+func TestCreate_StepLogger_FailOnCreateProxyContainer(t *testing.T) {
 	t.Parallel()
 
 	storageDir := t.TempDir()
 	sourcePath := t.TempDir()
 
 	fakeExec := exec.NewFake()
-	// Make Run succeed for build, but Output fail for create
+	// Run succeeds for all builds and pod create; Output fails for any container create
 	fakeExec.RunFunc = func(ctx context.Context, args ...string) error {
 		return nil
 	}
@@ -963,16 +1000,18 @@ func TestCreate_StepLogger_FailOnCreateContainer(t *testing.T) {
 		t.Errorf("Expected Complete() to be called 1 time, got %d", fakeLogger.completeCalls)
 	}
 
-	// Verify Start was called 4 times (all steps)
-	if len(fakeLogger.startCalls) != 4 {
-		t.Fatalf("Expected 4 Start() calls, got %d", len(fakeLogger.startCalls))
+	// Verify Start was called 6 times (up to and including "Creating proxy container")
+	if len(fakeLogger.startCalls) != 6 {
+		t.Fatalf("Expected 6 Start() calls, got %d", len(fakeLogger.startCalls))
 	}
 
 	expectedSteps := []string{
 		"Creating temporary build directory",
 		"Generating Containerfile",
 		"Building container image: kdn-test-workspace",
-		"Creating container: test-workspace",
+		"Building proxy image: kdn-test-workspace-proxy",
+		"Creating pod: kdn-test-workspace",
+		"Creating proxy container",
 	}
 
 	for i, expected := range expectedSteps {

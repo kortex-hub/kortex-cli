@@ -25,21 +25,21 @@ import (
 	"github.com/openkaiden/kdn/pkg/steplogger"
 )
 
-// Remove removes a Podman container and its associated resources.
+// Remove removes a Podman pod and its associated resources.
 func (p *podmanRuntime) Remove(ctx context.Context, id string) error {
 	stepLogger := steplogger.FromContext(ctx)
 	defer stepLogger.Complete()
 
 	// Validate the ID parameter
 	if id == "" {
-		return fmt.Errorf("%w: container ID is required", runtime.ErrInvalidParams)
+		return fmt.Errorf("%w: pod ID is required", runtime.ErrInvalidParams)
 	}
 
-	// Check if the container exists and get its state
-	stepLogger.Start("Checking container state", "Container state checked")
-	info, err := p.getContainerInfo(ctx, id)
+	// Check if the pod exists and get its state
+	stepLogger.Start("Checking pod state", "Pod state checked")
+	info, err := p.getPodInfo(ctx, id)
 	if err != nil {
-		// If the container doesn't exist, treat it as already removed (idempotent)
+		// If the pod doesn't exist, treat it as already removed (idempotent)
 		if isNotFoundError(err) {
 			return nil
 		}
@@ -47,15 +47,15 @@ func (p *podmanRuntime) Remove(ctx context.Context, id string) error {
 		return err
 	}
 
-	// Check if the container is running
+	// Check if the pod is running
 	if info.State == api.WorkspaceStateRunning {
-		err := fmt.Errorf("container %s is still running, stop it first", id)
+		err := fmt.Errorf("pod %s is still running, stop it first", id)
 		stepLogger.Fail(err)
 		return err
 	}
 
-	// Remove the container
-	stepLogger.Start(fmt.Sprintf("Removing container: %s", id), "Container removed")
+	// Remove the pod
+	stepLogger.Start(fmt.Sprintf("Removing pod: %s", id), "Pod removed")
 	if err := p.removeContainer(ctx, id); err != nil {
 		stepLogger.Fail(err)
 		return err
@@ -64,16 +64,16 @@ func (p *podmanRuntime) Remove(ctx context.Context, id string) error {
 	return nil
 }
 
-// removeContainer removes a podman container by ID.
+// removeContainer removes a podman pod by ID.
 func (p *podmanRuntime) removeContainer(ctx context.Context, id string) error {
 	l := logger.FromContext(ctx)
-	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "rm", id); err != nil {
-		return fmt.Errorf("failed to remove podman container: %w", err)
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "pod", "rm", id); err != nil {
+		return fmt.Errorf("failed to remove pod: %w", err)
 	}
 	return nil
 }
 
-// isNotFoundError checks if an error indicates that a container was not found.
+// isNotFoundError checks if an error indicates that a pod or container was not found.
 func isNotFoundError(err error) bool {
 	if err == nil {
 		return false
@@ -81,7 +81,9 @@ func isNotFoundError(err error) bool {
 	errMsg := err.Error()
 	// Check for podman-specific "not found" error messages
 	return strings.Contains(errMsg, "no such container") ||
+		strings.Contains(errMsg, "no such pod") ||
+		strings.Contains(errMsg, "pod not found") ||
 		strings.Contains(errMsg, "no such object") ||
 		strings.Contains(errMsg, "error getting container") ||
-		strings.Contains(errMsg, "failed to inspect container")
+		strings.Contains(errMsg, "failed to inspect pod")
 }

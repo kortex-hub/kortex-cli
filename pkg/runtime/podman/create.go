@@ -28,6 +28,16 @@ import (
 	"github.com/openkaiden/kdn/pkg/steplogger"
 )
 
+// podName returns the pod name for a given workspace name.
+func podName(workspaceName string) string {
+	return fmt.Sprintf("kdn-%s", workspaceName)
+}
+
+// workspaceContainerName returns the workspace container name for a given pod name.
+func workspaceContainerName(podN string) string {
+	return fmt.Sprintf("%s-workspace", podN)
+}
+
 // validateCreateParams validates the create parameters.
 func (p *podmanRuntime) validateCreateParams(params runtime.CreateParams) error {
 	if params.Name == "" {
@@ -114,9 +124,24 @@ func (p *podmanRuntime) buildImage(ctx context.Context, imageName, instanceDir s
 	return nil
 }
 
-// buildContainerArgs builds the arguments for creating a podman container.
-func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageName string) ([]string, error) {
-	args := []string{"create", "--name", params.Name}
+// proxyEnvVars are the -e flags injected into the workspace container so that
+// HTTP clients use the Squid sidecar. Unsetting them does not bypass the proxy
+// because nftables enforces the restriction at the kernel level.
+var proxyEnvVars = []string{
+	"-e", "HTTP_PROXY=http://localhost:3128",
+	"-e", "HTTPS_PROXY=http://localhost:3128",
+	"-e", "http_proxy=http://localhost:3128",
+	"-e", "https_proxy=http://localhost:3128",
+	"-e", "NO_PROXY=localhost,127.0.0.1",
+	"-e", "no_proxy=localhost,127.0.0.1",
+}
+
+// buildWorkspaceContainerArgs builds the arguments for creating the workspace container in a pod.
+func (p *podmanRuntime) buildWorkspaceContainerArgs(params runtime.CreateParams, podN, containerName, imageName string) ([]string, error) {
+	args := []string{"create", "--pod", podN, "--name", containerName}
+
+	// Proxy env vars are prepended so they take effect before user-supplied vars.
+	args = append(args, proxyEnvVars...)
 
 	// Add environment variables from workspace config
 	if params.WorkspaceConfig != nil && params.WorkspaceConfig.Environment != nil {
@@ -170,7 +195,16 @@ func (p *podmanRuntime) createContainer(ctx context.Context, args []string) (str
 	return strings.TrimSpace(string(output)), nil
 }
 
-// Create creates a new Podman runtime instance.
+// createPod creates a podman pod with the given name.
+func (p *podmanRuntime) createPod(ctx context.Context, podN string) error {
+	l := logger.FromContext(ctx)
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "pod", "create", "--name", podN); err != nil {
+		return fmt.Errorf("failed to create pod: %w", err)
+	}
+	return nil
+}
+
+// Create creates a new Podman runtime instance as a pod with a workspace and proxy sidecar container.
 func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams) (runtime.RuntimeInfo, error) {
 	stepLogger := steplogger.FromContext(ctx)
 	defer stepLogger.Complete()
@@ -203,45 +237,84 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to load agent config: %w", err)
 	}
 
-	// Create Containerfile
+	// Create workspace Containerfile
 	stepLogger.Start("Generating Containerfile", "Containerfile generated")
 	if err := p.createContainerfile(instanceDir, imageConfig, agentConfig, params.AgentSettings); err != nil {
 		stepLogger.Fail(err)
 		return runtime.RuntimeInfo{}, err
 	}
 
-	// Build image
-	imageName := fmt.Sprintf("kdn-%s", params.Name)
+	// Write proxy Containerfile and startup script to the instance directory
+	proxyContainerfileContent := generateProxyContainerfile(imageConfig.Version)
+	proxyContainerfilePath := filepath.Join(instanceDir, "Containerfile.proxy")
+	if err := os.WriteFile(proxyContainerfilePath, []byte(proxyContainerfileContent), 0644); err != nil {
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to write proxy Containerfile: %w", err)
+	}
+
+	proxyStartScriptContent := generateProxyStartScript()
+	proxyStartScriptPath := filepath.Join(instanceDir, "proxy-start.sh")
+	if err := os.WriteFile(proxyStartScriptPath, []byte(proxyStartScriptContent), 0755); err != nil {
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to write proxy start script: %w", err)
+	}
+
+	// Build workspace image
+	podN := podName(params.Name)
+	imageName := podN
 	stepLogger.Start(fmt.Sprintf("Building container image: %s", imageName), "Container image built")
 	if err := p.buildImage(ctx, imageName, instanceDir); err != nil {
 		stepLogger.Fail(err)
 		return runtime.RuntimeInfo{}, err
 	}
 
-	// Build container creation arguments
-	createArgs, err := p.buildContainerArgs(params, imageName)
-	if err != nil {
-		return runtime.RuntimeInfo{}, err
-	}
-
-	// Create container and get its ID directly from podman create output
-	stepLogger.Start(fmt.Sprintf("Creating container: %s", params.Name), "Container created")
-	containerID, err := p.createContainer(ctx, createArgs)
-	if err != nil {
+	// Build proxy image
+	proxyImage := proxyImageName(podN)
+	stepLogger.Start(fmt.Sprintf("Building proxy image: %s", proxyImage), "Proxy image built")
+	if err := p.buildProxyImage(ctx, proxyImage, instanceDir); err != nil {
 		stepLogger.Fail(err)
 		return runtime.RuntimeInfo{}, err
 	}
 
-	// Return RuntimeInfo
+	// Create pod
+	stepLogger.Start(fmt.Sprintf("Creating pod: %s", podN), "Pod created")
+	if err := p.createPod(ctx, podN); err != nil {
+		stepLogger.Fail(err)
+		return runtime.RuntimeInfo{}, err
+	}
+
+	// Create proxy container in the pod
+	proxyContainer := proxyContainerName(podN)
+	stepLogger.Start("Creating proxy container", "Proxy container created")
+	proxyArgs := buildProxyContainerArgs(podN, proxyContainer, proxyImage)
+	if _, err := p.createContainer(ctx, proxyArgs); err != nil {
+		stepLogger.Fail(err)
+		return runtime.RuntimeInfo{}, err
+	}
+
+	// Create workspace container in the pod
+	wsContainer := workspaceContainerName(podN)
+	stepLogger.Start(fmt.Sprintf("Creating workspace container: %s", wsContainer), "Workspace container created")
+	wsArgs, err := p.buildWorkspaceContainerArgs(params, podN, wsContainer, imageName)
+	if err != nil {
+		stepLogger.Fail(err)
+		return runtime.RuntimeInfo{}, err
+	}
+	if _, err := p.createContainer(ctx, wsArgs); err != nil {
+		stepLogger.Fail(err)
+		return runtime.RuntimeInfo{}, err
+	}
+
+	// Return RuntimeInfo with the pod name as ID
 	info := map[string]string{
-		"container_id": containerID,
-		"image_name":   imageName,
-		"source_path":  params.SourcePath,
-		"agent":        params.Agent,
+		"pod_name":            podN,
+		"workspace_container": wsContainer,
+		"proxy_container":     proxyContainer,
+		"image_name":          imageName,
+		"source_path":         params.SourcePath,
+		"agent":               params.Agent,
 	}
 
 	return runtime.RuntimeInfo{
-		ID:    containerID,
+		ID:    podN,
 		State: api.WorkspaceStateStopped,
 		Info:  info,
 	}, nil

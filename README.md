@@ -5,7 +5,7 @@
 
 kdn is a command-line interface for launching and managing AI agents in isolated, reproducible workspaces. It creates runtime-based environments (containers, VMs, or other backends) where agents run with your project source code mounted, automatically configured and ready to use — no manual onboarding or setup required.
 
-The architecture is built around pluggable runtimes. The first supported runtime is **Podman**, which creates container-based workspaces using a custom Fedora image. Additional runtimes (e.g., MicroVM, Kubernetes) can be added to support other execution environments.
+The architecture is built around pluggable runtimes. The first supported runtime is **Podman**, which creates pod-based workspaces using a custom Fedora image, with a network-isolating proxy sidecar. Additional runtimes (e.g., MicroVM, Kubernetes) can be added to support other execution environments.
 
 **Supported Agents**
 
@@ -17,6 +17,7 @@ The architecture is built around pluggable runtimes. The first supported runtime
 
 - Isolated workspaces per project, each running in its own runtime instance
 - Pluggable runtime system — Podman is the default, with support for adding other runtimes
+- Network-isolated workspaces — outbound traffic is routed through a Squid proxy sidecar with nftables kernel-level enforcement (Podman runtime)
 - Automatic agent configuration (onboarding flags, trusted directories) on workspace creation
 - Multi-level configuration: workspace, global, project-specific, and agent-specific settings
 - Inject environment variables and mount directories into workspaces at multiple scopes
@@ -1126,7 +1127,12 @@ kdn init /path/to/another-project --runtime podman --agent claude --start
 
 ## Podman Runtime
 
-The Podman runtime provides a container-based development environment for workspaces. It creates an isolated environment with all necessary tools pre-installed and configured.
+The Podman runtime provides a container-based development environment for workspaces. It creates a **Podman pod** containing two containers:
+
+- **Workspace container** (`kdn-<name>-workspace`) — runs the AI agent with your project mounted at `/workspace/sources`
+- **Proxy sidecar** (`kdn-<name>-proxy`) — runs a Squid HTTP/HTTPS proxy that enforces network restrictions via nftables
+
+Both containers share the pod's network namespace. The workspace container routes all outbound traffic through the Squid proxy (port 3128) via injected proxy environment variables (`http_proxy`, `https_proxy`, etc.). The proxy sidecar uses `CAP_NET_ADMIN` to set an nftables OUTPUT policy of `drop`, allowing only traffic from the squid user and established connections — so direct outbound access is blocked at the kernel level even if proxy env vars are unset.
 
 ### Container Image
 
@@ -1214,15 +1220,24 @@ When you register a workspace with the Podman runtime, you'll see progress feedb
 ✓ Containerfile generated
 ⠋ Building container image: kdn-myproject
 ✓ Container image built
-⠋ Creating container: myproject
-✓ Container created
+⠋ Building proxy image: kdn-myproject-proxy
+✓ Proxy image built
+⠋ Creating pod: kdn-myproject
+✓ Pod created
+⠋ Creating proxy container
+✓ Proxy container created
+⠋ Creating workspace container: kdn-myproject-workspace
+✓ Workspace container created
 ```
 
 The `init` command will:
 1. Create a temporary build directory - **with progress spinner**
 2. Generate a Containerfile with the configuration above - **with progress spinner**
-3. Build a custom image (tagged as `kdn-<workspace-name>`) - **with progress spinner**
-4. Create a container with your source code mounted - **with progress spinner**
+3. Build the workspace image (tagged as `kdn-<workspace-name>`) - **with progress spinner**
+4. Build the proxy sidecar image (tagged as `kdn-<workspace-name>-proxy`) - **with progress spinner**
+5. Create a Podman pod (named `kdn-<workspace-name>`) - **with progress spinner**
+6. Create the proxy container inside the pod - **with progress spinner**
+7. Create the workspace container inside the pod with your source code mounted - **with progress spinner**
 
 After registration, you can start the workspace:
 
@@ -2748,6 +2763,7 @@ kdn terminal a1b2c3d4e5f6...
 - You can override the default by providing a custom command (e.g., `bash`, `python`, or any executable available in the container)
 - Use the `--` separator when your command includes flags to prevent kdn from trying to parse them
 - The terminal session is fully interactive with stdin/stdout/stderr connected to your terminal
+- With the Podman runtime, the terminal connects to the **workspace container** (`kdn-<name>-workspace`) inside the pod, not the proxy sidecar
 - The command execution happens inside the workspace's container/runtime environment
 - JSON output is **not supported** for this command as it's inherently interactive
 - Runtime support: The terminal command requires the runtime to implement the Terminal interface. The Podman runtime supports this using `podman exec -it`

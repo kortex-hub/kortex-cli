@@ -23,39 +23,39 @@ import (
 	"github.com/openkaiden/kdn/pkg/steplogger"
 )
 
-// Start starts a previously created Podman container.
+// Start starts a previously created Podman pod.
 func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeInfo, error) {
 	stepLogger := steplogger.FromContext(ctx)
 	defer stepLogger.Complete()
 
 	// Validate the ID parameter
 	if id == "" {
-		return runtime.RuntimeInfo{}, fmt.Errorf("%w: container ID is required", runtime.ErrInvalidParams)
+		return runtime.RuntimeInfo{}, fmt.Errorf("%w: pod ID is required", runtime.ErrInvalidParams)
 	}
 
-	// Start the container
-	stepLogger.Start(fmt.Sprintf("Starting container: %s", id), "Container started")
+	// Start the pod
+	stepLogger.Start(fmt.Sprintf("Starting pod: %s", id), "Pod started")
 	if err := p.startContainer(ctx, id); err != nil {
 		stepLogger.Fail(err)
 		return runtime.RuntimeInfo{}, err
 	}
 
-	// Get updated container information
-	stepLogger.Start("Verifying container status", "Container status verified")
-	info, err := p.getContainerInfo(ctx, id)
+	// Get updated pod information
+	stepLogger.Start("Verifying pod status", "Pod status verified")
+	info, err := p.getPodInfo(ctx, id)
 	if err != nil {
 		stepLogger.Fail(err)
-		return runtime.RuntimeInfo{}, fmt.Errorf("failed to get container info after start: %w", err)
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to get pod info after start: %w", err)
 	}
 
 	return info, nil
 }
 
-// startContainer starts a podman container by ID.
+// startContainer starts a podman pod by ID.
 func (p *podmanRuntime) startContainer(ctx context.Context, id string) error {
 	l := logger.FromContext(ctx)
-	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "start", id); err != nil {
-		return fmt.Errorf("failed to start podman container: %w", err)
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "pod", "start", id); err != nil {
+		return fmt.Errorf("failed to start pod: %w", err)
 	}
 	return nil
 }

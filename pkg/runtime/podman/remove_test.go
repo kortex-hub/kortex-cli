@@ -47,44 +47,43 @@ func TestRemove_ValidatesID(t *testing.T) {
 func TestRemove_Success(t *testing.T) {
 	t.Parallel()
 
-	containerID := "abc123def456"
+	podID := "kdn-test-workspace"
 	fakeExec := exec.NewFake()
 
-	// Set up OutputFunc to return container info showing stopped state
+	// Set up OutputFunc to return pod info showing stopped state
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
-		if len(args) >= 1 && args[0] == "inspect" {
-			// Return a stopped container
-			return []byte(fmt.Sprintf("%s|stopped|kdn-test", containerID)), nil
+		if len(args) >= 2 && args[0] == "pod" && args[1] == "inspect" {
+			return []byte(fmt.Sprintf("%s|Stopped", podID)), nil
 		}
 		return nil, fmt.Errorf("unexpected command: %v", args)
 	}
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
 
-	err := p.Remove(context.Background(), containerID)
+	err := p.Remove(context.Background(), podID)
 	if err != nil {
 		t.Fatalf("Remove() failed: %v", err)
 	}
 
-	// Verify Output was called to inspect the container
+	// Verify Output was called to inspect the pod
 	if len(fakeExec.OutputCalls) == 0 {
-		t.Error("Expected Output to be called to inspect container")
+		t.Error("Expected Output to be called to inspect pod")
 	}
 
-	// Verify Run was called to remove the container
-	fakeExec.AssertRunCalledWith(t, "rm", containerID)
+	// Verify Run was called to remove the pod
+	fakeExec.AssertRunCalledWith(t, "pod", "rm", podID)
 }
 
-func TestRemove_IdempotentWhenContainerNotFound(t *testing.T) {
+func TestRemove_IdempotentWhenPodNotFound(t *testing.T) {
 	t.Parallel()
 
-	containerID := "nonexistent"
+	podID := "kdn-nonexistent"
 	fakeExec := exec.NewFake()
 
 	// Set up OutputFunc to return a "not found" error
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
-		if len(args) >= 1 && args[0] == "inspect" {
-			return nil, fmt.Errorf("failed to inspect container: no such container")
+		if len(args) >= 2 && args[0] == "pod" && args[1] == "inspect" {
+			return nil, fmt.Errorf("failed to inspect pod: no such pod")
 		}
 		return nil, fmt.Errorf("unexpected command: %v", args)
 	}
@@ -92,42 +91,41 @@ func TestRemove_IdempotentWhenContainerNotFound(t *testing.T) {
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
 
 	// Should succeed without error (idempotent)
-	err := p.Remove(context.Background(), containerID)
+	err := p.Remove(context.Background(), podID)
 	if err != nil {
-		t.Fatalf("Remove() should be idempotent for non-existent containers, got error: %v", err)
+		t.Fatalf("Remove() should be idempotent for non-existent pods, got error: %v", err)
 	}
 
-	// Verify Output was called to check if container exists
+	// Verify Output was called to check if pod exists
 	if len(fakeExec.OutputCalls) == 0 {
-		t.Error("Expected Output to be called to check if container exists")
+		t.Error("Expected Output to be called to check if pod exists")
 	}
 
-	// Run should NOT be called since container doesn't exist
+	// Run should NOT be called since pod doesn't exist
 	if len(fakeExec.RunCalls) > 0 {
-		t.Error("Run should not be called for non-existent container")
+		t.Error("Run should not be called for non-existent pod")
 	}
 }
 
-func TestRemove_RejectsRunningContainer(t *testing.T) {
+func TestRemove_RejectsRunningPod(t *testing.T) {
 	t.Parallel()
 
-	containerID := "running123"
+	podID := "kdn-running"
 	fakeExec := exec.NewFake()
 
-	// Set up OutputFunc to return container info showing running state
+	// Set up OutputFunc to return pod info showing running state
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
-		if len(args) >= 1 && args[0] == "inspect" {
-			// Return a running container
-			return []byte(fmt.Sprintf("%s|running|kdn-test", containerID)), nil
+		if len(args) >= 2 && args[0] == "pod" && args[1] == "inspect" {
+			return []byte(fmt.Sprintf("%s|Running", podID)), nil
 		}
 		return nil, fmt.Errorf("unexpected command: %v", args)
 	}
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
 
-	err := p.Remove(context.Background(), containerID)
+	err := p.Remove(context.Background(), podID)
 	if err == nil {
-		t.Fatal("Expected error when removing running container, got nil")
+		t.Fatal("Expected error when removing running pod, got nil")
 	}
 
 	expectedMsg := "is still running, stop it first"
@@ -135,27 +133,27 @@ func TestRemove_RejectsRunningContainer(t *testing.T) {
 		t.Errorf("Expected error message to contain %q, got: %v", expectedMsg, err)
 	}
 
-	// Verify Output was called to check container state
+	// Verify Output was called to check pod state
 	if len(fakeExec.OutputCalls) == 0 {
-		t.Error("Expected Output to be called to check container state")
+		t.Error("Expected Output to be called to check pod state")
 	}
 
-	// Run should NOT be called since container is running
+	// Run should NOT be called since pod is running
 	if len(fakeExec.RunCalls) > 0 {
-		t.Error("Run should not be called for running container")
+		t.Error("Run should not be called for running pod")
 	}
 }
 
-func TestRemove_RemoveContainerFailure(t *testing.T) {
+func TestRemove_RemovePodFailure(t *testing.T) {
 	t.Parallel()
 
-	containerID := "abc123"
+	podID := "kdn-test"
 	fakeExec := exec.NewFake()
 
-	// Set up OutputFunc to return container info showing stopped state
+	// Set up OutputFunc to return pod info showing stopped state
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
-		if len(args) >= 1 && args[0] == "inspect" {
-			return []byte(fmt.Sprintf("%s|stopped|kdn-test", containerID)), nil
+		if len(args) >= 2 && args[0] == "pod" && args[1] == "inspect" {
+			return []byte(fmt.Sprintf("%s|Stopped", podID)), nil
 		}
 		return nil, fmt.Errorf("unexpected command: %v", args)
 	}
@@ -167,13 +165,13 @@ func TestRemove_RemoveContainerFailure(t *testing.T) {
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
 
-	err := p.Remove(context.Background(), containerID)
+	err := p.Remove(context.Background(), podID)
 	if err == nil {
 		t.Fatal("Expected error when remove fails, got nil")
 	}
 
-	// Verify Run was called
-	fakeExec.AssertRunCalledWith(t, "rm", containerID)
+	// Verify Run was called with pod rm
+	fakeExec.AssertRunCalledWith(t, "pod", "rm", podID)
 }
 
 func TestIsNotFoundError(t *testing.T) {
@@ -195,6 +193,16 @@ func TestIsNotFoundError(t *testing.T) {
 			expected: true,
 		},
 		{
+			name:     "no such pod error",
+			err:      fmt.Errorf("Error: no such pod abc123"),
+			expected: true,
+		},
+		{
+			name:     "pod not found error",
+			err:      fmt.Errorf("pod not found: abc123"),
+			expected: true,
+		},
+		{
 			name:     "no such object error",
 			err:      fmt.Errorf("Error: no such object: abc123"),
 			expected: true,
@@ -205,13 +213,13 @@ func TestIsNotFoundError(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:     "failed to inspect container with not found",
-			err:      fmt.Errorf("failed to inspect container: no such container"),
+			name:     "failed to inspect pod with not found",
+			err:      fmt.Errorf("failed to inspect pod: no such pod"),
 			expected: true,
 		},
 		{
-			name:     "failed to inspect container with other error",
-			err:      fmt.Errorf("failed to inspect container: permission denied"),
+			name:     "failed to inspect pod with other error",
+			err:      fmt.Errorf("failed to inspect pod: permission denied"),
 			expected: true,
 		},
 		{
@@ -250,12 +258,12 @@ func stringContains(s, substr string) bool {
 func TestRemove_StepLogger_Success(t *testing.T) {
 	t.Parallel()
 
-	containerID := "abc123def456"
+	podID := "kdn-test-workspace"
 	fakeExec := exec.NewFake()
 
-	// Set up OutputFunc to return stopped container info
+	// Set up OutputFunc to return stopped pod info
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
-		output := fmt.Sprintf("%s|exited|kdn-test\n", containerID)
+		output := fmt.Sprintf("%s|Exited\n", podID)
 		return []byte(output), nil
 	}
 
@@ -264,7 +272,7 @@ func TestRemove_StepLogger_Success(t *testing.T) {
 	fakeLogger := &fakeStepLogger{}
 	ctx := steplogger.WithLogger(context.Background(), fakeLogger)
 
-	err := p.Remove(ctx, containerID)
+	err := p.Remove(ctx, podID)
 	if err != nil {
 		t.Fatalf("Remove() failed: %v", err)
 	}
@@ -282,12 +290,12 @@ func TestRemove_StepLogger_Success(t *testing.T) {
 	// Verify Start was called 2 times with correct messages
 	expectedSteps := []stepCall{
 		{
-			inProgress: "Checking container state",
-			completed:  "Container state checked",
+			inProgress: "Checking pod state",
+			completed:  "Pod state checked",
 		},
 		{
-			inProgress: "Removing container: abc123def456",
-			completed:  "Container removed",
+			inProgress: "Removing pod: kdn-test-workspace",
+			completed:  "Pod removed",
 		},
 	}
 
@@ -306,15 +314,15 @@ func TestRemove_StepLogger_Success(t *testing.T) {
 	}
 }
 
-func TestRemove_StepLogger_ContainerNotFound(t *testing.T) {
+func TestRemove_StepLogger_PodNotFound(t *testing.T) {
 	t.Parallel()
 
-	containerID := "abc123"
+	podID := "kdn-test"
 	fakeExec := exec.NewFake()
 
 	// Set up OutputFunc to return a "not found" error
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
-		return nil, fmt.Errorf("no such container: %s", containerID)
+		return nil, fmt.Errorf("no such pod: %s", podID)
 	}
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
@@ -322,7 +330,7 @@ func TestRemove_StepLogger_ContainerNotFound(t *testing.T) {
 	fakeLogger := &fakeStepLogger{}
 	ctx := steplogger.WithLogger(context.Background(), fakeLogger)
 
-	err := p.Remove(ctx, containerID)
+	err := p.Remove(ctx, podID)
 	if err != nil {
 		t.Fatalf("Remove() should be idempotent for not found, got error: %v", err)
 	}
@@ -332,13 +340,13 @@ func TestRemove_StepLogger_ContainerNotFound(t *testing.T) {
 		t.Errorf("Expected Complete() to be called 1 time, got %d", fakeLogger.completeCalls)
 	}
 
-	// Verify Start was called once (checking container state)
+	// Verify Start was called once (checking pod state)
 	if len(fakeLogger.startCalls) != 1 {
 		t.Fatalf("Expected 1 Start() call, got %d", len(fakeLogger.startCalls))
 	}
 
-	if fakeLogger.startCalls[0].inProgress != "Checking container state" {
-		t.Errorf("Expected first step to be 'Checking container state', got %q", fakeLogger.startCalls[0].inProgress)
+	if fakeLogger.startCalls[0].inProgress != "Checking pod state" {
+		t.Errorf("Expected first step to be 'Checking pod state', got %q", fakeLogger.startCalls[0].inProgress)
 	}
 
 	// Verify no Fail calls (idempotent operation)
@@ -347,16 +355,16 @@ func TestRemove_StepLogger_ContainerNotFound(t *testing.T) {
 	}
 }
 
-func TestRemove_StepLogger_FailOnGetContainerInfo(t *testing.T) {
+func TestRemove_StepLogger_FailOnGetPodInfo(t *testing.T) {
 	t.Parallel()
 
-	containerID := "abc123"
+	podID := "kdn-test"
 	fakeExec := exec.NewFake()
 
 	// Set up OutputFunc to return malformed output (not an error that matches isNotFoundError)
-	// This will cause getContainerInfo to fail with a parsing error
+	// This will cause getPodInfo to fail with a parsing error
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
-		return []byte("invalid|output"), nil
+		return []byte("invalid|output|extra"), nil
 	}
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
@@ -364,7 +372,7 @@ func TestRemove_StepLogger_FailOnGetContainerInfo(t *testing.T) {
 	fakeLogger := &fakeStepLogger{}
 	ctx := steplogger.WithLogger(context.Background(), fakeLogger)
 
-	err := p.Remove(ctx, containerID)
+	err := p.Remove(ctx, podID)
 	if err == nil {
 		t.Fatal("Expected Remove() to fail, got nil")
 	}
@@ -374,13 +382,13 @@ func TestRemove_StepLogger_FailOnGetContainerInfo(t *testing.T) {
 		t.Errorf("Expected Complete() to be called 1 time, got %d", fakeLogger.completeCalls)
 	}
 
-	// Verify Start was called once (checking container state)
+	// Verify Start was called once (checking pod state)
 	if len(fakeLogger.startCalls) != 1 {
 		t.Fatalf("Expected 1 Start() call, got %d", len(fakeLogger.startCalls))
 	}
 
-	if fakeLogger.startCalls[0].inProgress != "Checking container state" {
-		t.Errorf("Expected first step to be 'Checking container state', got %q", fakeLogger.startCalls[0].inProgress)
+	if fakeLogger.startCalls[0].inProgress != "Checking pod state" {
+		t.Errorf("Expected first step to be 'Checking pod state', got %q", fakeLogger.startCalls[0].inProgress)
 	}
 
 	// Verify Fail was called once
@@ -393,15 +401,15 @@ func TestRemove_StepLogger_FailOnGetContainerInfo(t *testing.T) {
 	}
 }
 
-func TestRemove_StepLogger_FailOnRunningContainer(t *testing.T) {
+func TestRemove_StepLogger_FailOnRunningPod(t *testing.T) {
 	t.Parallel()
 
-	containerID := "abc123"
+	podID := "kdn-test"
 	fakeExec := exec.NewFake()
 
-	// Set up OutputFunc to return a running container
+	// Set up OutputFunc to return a running pod
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
-		output := fmt.Sprintf("%s|running|kdn-test\n", containerID)
+		output := fmt.Sprintf("%s|Running\n", podID)
 		return []byte(output), nil
 	}
 
@@ -410,9 +418,9 @@ func TestRemove_StepLogger_FailOnRunningContainer(t *testing.T) {
 	fakeLogger := &fakeStepLogger{}
 	ctx := steplogger.WithLogger(context.Background(), fakeLogger)
 
-	err := p.Remove(ctx, containerID)
+	err := p.Remove(ctx, podID)
 	if err == nil {
-		t.Fatal("Expected Remove() to fail for running container, got nil")
+		t.Fatal("Expected Remove() to fail for running pod, got nil")
 	}
 
 	// Verify Complete was called once (deferred call)
@@ -420,13 +428,13 @@ func TestRemove_StepLogger_FailOnRunningContainer(t *testing.T) {
 		t.Errorf("Expected Complete() to be called 1 time, got %d", fakeLogger.completeCalls)
 	}
 
-	// Verify Start was called once (checking container state)
+	// Verify Start was called once (checking pod state)
 	if len(fakeLogger.startCalls) != 1 {
 		t.Fatalf("Expected 1 Start() call, got %d", len(fakeLogger.startCalls))
 	}
 
-	if fakeLogger.startCalls[0].inProgress != "Checking container state" {
-		t.Errorf("Expected first step to be 'Checking container state', got %q", fakeLogger.startCalls[0].inProgress)
+	if fakeLogger.startCalls[0].inProgress != "Checking pod state" {
+		t.Errorf("Expected first step to be 'Checking pod state', got %q", fakeLogger.startCalls[0].inProgress)
 	}
 
 	// Verify Fail was called once
@@ -439,22 +447,22 @@ func TestRemove_StepLogger_FailOnRunningContainer(t *testing.T) {
 	}
 }
 
-func TestRemove_StepLogger_FailOnRemoveContainer(t *testing.T) {
+func TestRemove_StepLogger_FailOnRemovePod(t *testing.T) {
 	t.Parallel()
 
-	containerID := "abc123"
+	podID := "kdn-test"
 	fakeExec := exec.NewFake()
 
-	// Set up OutputFunc to return stopped container info
+	// Set up OutputFunc to return stopped pod info
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
-		output := fmt.Sprintf("%s|exited|kdn-test\n", containerID)
+		output := fmt.Sprintf("%s|Exited\n", podID)
 		return []byte(output), nil
 	}
 
 	// Set up RunFunc to fail on remove
 	fakeExec.RunFunc = func(ctx context.Context, args ...string) error {
-		if len(args) > 0 && args[0] == "rm" {
-			return fmt.Errorf("failed to remove container")
+		if len(args) >= 2 && args[0] == "pod" && args[1] == "rm" {
+			return fmt.Errorf("failed to remove pod")
 		}
 		return nil
 	}
@@ -464,7 +472,7 @@ func TestRemove_StepLogger_FailOnRemoveContainer(t *testing.T) {
 	fakeLogger := &fakeStepLogger{}
 	ctx := steplogger.WithLogger(context.Background(), fakeLogger)
 
-	err := p.Remove(ctx, containerID)
+	err := p.Remove(ctx, podID)
 	if err == nil {
 		t.Fatal("Expected Remove() to fail, got nil")
 	}
@@ -474,14 +482,14 @@ func TestRemove_StepLogger_FailOnRemoveContainer(t *testing.T) {
 		t.Errorf("Expected Complete() to be called 1 time, got %d", fakeLogger.completeCalls)
 	}
 
-	// Verify Start was called twice (checking state, removing container)
+	// Verify Start was called twice (checking state, removing pod)
 	if len(fakeLogger.startCalls) != 2 {
 		t.Fatalf("Expected 2 Start() calls, got %d", len(fakeLogger.startCalls))
 	}
 
 	expectedSteps := []string{
-		"Checking container state",
-		"Removing container: abc123",
+		"Checking pod state",
+		"Removing pod: kdn-test",
 	}
 
 	for i, expected := range expectedSteps {

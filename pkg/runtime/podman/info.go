@@ -24,15 +24,15 @@ import (
 	"github.com/openkaiden/kdn/pkg/runtime"
 )
 
-// mapPodmanState maps podman container states to valid WorkspaceState values.
-// Podman states: https://docs.podman.io/en/latest/markdown/podman-ps.1.html
-func mapPodmanState(podmanState string) api.WorkspaceState {
+// mapPodmanPodState maps podman pod states to valid WorkspaceState values.
+// Pod states use title case: https://docs.podman.io/en/latest/markdown/podman-pod-inspect.1.html
+func mapPodmanPodState(podmanState string) api.WorkspaceState {
 	switch podmanState {
-	case "running":
+	case "Running":
 		return api.WorkspaceStateRunning
-	case "created", "exited", "stopped", "paused", "removing":
+	case "Created", "Stopped", "Exited":
 		return api.WorkspaceStateStopped
-	case "dead":
+	case "Dead", "Degraded":
 		return api.WorkspaceStateError
 	default:
 		return api.WorkspaceStateUnknown
@@ -43,11 +43,11 @@ func mapPodmanState(podmanState string) api.WorkspaceState {
 func (p *podmanRuntime) Info(ctx context.Context, id string) (runtime.RuntimeInfo, error) {
 	// Validate the ID parameter
 	if id == "" {
-		return runtime.RuntimeInfo{}, fmt.Errorf("%w: container ID is required", runtime.ErrInvalidParams)
+		return runtime.RuntimeInfo{}, fmt.Errorf("%w: pod ID is required", runtime.ErrInvalidParams)
 	}
 
-	// Get container information
-	info, err := p.getContainerInfo(ctx, id)
+	// Get pod information
+	info, err := p.getPodInfo(ctx, id)
 	if err != nil {
 		return runtime.RuntimeInfo{}, err
 	}
@@ -55,37 +55,36 @@ func (p *podmanRuntime) Info(ctx context.Context, id string) (runtime.RuntimeInf
 	return info, nil
 }
 
-// getContainerInfo retrieves detailed information about a container.
-func (p *podmanRuntime) getContainerInfo(ctx context.Context, id string) (runtime.RuntimeInfo, error) {
-	// Use podman inspect to get container details in a format we can parse
-	// Format: ID|State|ImageName (custom fields from creation)
+// getPodInfo retrieves detailed information about a pod.
+func (p *podmanRuntime) getPodInfo(ctx context.Context, id string) (runtime.RuntimeInfo, error) {
+	// Use podman pod inspect to get pod details
+	// Format: Name|State
 	l := logger.FromContext(ctx)
-	output, err := p.executor.Output(ctx, l.Stderr(), "inspect", "--format", "{{.Id}}|{{.State.Status}}|{{.ImageName}}", id)
+	output, err := p.executor.Output(ctx, l.Stderr(), "pod", "inspect", "--format", "{{.Name}}|{{.State}}", id)
 	if err != nil {
-		return runtime.RuntimeInfo{}, fmt.Errorf("failed to inspect container: %w", err)
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to inspect pod: %w", err)
 	}
 
 	// Parse the output
 	fields := strings.Split(strings.TrimSpace(string(output)), "|")
-	if len(fields) != 3 {
+	if len(fields) != 2 {
 		return runtime.RuntimeInfo{}, fmt.Errorf("unexpected inspect output format: %s", string(output))
 	}
 
-	containerID := fields[0]
+	podN := fields[0]
 	podmanState := fields[1]
-	imageName := fields[2]
 
-	// Map podman state to valid WorkspaceState
-	state := mapPodmanState(podmanState)
+	// Map podman pod state to valid WorkspaceState
+	state := mapPodmanPodState(podmanState)
 
 	// Build the info map
 	info := map[string]string{
-		"container_id": containerID,
-		"image_name":   imageName,
+		"pod_name":            podN,
+		"workspace_container": workspaceContainerName(podN),
 	}
 
 	return runtime.RuntimeInfo{
-		ID:    containerID,
+		ID:    podN,
 		State: state,
 		Info:  info,
 	}, nil

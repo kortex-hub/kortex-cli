@@ -24,7 +24,7 @@ import (
 // Ensure podmanRuntime implements runtime.Terminal at compile time.
 var _ runtime.Terminal = (*podmanRuntime)(nil)
 
-// Terminal starts an interactive terminal session inside a running instance.
+// Terminal starts an interactive terminal session inside the workspace container of a running pod.
 func (p *podmanRuntime) Terminal(ctx context.Context, instanceID string, agent string, command []string) error {
 	if instanceID == "" {
 		return fmt.Errorf("%w: instance ID is required", runtime.ErrInvalidParams)
@@ -50,8 +50,11 @@ func (p *podmanRuntime) Terminal(ctx context.Context, instanceID string, agent s
 		command = agentConfig.TerminalCommand
 	}
 
-	// Build podman exec -it <container> <command...>
-	args := []string{"exec", "-it", instanceID}
+	// The instanceID is the pod name; exec targets the workspace container.
+	wsContainer := workspaceContainerName(instanceID)
+
+	// Build podman exec -it <workspace-container> <command...>
+	args := []string{"exec", "-it", wsContainer}
 	args = append(args, command...)
 
 	return p.executor.RunInteractive(ctx, args...)

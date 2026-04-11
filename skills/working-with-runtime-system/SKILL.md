@@ -130,26 +130,35 @@ type Terminal interface {
     // Terminal starts an interactive terminal session inside a running instance.
     // The agent parameter is used to load agent-specific configuration for the terminal session.
     // The command is executed with stdin/stdout/stderr connected directly to the user's terminal.
-    Terminal(ctx context.Context, agent string, instanceID string, command []string) error
+    Terminal(ctx context.Context, instanceID string, agent string, command []string) error
 }
 ```
 
 **Example implementation (Podman runtime):**
 
 ```go
-func (p *podmanRuntime) Terminal(ctx context.Context, agent string, instanceID string, command []string) error {
-    if agent == "" {
-        return fmt.Errorf("%w: agent is required", runtime.ErrInvalidParams)
-    }
+func (p *podmanRuntime) Terminal(ctx context.Context, instanceID string, agent string, command []string) error {
     if instanceID == "" {
         return fmt.Errorf("%w: instance ID is required", runtime.ErrInvalidParams)
     }
+
+    // If no command provided, load it from agent config
     if len(command) == 0 {
-        return fmt.Errorf("%w: command is required", runtime.ErrInvalidParams)
+        if agent == "" {
+            return fmt.Errorf("%w: agent name is required when command is not provided", runtime.ErrInvalidParams)
+        }
+        agentConfig, err := p.config.LoadAgent(agent)
+        if err != nil {
+            return fmt.Errorf("failed to load agent config: %w", err)
+        }
+        command = agentConfig.TerminalCommand
     }
 
-    // Build podman exec -it <container> <command...>
-    args := []string{"exec", "-it", instanceID}
+    // instanceID is the pod name; exec targets the workspace container inside the pod.
+    wsContainer := workspaceContainerName(instanceID)
+
+    // Build podman exec -it <workspace-container> <command...>
+    args := []string{"exec", "-it", wsContainer}
     args = append(args, command...)
 
     return p.executor.RunInteractive(ctx, args...)
@@ -219,13 +228,14 @@ Runtime implementations must map platform-specific states to the four valid stat
 
 ```go
 // In pkg/runtime/podman/info.go
-func mapPodmanState(podmanState string) api.WorkspaceState {
+// Pod states are title-case (see podman-pod-inspect docs).
+func mapPodmanPodState(podmanState string) api.WorkspaceState {
     switch podmanState {
-    case "running":
+    case "Running":
         return api.WorkspaceStateRunning
-    case "created", "exited", "stopped", "paused", "removing":
+    case "Created", "Stopped", "Exited":
         return api.WorkspaceStateStopped
-    case "dead":
+    case "Dead", "Degraded":
         return api.WorkspaceStateError
     default:
         return api.WorkspaceStateUnknown
@@ -233,17 +243,12 @@ func mapPodmanState(podmanState string) api.WorkspaceState {
 }
 
 func (p *podmanRuntime) Info(ctx context.Context, id string) (runtime.RuntimeInfo, error) {
-    // Get podman-specific state
-    podmanState := getPodmanContainerState(id)
-    
-    // Map to valid WorkspaceState (no validation needed - manager handles it)
-    state := mapPodmanState(podmanState)
-    
-    return runtime.RuntimeInfo{
-        ID:    id,
-        State: state,
-        Info:  info,
-    }, nil
+    // Get pod information (name|state) via podman pod inspect
+    info, err := p.getPodInfo(ctx, id)
+    if err != nil {
+        return runtime.RuntimeInfo{}, err
+    }
+    return info, nil
 }
 ```
 

@@ -49,31 +49,33 @@ func TestInfo_Success(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		containerID   string
+		podID         string
 		output        string
 		expectedState api.WorkspaceState
-		expectedImage string
 	}{
 		{
-			name:          "running container",
-			containerID:   "abc123def456",
-			output:        "abc123def456|running|kdn-test\n",
+			name:          "running pod",
+			podID:         "kdn-test",
+			output:        "kdn-test|Running\n",
 			expectedState: api.WorkspaceStateRunning,
-			expectedImage: "kdn-test",
 		},
 		{
-			name:          "stopped container",
-			containerID:   "xyz789ghi012",
-			output:        "xyz789ghi012|exited|kdn-stopped\n",
+			name:          "stopped pod",
+			podID:         "kdn-stopped",
+			output:        "kdn-stopped|Stopped\n",
 			expectedState: api.WorkspaceStateStopped,
-			expectedImage: "kdn-stopped",
 		},
 		{
-			name:          "created container",
-			containerID:   "def456jkl789",
-			output:        "def456jkl789|created|kdn-new\n",
+			name:          "created pod",
+			podID:         "kdn-new",
+			output:        "kdn-new|Created\n",
 			expectedState: api.WorkspaceStateStopped,
-			expectedImage: "kdn-new",
+		},
+		{
+			name:          "exited pod",
+			podID:         "kdn-exited",
+			output:        "kdn-exited|Exited\n",
+			expectedState: api.WorkspaceStateStopped,
 		},
 	}
 
@@ -88,26 +90,27 @@ func TestInfo_Success(t *testing.T) {
 
 			p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
 
-			info, err := p.Info(context.Background(), tt.containerID)
+			info, err := p.Info(context.Background(), tt.podID)
 			if err != nil {
 				t.Fatalf("Info() failed: %v", err)
 			}
 
-			// Verify Output was called to inspect the container
-			fakeExec.AssertOutputCalledWith(t, "inspect", "--format", "{{.Id}}|{{.State.Status}}|{{.ImageName}}", tt.containerID)
+			// Verify Output was called with pod inspect args
+			fakeExec.AssertOutputCalledWith(t, "pod", "inspect", "--format", "{{.Name}}|{{.State}}", tt.podID)
 
 			// Verify returned info
-			if info.ID != tt.containerID {
-				t.Errorf("Expected ID %s, got %s", tt.containerID, info.ID)
+			if info.ID != tt.podID {
+				t.Errorf("Expected ID %s, got %s", tt.podID, info.ID)
 			}
 			if info.State != tt.expectedState {
 				t.Errorf("Expected state %s, got %s", tt.expectedState, info.State)
 			}
-			if info.Info["container_id"] != tt.containerID {
-				t.Errorf("Expected container_id %s, got %s", tt.containerID, info.Info["container_id"])
+			if info.Info["pod_name"] != tt.podID {
+				t.Errorf("Expected pod_name %s, got %s", tt.podID, info.Info["pod_name"])
 			}
-			if info.Info["image_name"] != tt.expectedImage {
-				t.Errorf("Expected image_name %s, got %s", tt.expectedImage, info.Info["image_name"])
+			expectedWsContainer := workspaceContainerName(tt.podID)
+			if info.Info["workspace_container"] != expectedWsContainer {
+				t.Errorf("Expected workspace_container %s, got %s", expectedWsContainer, info.Info["workspace_container"])
 			}
 		})
 	}
@@ -116,77 +119,97 @@ func TestInfo_Success(t *testing.T) {
 func TestInfo_InspectFailure(t *testing.T) {
 	t.Parallel()
 
-	containerID := "abc123"
+	podID := "kdn-test"
 	fakeExec := exec.NewFake()
 
 	// Set up OutputFunc to return an error
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
-		return nil, fmt.Errorf("container not found")
+		return nil, fmt.Errorf("pod not found")
 	}
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
 
-	_, err := p.Info(context.Background(), containerID)
+	_, err := p.Info(context.Background(), podID)
 	if err == nil {
 		t.Fatal("Expected error when inspect fails, got nil")
 	}
 
-	// Verify Output was called
-	fakeExec.AssertOutputCalledWith(t, "inspect", "--format", "{{.Id}}|{{.State.Status}}|{{.ImageName}}", containerID)
+	// Verify Output was called with pod inspect args
+	fakeExec.AssertOutputCalledWith(t, "pod", "inspect", "--format", "{{.Name}}|{{.State}}", podID)
 }
 
 func TestInfo_MalformedOutput(t *testing.T) {
 	t.Parallel()
 
-	containerID := "abc123"
+	podID := "kdn-test"
 	fakeExec := exec.NewFake()
 
-	// Set up OutputFunc to return malformed output
+	// Set up OutputFunc to return malformed output (missing pipe separator)
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
 		return []byte("invalid-output-without-pipes\n"), nil
 	}
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
 
-	_, err := p.Info(context.Background(), containerID)
+	_, err := p.Info(context.Background(), podID)
 	if err == nil {
 		t.Fatal("Expected error for malformed output, got nil")
 	}
 
-	// Verify Output was called
-	fakeExec.AssertOutputCalledWith(t, "inspect", "--format", "{{.Id}}|{{.State.Status}}|{{.ImageName}}", containerID)
+	// Verify Output was called with pod inspect args
+	fakeExec.AssertOutputCalledWith(t, "pod", "inspect", "--format", "{{.Name}}|{{.State}}", podID)
 }
 
-func TestGetContainerInfo_ParsesOutput(t *testing.T) {
+func TestGetPodInfo_ParsesOutput(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name          string
-		containerID   string
+		podID         string
 		output        string
 		expectedState api.WorkspaceState
-		expectedImage string
 	}{
 		{
-			name:          "running container",
-			containerID:   "abc123",
-			output:        "abc123def456|running|kdn-test\n",
+			name:          "running pod",
+			podID:         "kdn-test",
+			output:        "kdn-test|Running\n",
 			expectedState: api.WorkspaceStateRunning,
-			expectedImage: "kdn-test",
 		},
 		{
-			name:          "stopped container",
-			containerID:   "xyz789",
-			output:        "xyz789ghi012|exited|kdn-stopped\n",
+			name:          "stopped pod",
+			podID:         "kdn-stopped",
+			output:        "kdn-stopped|Stopped\n",
 			expectedState: api.WorkspaceStateStopped,
-			expectedImage: "kdn-stopped",
 		},
 		{
-			name:          "created container",
-			containerID:   "def456",
-			output:        "def456|created|kdn-new\n",
+			name:          "created pod",
+			podID:         "kdn-new",
+			output:        "kdn-new|Created\n",
 			expectedState: api.WorkspaceStateStopped,
-			expectedImage: "kdn-new",
+		},
+		{
+			name:          "exited pod",
+			podID:         "kdn-exited",
+			output:        "kdn-exited|Exited\n",
+			expectedState: api.WorkspaceStateStopped,
+		},
+		{
+			name:          "dead pod",
+			podID:         "kdn-dead",
+			output:        "kdn-dead|Dead\n",
+			expectedState: api.WorkspaceStateError,
+		},
+		{
+			name:          "degraded pod",
+			podID:         "kdn-degraded",
+			output:        "kdn-degraded|Degraded\n",
+			expectedState: api.WorkspaceStateError,
+		},
+		{
+			name:          "unknown pod state",
+			podID:         "kdn-weird",
+			output:        "kdn-weird|SomeFutureState\n",
+			expectedState: api.WorkspaceStateUnknown,
 		},
 	}
 
@@ -201,22 +224,22 @@ func TestGetContainerInfo_ParsesOutput(t *testing.T) {
 
 			p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
 
-			info, err := p.getContainerInfo(context.Background(), tt.containerID)
+			info, err := p.getPodInfo(context.Background(), tt.podID)
 			if err != nil {
-				t.Fatalf("getContainerInfo() failed: %v", err)
+				t.Fatalf("getPodInfo() failed: %v", err)
 			}
 
 			if info.State != tt.expectedState {
 				t.Errorf("Expected state %s, got %s", tt.expectedState, info.State)
 			}
-			if info.Info["image_name"] != tt.expectedImage {
-				t.Errorf("Expected image_name %s, got %s", tt.expectedImage, info.Info["image_name"])
+			if info.Info["pod_name"] != tt.podID {
+				t.Errorf("Expected pod_name %s, got %s", tt.podID, info.Info["pod_name"])
 			}
 		})
 	}
 }
 
-func TestGetContainerInfo_MalformedOutput(t *testing.T) {
+func TestGetPodInfo_MalformedOutput(t *testing.T) {
 	t.Parallel()
 
 	fakeExec := exec.NewFake()
@@ -226,7 +249,7 @@ func TestGetContainerInfo_MalformedOutput(t *testing.T) {
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
 
-	_, err := p.getContainerInfo(context.Background(), "abc123")
+	_, err := p.getPodInfo(context.Background(), "kdn-test")
 	if err == nil {
 		t.Fatal("Expected error for malformed output, got nil")
 	}

@@ -26,7 +26,7 @@ import (
 func TestPodmanRuntime_Terminal(t *testing.T) {
 	t.Parallel()
 
-	t.Run("executes podman exec -it with command", func(t *testing.T) {
+	t.Run("executes podman exec -it on workspace container with command", func(t *testing.T) {
 		t.Parallel()
 
 		fakeExec := exec.NewFake()
@@ -35,13 +35,16 @@ func TestPodmanRuntime_Terminal(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		err := rt.Terminal(ctx, "container123", "test-agent", []string{"bash"})
+		// instanceID is the pod name; terminal should exec into the workspace container
+		podID := "kdn-test-workspace"
+		err := rt.Terminal(ctx, podID, "test-agent", []string{"bash"})
 		if err != nil {
 			t.Fatalf("Terminal() failed: %v", err)
 		}
 
-		// Verify RunInteractive was called with correct arguments
-		expectedArgs := []string{"exec", "-it", "container123", "bash"}
+		// Verify RunInteractive was called targeting the workspace container, not the pod name
+		wsContainer := workspaceContainerName(podID)
+		expectedArgs := []string{"exec", "-it", wsContainer, "bash"}
 		fakeExec.AssertRunInteractiveCalledWith(t, expectedArgs...)
 	})
 
@@ -54,13 +57,15 @@ func TestPodmanRuntime_Terminal(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		err := rt.Terminal(ctx, "container123", "test-agent", []string{"claude-code", "--debug"})
+		podID := "kdn-test-workspace"
+		err := rt.Terminal(ctx, podID, "test-agent", []string{"claude-code", "--debug"})
 		if err != nil {
 			t.Fatalf("Terminal() failed: %v", err)
 		}
 
-		// Verify RunInteractive was called with correct arguments
-		expectedArgs := []string{"exec", "-it", "container123", "claude-code", "--debug"}
+		// Verify RunInteractive was called targeting the workspace container
+		wsContainer := workspaceContainerName(podID)
+		expectedArgs := []string{"exec", "-it", wsContainer, "claude-code", "--debug"}
 		fakeExec.AssertRunInteractiveCalledWith(t, expectedArgs...)
 	})
 
@@ -93,13 +98,15 @@ func TestPodmanRuntime_Terminal(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		err := rt.Terminal(ctx, "container123", "test-agent", []string{})
+		podID := "kdn-test-workspace"
+		err := rt.Terminal(ctx, podID, "test-agent", []string{})
 		if err != nil {
 			t.Fatalf("Terminal() failed: %v", err)
 		}
 
-		// Verify RunInteractive was called with agent's terminal command from fakeConfig
-		expectedArgs := []string{"exec", "-it", "container123", "claude"}
+		// Verify RunInteractive was called targeting the workspace container with agent's terminal command
+		wsContainer := workspaceContainerName(podID)
+		expectedArgs := []string{"exec", "-it", wsContainer, "claude"}
 		fakeExec.AssertRunInteractiveCalledWith(t, expectedArgs...)
 	})
 
@@ -112,7 +119,7 @@ func TestPodmanRuntime_Terminal(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		err := rt.Terminal(ctx, "container123", "", []string{})
+		err := rt.Terminal(ctx, "kdn-test-workspace", "", []string{})
 		if err == nil {
 			t.Fatal("Expected error for empty agent and empty command")
 		}
@@ -136,7 +143,7 @@ func TestPodmanRuntime_Terminal(t *testing.T) {
 		}
 
 		ctx := context.Background()
-		err := rt.Terminal(ctx, "container123", "test-agent", []string{"bash"})
+		err := rt.Terminal(ctx, "kdn-test-workspace", "test-agent", []string{"bash"})
 		if err == nil {
 			t.Fatal("Expected error to be propagated")
 		}
