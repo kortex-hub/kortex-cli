@@ -167,7 +167,7 @@ func TestManager_Terminal(t *testing.T) {
 		}
 	})
 
-	t.Run("returns error for stopped instance", func(t *testing.T) {
+	t.Run("auto-starts stopped instance", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
@@ -187,15 +187,27 @@ func TestManager_Terminal(t *testing.T) {
 		})
 		added, _ := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake", Agent: "test-agent"})
 
-		// Instance is in "created" state (not running)
-		err := manager.Terminal(ctx, added.GetID(), []string{"bash"})
-		if err == nil {
-			t.Fatal("Expected error for stopped instance")
+		// Instance is in "created" state (not running) — Terminal should auto-start it
+		command := []string{"bash"}
+		err := manager.Terminal(ctx, added.GetID(), command)
+		if err != nil {
+			t.Fatalf("Terminal() unexpected error = %v", err)
 		}
 
-		// Should contain message about state
-		if err.Error() == "" {
-			t.Error("Error message should not be empty")
+		// Verify instance was started
+		got, _ := manager.Get(added.GetID())
+		if got.GetRuntimeData().State != "running" {
+			t.Errorf("Expected instance state to be running after auto-start, got %s", got.GetRuntimeData().State)
+		}
+
+		// Verify Terminal was called on the runtime
+		if len(fakeRT.terminalCalls) != 1 {
+			t.Fatalf("Expected 1 Terminal call, got %d", len(fakeRT.terminalCalls))
+		}
+
+		call := fakeRT.terminalCalls[0]
+		if call.agent != "test-agent" {
+			t.Errorf("Terminal called with agent = %v, want test-agent", call.agent)
 		}
 	})
 

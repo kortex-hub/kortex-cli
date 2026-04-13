@@ -165,7 +165,7 @@ The runtime system provides a pluggable architecture for managing workspaces on 
 **Optional Interfaces:**
 - **StorageAware**: Enables runtimes to persist data in a dedicated storage directory
 - **AgentLister**: Enables runtimes to report which agents they support
-- **Terminal**: Enables interactive terminal sessions with running instances
+- **Terminal**: Enables interactive terminal sessions with instances (auto-starts if needed)
 
 **For detailed runtime implementation guidance, use:** `/working-with-runtime-system`
 

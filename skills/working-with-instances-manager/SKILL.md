@@ -17,7 +17,7 @@ The instances manager handles:
 - Project detection and grouping
 - Configuration merging (workspace, project, agent configs)
 - Agent settings files and automatic onboarding configuration
-- Interactive terminal sessions with running instances
+- Interactive terminal sessions with instances (auto-starts if needed)
 
 ## Creating the Manager
 
@@ -230,7 +230,7 @@ fmt.Fprintln(cmd.OutOrStdout(), instanceID)
 
 ### Terminal - Interactive Terminal Session
 
-Connect to a running instance with an interactive terminal (requires ID):
+Connect to an instance with an interactive terminal (requires ID). If the instance is not running, it will be automatically started first:
 
 ```go
 err := manager.Terminal(cmd.Context(), id, []string{"bash"})
@@ -243,16 +243,16 @@ if err != nil {
 ```
 
 **Terminal Method Behavior:**
-- Verifies the instance exists and is in a running state
+- Verifies the instance exists and has a runtime configured
+- Auto-starts the instance if it is not in a running state
 - Checks if the runtime implements the `runtime.Terminal` interface
 - Delegates to the runtime's Terminal implementation
-- Returns an error if the instance is not running or runtime doesn't support terminals
 
 **Key Points:**
-- Uses a read lock (doesn't modify instance state)
+- Automatically starts stopped instances before connecting
 - Command is a slice of strings: `[]string{"bash"}` or `[]string{"claude-code", "--debug"}`
 - Returns `ErrInstanceNotFound` if instance doesn't exist
-- Returns an error if instance state is not "running"
+- Returns an error if auto-start fails
 - Returns an error if the runtime doesn't implement `runtime.Terminal` interface
 
 **For commands accepting name or ID:**

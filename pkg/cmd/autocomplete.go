@@ -78,6 +78,13 @@ func getFilteredWorkspaceIDs(cmd *cobra.Command, filter stateFilter) ([]string, 
 	return completions, cobra.ShellCompDirectiveNoFileComp
 }
 
+// completeWorkspaceID provides completion for all workspaces regardless of state
+// The args and toComplete parameters are part of Cobra's ValidArgsFunction signature but are unused
+// because Cobra's shell completion framework automatically filters results based on user input.
+func completeWorkspaceID(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return getFilteredWorkspaceIDs(cmd, nil)
+}
+
 // completeNonRunningWorkspaceID provides completion for non-running workspaces (for start and remove)
 // The args and toComplete parameters are part of Cobra's ValidArgsFunction signature but are unused
 // because Cobra's shell completion framework automatically filters results based on user input.
