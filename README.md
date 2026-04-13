@@ -2882,9 +2882,9 @@ Output:
 - When using `--output json`, errors are also returned in JSON format for consistent parsing
 - **JSON error handling**: When `--output json` is used, errors are written to stdout (not stderr) in JSON format, and the CLI exits with code 1. Always check the exit code to determine success/failure
 
-### `workspace terminal` - Connect to a Running Workspace
+### `workspace terminal` - Connect to a Workspace
 
-Connects to a running workspace with an interactive terminal session. Also available as the shorter alias `terminal`.
+Connects to a workspace with an interactive terminal session. If the workspace is stopped, it is automatically started before connecting. Also available as the shorter alias `terminal`.
 
 #### Usage
 
@@ -2914,7 +2914,7 @@ kdn workspace terminal a1b2c3d4e5f6...
 kdn workspace terminal my-project
 ```
 
-This starts an interactive session with the default agent (typically Claude Code) inside the running workspace container.
+This starts an interactive session with the default agent (typically Claude Code) inside the workspace container, auto-starting it if needed.
 
 **Use the short alias:**
 ```bash
@@ -2933,15 +2933,15 @@ kdn terminal a1b2c3d4e5f6... -- bash -c 'echo hello'
 
 The `--` separator tells kdn to stop parsing flags and pass everything after it directly to the container. This is useful when your command includes flags that would otherwise be interpreted by kdn.
 
-**List workspaces and connect to a running one:**
+**List workspaces and connect:**
 ```bash
 # First, list all workspaces to find the ID
 kdn list
 
-# Start a workspace if it's not running
+# Optionally start a workspace explicitly
 kdn start a1b2c3d4e5f6...
 
-# Then connect with a terminal
+# Connect with a terminal (auto-starts stopped workspaces)
 kdn terminal a1b2c3d4e5f6...
 ```
 
@@ -2957,24 +2957,13 @@ Error: workspace not found: invalid-id
 Use 'workspace list' to see available workspaces
 ```
 
-**Workspace not running:**
-```bash
-kdn terminal a1b2c3d4e5f6...
-```
-Output:
-```text
-Error: instance is not running (current state: created)
-```
+**Workspace not running (auto-started):**
 
-In this case, you need to start the workspace first:
-```bash
-kdn start a1b2c3d4e5f6...
-kdn terminal a1b2c3d4e5f6...
-```
+If the workspace is stopped, `terminal` automatically starts it before connecting. You can also start it explicitly with `kdn start` beforehand.
 
 #### Notes
 
-- The workspace must be in a **running state** before you can connect to it. Use `workspace start` to start a workspace first
+- If the workspace is stopped, it is automatically started before connecting. You can also use `workspace start` explicitly beforehand
 - You can specify the workspace using either its name or ID (both can be obtained using the `workspace list` or `list` command)
 - By default (when no command is provided), the runtime uses the `terminal_command` from the agent's configuration file
   - For example, if the workspace was created with `--agent claude`, it will use the command defined in `claude.json` (typically `["claude"]`)

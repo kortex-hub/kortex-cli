@@ -71,7 +71,7 @@ type Manager interface {
 	Start(ctx context.Context, id string) error
 	// Stop stops a runtime instance by ID
 	Stop(ctx context.Context, id string) error
-	// Terminal starts an interactive terminal session in a running instance
+	// Terminal starts an interactive terminal session, auto-starting the instance if needed
 	Terminal(ctx context.Context, id string, command []string) error
 	// List returns all registered instances
 	List() ([]Instance, error)
@@ -476,7 +476,23 @@ func (m *manager) Stop(ctx context.Context, id string) error {
 }
 
 // Terminal starts an interactive terminal session in a running instance.
+// If the instance is not running, it will be automatically started first.
 func (m *manager) Terminal(ctx context.Context, id string, command []string) error {
+	// Check instance state without holding the lock for the entire operation,
+	// because Start() needs to acquire a write lock.
+	runtimeData, err := m.terminalCheckState(id)
+	if err != nil {
+		return err
+	}
+
+	// Auto-start the instance if it is not running
+	if runtimeData.State != api.WorkspaceStateRunning {
+		if err := m.Start(ctx, id); err != nil {
+			return fmt.Errorf("failed to auto-start instance: %w", err)
+		}
+	}
+
+	// Re-read the instance under RLock and connect to terminal
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -485,30 +501,19 @@ func (m *manager) Terminal(ctx context.Context, id string, command []string) err
 		return err
 	}
 
-	// Find the instance
 	var instanceToConnect Instance
-	found := false
 	for _, instance := range instances {
 		if instance.GetID() == id {
 			instanceToConnect = instance
-			found = true
 			break
 		}
 	}
 
-	if !found {
+	if instanceToConnect == nil {
 		return ErrInstanceNotFound
 	}
 
-	runtimeData := instanceToConnect.GetRuntimeData()
-	if runtimeData.Type == "" || runtimeData.InstanceID == "" {
-		return errors.New("instance has no runtime configured")
-	}
-
-	// Verify instance is running
-	if runtimeData.State != api.WorkspaceStateRunning {
-		return fmt.Errorf("instance is not running (current state: %s)", runtimeData.State)
-	}
+	runtimeData = instanceToConnect.GetRuntimeData()
 
 	// Get the runtime
 	rt, err := m.runtimeRegistry.Get(runtimeData.Type)
@@ -524,6 +529,30 @@ func (m *manager) Terminal(ctx context.Context, id string, command []string) err
 
 	// Start terminal session, passing the agent name
 	return terminalRT.Terminal(ctx, runtimeData.InstanceID, instanceToConnect.GetAgent(), command)
+}
+
+// terminalCheckState validates that the instance exists and has a runtime configured.
+// It returns the runtime data for state inspection.
+func (m *manager) terminalCheckState(id string) (RuntimeData, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	instances, err := m.loadInstances()
+	if err != nil {
+		return RuntimeData{}, err
+	}
+
+	for _, instance := range instances {
+		if instance.GetID() == id {
+			runtimeData := instance.GetRuntimeData()
+			if runtimeData.Type == "" || runtimeData.InstanceID == "" {
+				return RuntimeData{}, errors.New("instance has no runtime configured")
+			}
+			return runtimeData, nil
+		}
+	}
+
+	return RuntimeData{}, ErrInstanceNotFound
 }
 
 // List returns all registered instances

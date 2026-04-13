@@ -102,15 +102,13 @@ func NewWorkspaceTerminalCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "terminal NAME|ID [COMMAND...]",
-		Short: "Connect to a running workspace with an interactive terminal",
-		Long: `Connect to a running workspace with an interactive terminal session.
+		Short: "Connect to a workspace with an interactive terminal",
+		Long: `Connect to a workspace with an interactive terminal session.
 
-The terminal command starts an interactive session inside a running workspace instance.
+The terminal command starts an interactive session inside a workspace instance.
+If the workspace is not running, it will be automatically started first.
 By default, it launches the agent command configured in the runtime. You can override
-this by providing a custom command.
-
-The workspace must be in a running state. Use 'workspace start' to start a workspace
-before connecting.`,
+this by providing a custom command.`,
 		Example: `# Connect using the default agent command (by ID)
 kdn workspace terminal abc123
 
@@ -123,7 +121,7 @@ kdn workspace terminal abc123 bash
 # Run a command with flags (use -- to prevent kdn from parsing them)
 kdn workspace terminal abc123 -- bash -c 'echo hello'`,
 		Args:              cobra.MinimumNArgs(1),
-		ValidArgsFunction: completeRunningWorkspaceID,
+		ValidArgsFunction: completeWorkspaceID,
 		PreRunE:           c.preRun,
 		RunE:              c.run,
 	}

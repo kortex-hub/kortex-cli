@@ -165,7 +165,7 @@ func TestWorkspaceTerminalCmd_E2E(t *testing.T) {
 		}
 	})
 
-	t.Run("fails for stopped workspace", func(t *testing.T) {
+	t.Run("auto-starts stopped workspace", func(t *testing.T) {
 		t.Parallel()
 
 		storageDir := t.TempDir()
@@ -195,7 +195,7 @@ func TestWorkspaceTerminalCmd_E2E(t *testing.T) {
 		}
 		workspaceID := instancesList[0].GetID()
 
-		// Try to connect to terminal (workspace is not started)
+		// Try to connect to terminal (workspace is not started, should auto-start)
 		rootCmd = NewRootCmd()
 		rootCmd.SetArgs([]string{"workspace", "terminal", workspaceID, "--storage", storageDir})
 
@@ -205,12 +205,12 @@ func TestWorkspaceTerminalCmd_E2E(t *testing.T) {
 
 		err = rootCmd.Execute()
 		if err == nil {
-			t.Fatal("Expected error for stopped workspace")
+			t.Fatal("Expected error because fake runtime does not support terminal")
 		}
 
-		// Should fail because workspace is not running
-		if !strings.Contains(err.Error(), "not running") {
-			t.Errorf("Expected 'not running' error, got: %v", err)
+		// Should auto-start successfully, then fail because fake runtime doesn't implement Terminal
+		if !strings.Contains(err.Error(), "does not support terminal sessions") {
+			t.Errorf("Expected 'does not support terminal sessions' error, got: %v", err)
 		}
 	})
 }
