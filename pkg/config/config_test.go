@@ -1330,6 +1330,9 @@ func TestConfig_Load_Secrets_SameTypeDifferentNames(t *testing.T) {
 
 	if workspaceCfg.Secrets == nil || len(*workspaceCfg.Secrets) != 2 {
 		t.Errorf("Expected 2 secrets with same type but different names, got %v", workspaceCfg.Secrets)
+	}
+}
+
 func TestConfig_Load_Network_Valid(t *testing.T) {
 	t.Parallel()
 

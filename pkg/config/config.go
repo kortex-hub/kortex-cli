@@ -238,6 +238,9 @@ func (c *config) validate(cfg *workspace.WorkspaceConfiguration) error {
 				return fmt.Errorf("%w: secret with type %q (index %d) is a duplicate of index %d", ErrInvalidConfig, s.Type, i, prevIdx)
 			}
 			seenSecrets[key] = i
+		}
+	}
+
 	// Validate network configuration
 	if cfg.Network != nil {
 		if cfg.Network.Mode != nil && !cfg.Network.Mode.Valid() {

@@ -1311,6 +1311,10 @@ func TestMerger_Merge_Secrets_DeepCopy(t *testing.T) {
 		// Override must be unaffected
 		if *(*override.Secrets)[0].Header != "Authorization" {
 			t.Error("Mutating merged secret Header affected the override input")
+		}
+	})
+}
+
 func networkModePtr(m workspace.NetworkConfigurationMode) *workspace.NetworkConfigurationMode {
 	return &m
 }
