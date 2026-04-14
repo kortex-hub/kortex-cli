@@ -75,6 +75,9 @@ func (m *merger) Merge(base, override *workspace.WorkspaceConfiguration) *worksp
 	// Merge secrets
 	result.Secrets = mergeSecrets(base.Secrets, override.Secrets)
 
+	// Merge network configuration
+	result.Network = mergeNetwork(base.Network, override.Network)
+
 	return result
 }
 
@@ -474,6 +477,92 @@ func copyMCP(mcp *workspace.McpConfiguration) *workspace.McpConfiguration {
 	return result
 }
 
+// mergeNetwork merges two NetworkConfiguration objects.
+// The base network policy is dominant:
+//   - if base has mode "allow", use base configuration
+//   - if base has mode "deny" and override has mode "allow", use base configuration
+//   - if both base and override have mode "deny", merge hosts and CIDRs from both
+func mergeNetwork(base, override *workspace.NetworkConfiguration) *workspace.NetworkConfiguration {
+	if base == nil && override == nil {
+		return nil
+	}
+	if base == nil {
+		return copyNetwork(override)
+	}
+	if override == nil {
+		return copyNetwork(base)
+	}
+
+	// Base with "allow" mode always wins, regardless of override
+	if base.Mode != nil && *base.Mode == workspace.Allow {
+		return copyNetwork(base)
+	}
+
+	// Base has "deny" (or default deny) and override has "allow": base wins
+	if override.Mode != nil && *override.Mode == workspace.Allow {
+		return copyNetwork(base)
+	}
+
+	// Both have "deny" mode: merge hosts and CIDRs
+	result := &workspace.NetworkConfiguration{}
+	mode := workspace.Deny
+	result.Mode = &mode
+	result.Hosts = mergeStringSlices(base.Hosts, override.Hosts)
+	result.Cidr = mergeStringSlices(base.Cidr, override.Cidr)
+
+	return result
+}
+
+// mergeStringSlices merges two optional string slices, deduplicating entries.
+// Base entries come first, followed by new entries from override.
+func mergeStringSlices(base, override *[]string) *[]string {
+	if base == nil && override == nil {
+		return nil
+	}
+	seen := make(map[string]bool)
+	var result []string
+
+	for _, slice := range []*[]string{base, override} {
+		if slice == nil {
+			continue
+		}
+		for _, s := range *slice {
+			if !seen[s] {
+				seen[s] = true
+				result = append(result, s)
+			}
+		}
+	}
+
+	if len(result) == 0 {
+		return nil
+	}
+	return &result
+}
+
+// copyNetwork creates a deep copy of a NetworkConfiguration.
+func copyNetwork(net *workspace.NetworkConfiguration) *workspace.NetworkConfiguration {
+	if net == nil {
+		return nil
+	}
+	result := &workspace.NetworkConfiguration{}
+	if net.Mode != nil {
+		modeCopy := *net.Mode
+		result.Mode = &modeCopy
+	}
+	if net.Hosts != nil {
+		hostsCopy := make([]string, len(*net.Hosts))
+		copy(hostsCopy, *net.Hosts)
+		result.Hosts = &hostsCopy
+	}
+	if net.Cidr != nil {
+		cidrCopy := make([]string, len(*net.Cidr))
+		copy(cidrCopy, *net.Cidr)
+		result.Cidr = &cidrCopy
+	}
+	return result
+}
+
 // copyConfig creates a deep copy of a WorkspaceConfiguration
 func copyConfig(cfg *workspace.WorkspaceConfiguration) *workspace.WorkspaceConfiguration {
 	if cfg == nil {
@@ -516,6 +605,9 @@ func copyConfig(cfg *workspace.WorkspaceConfiguration) *workspace.WorkspaceConfi
 		}
 		result.Secrets = &secretsCopy
 	}
+
+	// Copy network configuration
+	result.Network = copyNetwork(cfg.Network)
 
 	return result
 }

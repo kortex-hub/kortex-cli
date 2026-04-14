@@ -1330,6 +1330,127 @@ func TestConfig_Load_Secrets_SameTypeDifferentNames(t *testing.T) {
 
 	if workspaceCfg.Secrets == nil || len(*workspaceCfg.Secrets) != 2 {
 		t.Errorf("Expected 2 secrets with same type but different names, got %v", workspaceCfg.Secrets)
+func TestConfig_Load_Network_Valid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		json string
+	}{
+		{
+			name: "deny mode with hosts and cidr",
+			json: `{"network": {"mode": "deny", "hosts": ["example.com"], "cidr": ["10.0.0.0/8"]}}`,
+		},
+		{
+			name: "deny mode with hosts only",
+			json: `{"network": {"mode": "deny", "hosts": ["example.com"]}}`,
+		},
+		{
+			name: "deny mode with cidr only",
+			json: `{"network": {"mode": "deny", "cidr": ["10.0.0.0/8"]}}`,
+		},
+		{
+			name: "deny mode without hosts or cidr",
+			json: `{"network": {"mode": "deny"}}`,
+		},
+		{
+			name: "allow mode",
+			json: `{"network": {"mode": "allow"}}`,
+		},
+		{
+			name: "no mode defaults to deny",
+			json: `{"network": {"hosts": ["example.com"]}}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			configDir := t.TempDir()
+			err := os.WriteFile(filepath.Join(configDir, WorkspaceConfigFile), []byte(tt.json), 0644)
+			if err != nil {
+				t.Fatalf("os.WriteFile() failed: %v", err)
+			}
+
+			cfg, err := NewConfig(configDir)
+			if err != nil {
+				t.Fatalf("NewConfig() failed: %v", err)
+			}
+
+			workspaceCfg, err := cfg.Load()
+			if err != nil {
+				t.Fatalf("Load() failed: %v", err)
+			}
+
+			if workspaceCfg.Network == nil {
+				t.Fatal("Expected non-nil Network")
+			}
+		})
+	}
+}
+
+func TestConfig_Load_Network_Invalid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		json       string
+		wantErrMsg string
+	}{
+		{
+			name:       "invalid mode",
+			json:       `{"network": {"mode": "block"}}`,
+			wantErrMsg: `network mode "block" is invalid`,
+		},
+		{
+			name:       "allow mode with hosts",
+			json:       `{"network": {"mode": "allow", "hosts": ["example.com"]}}`,
+			wantErrMsg: `network hosts must not be set when mode is "allow"`,
+		},
+		{
+			name:       "allow mode with cidr",
+			json:       `{"network": {"mode": "allow", "cidr": ["10.0.0.0/8"]}}`,
+			wantErrMsg: `network cidr must not be set when mode is "allow"`,
+		},
+		{
+			name:       "empty host entry",
+			json:       `{"network": {"mode": "deny", "hosts": ["example.com", ""]}}`,
+			wantErrMsg: "network host at index 1 is empty",
+		},
+		{
+			name:       "empty cidr entry",
+			json:       `{"network": {"mode": "deny", "cidr": [""]}}`,
+			wantErrMsg: "network cidr at index 0 is empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			configDir := t.TempDir()
+			err := os.WriteFile(filepath.Join(configDir, WorkspaceConfigFile), []byte(tt.json), 0644)
+			if err != nil {
+				t.Fatalf("os.WriteFile() failed: %v", err)
+			}
+
+			cfg, err := NewConfig(configDir)
+			if err != nil {
+				t.Fatalf("NewConfig() failed: %v", err)
+			}
+
+			_, err = cfg.Load()
+			if err == nil {
+				t.Fatalf("Expected error containing %q, got nil", tt.wantErrMsg)
+			}
+			if !strings.Contains(err.Error(), tt.wantErrMsg) {
+				t.Errorf("Error %q does not contain %q", err.Error(), tt.wantErrMsg)
+			}
+			if !errors.Is(err, ErrInvalidConfig) {
+				t.Errorf("Expected ErrInvalidConfig, got %v", err)
+			}
+		})
 	}
 }
 
