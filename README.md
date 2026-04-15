@@ -1478,7 +1478,11 @@ The `workspace.json` file uses a nested JSON structure:
     "mode": "deny",
     "hosts": ["api.github.com"],
     "cidr": ["10.0.0.0/8"]
-  }
+  },
+  "secrets": [
+    {"type": "github", "value": "ghp_xxxxxxxxxxxx"},
+    {"type": "other", "name": "api-key", "value": "my-token", "header": "Authorization", "headerTemplate": "Bearer {{value}}", "hosts": ["api.example.com"], "path": "/v1"}
+  ]
 }
 ```
 
@@ -1680,6 +1684,44 @@ Control network access for the workspace. By default, network access is denied (
 - Host entries cannot be empty strings
 - CIDR entries cannot be empty strings
 
+### Secrets
+
+Configure secrets to inject into the workspace. Secrets are typed credentials (e.g., API tokens) that can be associated with specific hosts and HTTP headers. This is distinct from the `secret` field in environment variables, which references runtime secrets by name.
+
+**Structure:**
+```json
+{
+  "secrets": [
+    {"type": "github", "value": "ghp_xxxxxxxxxxxx"},
+    {"type": "slack", "value": "xoxb-xxxxxxxxxxxx"},
+    {
+      "type": "other",
+      "name": "api-key",
+      "value": "my-token",
+      "header": "Authorization",
+      "headerTemplate": "Bearer {{value}}",
+      "hosts": ["api.example.com"],
+      "path": "/v1"
+    }
+  ]
+}
+```
+
+**Fields:**
+- `type` (required) - Secret type identifier (e.g., `"github"`, `"slack"`, `"other"`)
+- `value` (required) - The secret value or token
+- `name` (optional) - Name to distinguish multiple secrets of the same type
+- `header` (optional) - HTTP header name for injecting the secret (only applicable when type is `"other"`)
+- `headerTemplate` (optional) - Template for formatting the secret in a header (e.g., `"Bearer {{value}}"`) (only applicable when type is `"other"`)
+- `hosts` (optional) - List of hosts where this secret applies (only applicable when type is `"other"`)
+- `path` (optional) - API path associated with the secret (only applicable when type is `"other"`)
+
+**Validation Rules:**
+- `type` cannot be empty
+- `value` cannot be empty
+- Secrets are deduplicated by the `(type, name)` tuple — two secrets with the same type and name are rejected as duplicates
+- `name` is optional, but when omitted it is treated as a distinct value for uniqueness (a secret with type `"other"` and no name is different from one with type `"other"` and name `"key"`)
+
 ### Configuration Validation
 
 When you register a workspace with `kdn init`, the configuration is automatically validated. If `workspace.json` exists and contains invalid data, the registration will fail with a descriptive error message.
@@ -1802,6 +1844,22 @@ mount at index 0 is missing host
 }
 ```
 
+**Secrets:**
+```json
+{
+  "secrets": [
+    {"type": "github", "value": "ghp_xxxxxxxxxxxx"},
+    {
+      "type": "other",
+      "name": "internal-api",
+      "value": "my-token",
+      "header": "X-API-Key",
+      "hosts": ["internal.company.com"]
+    }
+  ]
+}
+```
+
 **Complete configuration:**
 ```json
 {
@@ -1839,7 +1897,10 @@ mount at index 0 is missing host
     "mode": "deny",
     "hosts": ["api.github.com"],
     "cidr": ["10.0.0.0/8"]
-  }
+  },
+  "secrets": [
+    {"type": "github", "value": "ghp_xxxxxxxxxxxx"}
+  ]
 }
 ```
 
@@ -2058,6 +2119,12 @@ kdn init --runtime podman --project my-custom-project --agent goose
 - If base has `deny` mode and override has `allow` mode, the base configuration is used (overrides cannot loosen the policy)
 - If both base and override have `deny` mode, the hosts and CIDRs from both are merged (deduplicated)
 - Example: If workspace config denies all except `api.github.com` and agent config allows all, the final result is deny with `api.github.com` allowed (workspace policy wins)
+
+**Secrets:**
+- Secrets are deduplicated by `(type, name)` tuple
+- Later configurations override earlier ones with the same `(type, name)` key
+- Order is preserved: base secrets first, then new secrets from override
+- Example: If workspace defines a `github` secret and agent config also defines a `github` secret (same type, no name), the agent config's version is used
 
 ### Configuration Files Don't Exist?
 

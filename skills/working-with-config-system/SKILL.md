@@ -1,12 +1,12 @@
 ---
 name: working-with-config-system
-description: Guide to workspace configuration for environment variables, mount points, skills, MCP servers and network access at multiple levels
+description: Guide to workspace configuration for environment variables, mount points, skills, MCP servers, secrets and network access at multiple levels
 argument-hint: ""
 ---
 
 # Working with the Config System
 
-The config system manages **workspace configuration** for injecting environment variables and mounting directories into workspaces. This is different from runtime-specific configuration (e.g., Podman image settings).
+The config system manages **workspace configuration** for injecting environment variables, mounting directories and managing secrets into workspaces. This is different from runtime-specific configuration (e.g., Podman image settings).
 
 **What this config system controls:**
 - Environment variables to inject into workspace containers/VMs
@@ -14,6 +14,7 @@ The config system manages **workspace configuration** for injecting environment 
 - Skills directories to provide to agents inside the workspace
 - MCP servers to configure in the agent (command-based and URL-based)
 - Network access policies (allow all or deny with host/CIDR exceptions)
+- Secrets to inject into the workspace (typed credentials with optional host/header bindings)
 
 **What this does NOT control:**
 - Runtime-specific settings (e.g., Podman container image, packages to install)
@@ -159,7 +160,11 @@ The `workspace.json` file controls what gets injected into the workspace:
     "mode": "deny",
     "hosts": ["api.github.com"],
     "cidr": ["10.0.0.0/8"]
-  }
+  },
+  "secrets": [
+    {"type": "github", "value": "ghp_xxxxxxxxxxxx"},
+    {"type": "other", "name": "api-key", "value": "my-token", "header": "Authorization", "headerTemplate": "Bearer {{value}}", "hosts": ["api.example.com"], "path": "/v1"}
+  ]
 }
 ```
 
@@ -205,6 +210,15 @@ kdn init /path/to/workspace --workspace-configuration /path/to/config-dir
   - `mode` - Access mode: `"allow"` (permit all) or `"deny"` (block all except listed hosts/CIDRs). Defaults to `"deny"`
   - `hosts` - List of hostnames to allow in deny mode (optional, must not be set when mode is `"allow"`)
   - `cidr` - List of CIDR ranges to allow in deny mode (optional, must not be set when mode is `"allow"`)
+- `secrets` - List of secrets to inject into the workspace (optional)
+  - `type` - Secret type identifier (required, e.g., `"github"`, `"slack"`, `"other"`)
+  - `value` - The secret value or token (required)
+  - `name` - Optional name to distinguish multiple secrets of the same type
+  - `header` - HTTP header name for injecting the secret (optional, only applicable when type is `"other"`)
+  - `headerTemplate` - Template for formatting the secret in a header, e.g., `"Bearer {{value}}"` (optional, only applicable when type is `"other"`)
+  - `hosts` - List of hosts where this secret applies (optional, only applicable when type is `"other"`)
+  - `path` - API path associated with the secret (optional, only applicable when type is `"other"`)
+  - Secrets are distinct from the `secret` field in environment variables, which references runtime secrets by name
 
 ### Agent Configuration (`agents.json`)
 
@@ -359,6 +373,7 @@ The Manager's `Add()` method:
   - If base has `allow` mode, the base configuration is used regardless of the override
   - If base has `deny` and override has `allow`, the base configuration is used (overrides cannot loosen the policy)
   - If both have `deny` mode, the hosts and CIDRs from both are merged (deduplicated, base entries first)
+- **Secrets**: Deduplicated by `(type, name)` tuple (override replaces base entries with the same key, order preserved: base first then new override entries)
 
 **Example Merge Flow:**
 
@@ -429,6 +444,13 @@ The `Load()` method automatically validates the configuration and returns `ErrIn
 - If `mode` is `"allow"`, `hosts` and `cidr` must not be set (they are meaningless in allow mode)
 - Host entries cannot be empty strings
 - CIDR entries cannot be empty strings
+
+### Secrets
+
+- `type` cannot be empty
+- `value` cannot be empty
+- Secrets must be unique by `(type, name)` tuple — duplicates are rejected
+- `name` is optional, but when omitted it is treated as a distinct value for uniqueness (a secret with type `"other"` and no name is different from one with type `"other"` and name `"key"`)
 
 ## Error Handling
 
