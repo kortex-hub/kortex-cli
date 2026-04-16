@@ -75,9 +75,12 @@ func TestRegisterAll(t *testing.T) {
 			t.Errorf("RegisterAll() error = %v, want nil", err)
 		}
 
-		// No secret services are registered by default
-		if len(registrar.registered) != 0 {
-			t.Errorf("registered %d secret services, want 0", len(registrar.registered))
+		if len(registrar.registered) != 1 {
+			t.Errorf("registered %d secret services, want 1", len(registrar.registered))
+		}
+
+		if _, exists := registrar.registered["github"]; !exists {
+			t.Error("github secret service was not registered")
 		}
 	})
 }
@@ -162,10 +165,72 @@ func TestRegisterAllWithFactories(t *testing.T) {
 	})
 }
 
-func TestAvailableSecretServicesEmpty(t *testing.T) {
+func TestAvailableSecretServicesLoaded(t *testing.T) {
 	t.Parallel()
 
-	if len(availableSecretServices) != 0 {
-		t.Errorf("availableSecretServices should be empty, got %d entries", len(availableSecretServices))
+	if len(availableSecretServices) != 1 {
+		t.Errorf("availableSecretServices should have 1 entry, got %d", len(availableSecretServices))
+	}
+}
+
+func TestAvailableSecretServicesContainGitHub(t *testing.T) {
+	t.Parallel()
+
+	if len(availableSecretServices) == 0 {
+		t.Fatal("availableSecretServices is empty")
+	}
+
+	svc := availableSecretServices[0]()
+	if svc == nil {
+		t.Fatal("factory returned nil")
+	}
+
+	if svc.Name() != "github" {
+		t.Errorf("Name() = %q, want %q", svc.Name(), "github")
+	}
+	if svc.HostPattern() != `api\.github\.com` {
+		t.Errorf("HostPattern() = %q, want %q", svc.HostPattern(), `api\.github\.com`)
+	}
+	if svc.Path() != "" {
+		t.Errorf("Path() = %q, want empty string", svc.Path())
+	}
+	if svc.HeaderName() != "Authorization" {
+		t.Errorf("HeaderName() = %q, want %q", svc.HeaderName(), "Authorization")
+	}
+	if svc.HeaderTemplate() != "Bearer ${value}" {
+		t.Errorf("HeaderTemplate() = %q, want %q", svc.HeaderTemplate(), "Bearer ${value}")
+	}
+
+	envVars := svc.EnvVars()
+	if len(envVars) != 2 {
+		t.Fatalf("EnvVars() has %d entries, want 2", len(envVars))
+	}
+	if envVars[0] != "GH_TOKEN" {
+		t.Errorf("EnvVars()[0] = %q, want %q", envVars[0], "GH_TOKEN")
+	}
+	if envVars[1] != "GITHUB_TOKEN" {
+		t.Errorf("EnvVars()[1] = %q, want %q", envVars[1], "GITHUB_TOKEN")
+	}
+}
+
+func TestLoadSecretServices(t *testing.T) {
+	t.Parallel()
+
+	factories, err := loadSecretServices()
+	if err != nil {
+		t.Fatalf("loadSecretServices() error = %v", err)
+	}
+
+	if len(factories) != 1 {
+		t.Fatalf("loadSecretServices() returned %d factories, want 1", len(factories))
+	}
+
+	svc := factories[0]()
+	if svc == nil {
+		t.Fatal("factory returned nil")
+	}
+
+	if svc.Name() != "github" {
+		t.Errorf("Name() = %q, want %q", svc.Name(), "github")
 	}
 }

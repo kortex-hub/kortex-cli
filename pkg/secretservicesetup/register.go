@@ -20,6 +20,8 @@
 package secretservicesetup
 
 import (
+	_ "embed"
+	"encoding/json"
 	"fmt"
 
 	"github.com/openkaiden/kdn/pkg/secretservice"
@@ -34,9 +36,57 @@ type SecretServiceRegistrar interface {
 // secretServiceFactory is a function that creates a new secret service instance.
 type secretServiceFactory func() secretservice.SecretService
 
-// availableSecretServices is the list of all secret services that can be registered.
-// Add new secret services here to make them available for automatic registration.
-var availableSecretServices = []secretServiceFactory{}
+//go:embed secretservices.json
+var secretServicesJSON []byte
+
+// secretServiceDefinition represents a secret service entry in the embedded JSON file.
+type secretServiceDefinition struct {
+	Name           string   `json:"name"`
+	HostPattern    string   `json:"hostPattern"`
+	Path           string   `json:"path"`
+	HeaderName     string   `json:"headerName"`
+	HeaderTemplate string   `json:"headerTemplate"`
+	EnvVars        []string `json:"envVars"`
+}
+
+// availableSecretServices is the list of all secret services loaded from the embedded JSON file.
+var availableSecretServices = mustLoadSecretServices()
+
+// mustLoadSecretServices loads secret service definitions from the embedded JSON and returns
+// factory functions for each. It panics on error since embedded data corruption is a build defect.
+func mustLoadSecretServices() []secretServiceFactory {
+	factories, err := loadSecretServices()
+	if err != nil {
+		panic(fmt.Sprintf("failed to load embedded secret services: %v", err))
+	}
+
+	return factories
+}
+
+// loadSecretServices parses the embedded JSON and returns a factory function for each definition.
+func loadSecretServices() ([]secretServiceFactory, error) {
+	var definitions []secretServiceDefinition
+	if err := json.Unmarshal(secretServicesJSON, &definitions); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal secret services JSON: %w", err)
+	}
+
+	factories := make([]secretServiceFactory, 0, len(definitions))
+	for _, def := range definitions {
+		d := def // capture loop variable
+		factories = append(factories, func() secretservice.SecretService {
+			return secretservice.NewSecretService(
+				d.Name,
+				d.HostPattern,
+				d.Path,
+				d.EnvVars,
+				d.HeaderName,
+				d.HeaderTemplate,
+			)
+		})
+	}
+
+	return factories, nil
+}
 
 // RegisterAll registers all available secret service implementations to the given registrar.
 // Returns an error if any secret service fails to register.

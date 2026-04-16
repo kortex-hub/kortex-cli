@@ -46,3 +46,58 @@ type SecretService interface {
 	// Returns an empty string if not set.
 	HeaderTemplate() string
 }
+
+// service is the concrete implementation of SecretService.
+type service struct {
+	name           string
+	hostPattern    string
+	path           string
+	envVars        []string
+	headerName     string
+	headerTemplate string
+}
+
+// Compile-time check to ensure service implements SecretService interface
+var _ SecretService = (*service)(nil)
+
+// NewSecretService creates a new SecretService implementation with the given parameters.
+func NewSecretService(name, hostPattern, path string, envVars []string, headerName, headerTemplate string) SecretService {
+	return &service{
+		name:           name,
+		hostPattern:    hostPattern,
+		path:           path,
+		envVars:        envVars,
+		headerName:     headerName,
+		headerTemplate: headerTemplate,
+	}
+}
+
+// Name returns the identifier of the secret service.
+func (s *service) Name() string {
+	return s.name
+}
+
+// HostPattern returns a regular expression pattern for matching hosts.
+func (s *service) HostPattern() string {
+	return s.hostPattern
+}
+
+// Path returns the optional path for the secret service.
+func (s *service) Path() string {
+	return s.path
+}
+
+// EnvVars returns the optional list of environment variable names.
+func (s *service) EnvVars() []string {
+	return s.envVars
+}
+
+// HeaderName returns the name of the HTTP header.
+func (s *service) HeaderName() string {
+	return s.headerName
+}
+
+// HeaderTemplate returns the optional template for the header value.
+func (s *service) HeaderTemplate() string {
+	return s.headerTemplate
+}
