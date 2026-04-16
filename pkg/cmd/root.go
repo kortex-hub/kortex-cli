@@ -87,6 +87,7 @@ func NewRootCmd() *cobra.Command {
 	// Commands without a group (will appear under "Additional Commands")
 	rootCmd.AddCommand(NewVersionCmd())
 	rootCmd.AddCommand(NewInfoCmd())
+	rootCmd.AddCommand(NewServiceCmd())
 
 	// Global flags
 	rootCmd.PersistentFlags().String("storage", defaultStoragePath, "Directory where kdn will store all its files")

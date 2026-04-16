@@ -82,6 +82,9 @@ A standardized protocol for connecting AI agents to external data sources and to
 ### Runtime
 The environment where workspaces run. kdn supports multiple runtimes (e.g., Podman containers), allowing workspaces to be hosted on different backends depending on your needs.
 
+### Service
+A secret service definition that describes how to inject credentials into workspace HTTP requests. Each service specifies a host pattern to match, the HTTP header to set, and which environment variables hold the credential value.
+
 ### Skills
 Pre-configured capabilities or specialized functions that can be enabled for an agent. Skills extend what an agent can do, such as code review, testing, or specific domain knowledge.
 
@@ -2242,6 +2245,61 @@ kdn info -o json
 - Agents are discovered from runtimes that support agent configuration (e.g., the Podman runtime reports agents from its configuration files)
 - Runtimes are listed based on availability in the current environment (e.g., the Podman runtime only appears if the `podman` CLI is installed)
 - **JSON error handling**: When `--output json` is used, errors are written to stdout (not stderr) in JSON format, and the CLI exits with code 1. Always check the exit code to determine success/failure
+
+### `service list` - List Registered Services
+
+Lists all secret services available for workspace configuration.
+
+#### Usage
+
+```bash
+kdn service list [flags]
+```
+
+#### Flags
+
+- `--output, -o <format>` - Output format (supported: `json`)
+
+#### Examples
+
+**List all services (human-readable table):**
+```bash
+kdn service list
+```
+Output:
+```text
+NAME    HOST PATTERN       PATH  HEADER          HEADER TEMPLATE    ENV VARS
+github  api\.github\.com         Authorization   Bearer ${value}    GH_TOKEN, GITHUB_TOKEN
+```
+
+**List services in JSON format:**
+```bash
+kdn service list --output json
+```
+Output:
+```json
+{
+  "items": [
+    {
+      "name": "github",
+      "hostPattern": "api\\.github\\.com",
+      "headerName": "Authorization",
+      "headerTemplate": "Bearer ${value}",
+      "envVars": ["GH_TOKEN", "GITHUB_TOKEN"]
+    }
+  ]
+}
+```
+
+**List using short flag:**
+```bash
+kdn service list -o json
+```
+
+#### Notes
+
+- Services are defined in the embedded configuration and are always available regardless of runtime or environment
+- Each service describes how to inject credentials into HTTP requests for matching hosts
 
 ### `init` - Register a New Workspace
 
