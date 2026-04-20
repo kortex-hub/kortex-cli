@@ -402,6 +402,8 @@ Tests follow Go conventions with `*_test.go` files alongside source files. Tests
 
 **For cross-platform testing, use:** `/cross-platform-development`
 
+**Before submitting a PR (code, tests, docs checklist), use:** `/complete-pr`
+
 ## GitHub Actions
 
 GitHub Actions workflows are stored in `.github/workflows/`. All workflows must use commit SHA1 hashes instead of version tags for security reasons (to prevent supply chain attacks from tag manipulation).
