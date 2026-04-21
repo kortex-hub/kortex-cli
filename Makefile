@@ -52,7 +52,10 @@ test: ## Run all tests
 
 test-integration: ## Run integration tests (requires Podman)
 	@echo "Running integration tests..."
-	$(GO) test -tags integration -timeout 30m -count=1 -parallel 2 -v ./pkg/cmd/
+	$(GO) run gotest.tools/gotestsum@latest \
+		--junitfile integration-results.xml \
+		--format testdox \
+		-- -tags integration -timeout 30m -count=1 -parallel 2 ./pkg/cmd/
 
 test-coverage: ## Run tests with coverage report
 	@echo "Running tests with coverage..."
