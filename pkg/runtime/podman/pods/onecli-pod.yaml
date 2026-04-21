@@ -5,7 +5,10 @@ metadata:
   labels:
     app: onecli
 spec:
-  restartPolicy: Always
+  # Never: we manage container start order ourselves (postgres before onecli) to
+  # avoid migration race conditions. OnFailure/Always would restart onecli before
+  # postgres is ready, causing repeated migration failures.
+  restartPolicy: Never
   containers:
     - name: postgres
       image: docker.io/library/postgres:18-alpine
@@ -16,10 +19,6 @@ spec:
           value: "onecli"
         - name: POSTGRES_DB
           value: "onecli"
-      ports:
-        - containerPort: 5432
-          hostPort: {{.PostgresPort}}
-          hostIP: "127.0.0.1"
       readinessProbe:
         exec:
           command:
@@ -42,10 +41,9 @@ spec:
           value: "http://127.0.0.1:10254"
         - name: APP_URL
           value: "http://127.0.0.1:10254"
+        - name: GATEWAY_BASE_URL
+          value: "localhost:10255"
       ports:
         - containerPort: 10254
           hostPort: {{.OnecliWebPort}}
-          hostIP: "127.0.0.1"
-        - containerPort: 10255
-          hostPort: {{.OnecliProxyPort}}
           hostIP: "127.0.0.1"

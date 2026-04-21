@@ -36,11 +36,9 @@ const defaultOnecliVersion = "1.17"
 
 // podTemplateData holds the values used to render the pod YAML template.
 type podTemplateData struct {
-	Name            string
-	PostgresPort    int
-	OnecliWebPort   int
-	OnecliProxyPort int
-	OnecliVersion   string
+	Name          string
+	OnecliWebPort int
+	OnecliVersion string
 }
 
 // validateCreateParams validates the create parameters.
@@ -258,18 +256,16 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 	}
 
 	// Allocate random free ports for the pod
-	freePorts, err := findFreePorts(3)
+	freePorts, err := findFreePorts(1)
 	if err != nil {
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to allocate free ports: %w", err)
 	}
 
 	// Render the pod YAML template
 	tmplData := podTemplateData{
-		Name:            params.Name,
-		PostgresPort:    freePorts[0],
-		OnecliWebPort:   freePorts[1],
-		OnecliProxyPort: freePorts[2],
-		OnecliVersion:   defaultOnecliVersion,
+		Name:          params.Name,
+		OnecliWebPort: freePorts[0],
+		OnecliVersion: defaultOnecliVersion,
 	}
 
 	tmpPodDir := filepath.Join(instanceDir, "pod")
