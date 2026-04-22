@@ -25,6 +25,7 @@ import (
 	"text/template"
 
 	api "github.com/openkaiden/kdn-api/cli/go"
+	"github.com/openkaiden/kdn/pkg/devcontainers/features"
 	"github.com/openkaiden/kdn/pkg/logger"
 	"github.com/openkaiden/kdn/pkg/onecli"
 	"github.com/openkaiden/kdn/pkg/runtime"
@@ -69,7 +70,9 @@ func (p *podmanRuntime) createInstanceDirectory(name string) (string, error) {
 // createContainerfile creates a Containerfile in the instance directory using the provided configs.
 // If settings is non-empty, the files are written to an agent-settings/ subdirectory of instanceDir
 // so they can be embedded in the image via a COPY instruction.
-func (p *podmanRuntime) createContainerfile(instanceDir string, imageConfig *config.ImageConfig, agentConfig *config.AgentConfig, settings map[string][]byte) error {
+// If featureInfos is non-empty, the features have already been downloaded to instanceDir/features/
+// and the Containerfile will include instructions to install them.
+func (p *podmanRuntime) createContainerfile(instanceDir string, imageConfig *config.ImageConfig, agentConfig *config.AgentConfig, settings map[string][]byte, featureInfos []featureInstallInfo) error {
 	// Generate sudoers content
 	sudoersContent := generateSudoers(imageConfig.Sudo)
 	sudoersPath := filepath.Join(instanceDir, "sudoers")
@@ -95,13 +98,82 @@ func (p *podmanRuntime) createContainerfile(instanceDir string, imageConfig *con
 	}
 
 	// Generate Containerfile content
-	containerfileContent := generateContainerfile(imageConfig, agentConfig, len(settings) > 0)
+	containerfileContent := generateContainerfile(imageConfig, agentConfig, len(settings) > 0, featureInfos)
 	containerfilePath := filepath.Join(instanceDir, "Containerfile")
 	if err := os.WriteFile(containerfilePath, []byte(containerfileContent), 0644); err != nil {
 		return fmt.Errorf("failed to write Containerfile: %w", err)
 	}
 
 	return nil
+}
+
+// prepareFeatures downloads, orders, and merges options for devcontainer features declared in params.
+// Feature directories are written to instanceDir/features/{dirName}/.
+// Returns nil if no features are configured.
+func (p *podmanRuntime) prepareFeatures(ctx context.Context, instanceDir string, params runtime.CreateParams) ([]featureInstallInfo, error) {
+	if params.WorkspaceConfig == nil || params.WorkspaceConfig.Features == nil || len(*params.WorkspaceConfig.Features) == 0 {
+		return nil, nil
+	}
+
+	feats, userOpts, err := features.FromMap(*params.WorkspaceConfig.Features, params.WorkspaceConfigDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse features: %w", err)
+	}
+
+	if len(feats) == 0 {
+		return nil, nil
+	}
+
+	// Assign a stable directory name to each feature based on sorted order.
+	dirNames := make(map[string]string, len(feats))
+	for i, f := range feats {
+		dirNames[f.ID()] = fmt.Sprintf("feature-%d", i)
+	}
+
+	// Create the features directory in the build context.
+	featuresDir := filepath.Join(instanceDir, "features")
+	if err := os.MkdirAll(featuresDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create features directory: %w", err)
+	}
+
+	// Download each feature into its designated subdirectory.
+	metadata := make(map[string]features.FeatureMetadata, len(feats))
+	for _, f := range feats {
+		destDir := filepath.Join(featuresDir, dirNames[f.ID()])
+		if err := os.MkdirAll(destDir, 0755); err != nil {
+			return nil, fmt.Errorf("failed to create directory for feature %q: %w", f.ID(), err)
+		}
+		meta, err := f.Download(ctx, destDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to download feature %q: %w", f.ID(), err)
+		}
+		metadata[f.ID()] = meta
+	}
+
+	// Topologically sort features according to their installsAfter declarations.
+	ordered, err := features.Order(feats, metadata)
+	if err != nil {
+		return nil, fmt.Errorf("failed to order features: %w", err)
+	}
+
+	// Build the install info slice in installation order.
+	infos := make([]featureInstallInfo, 0, len(ordered))
+	for _, f := range ordered {
+		meta := metadata[f.ID()]
+
+		mergedOpts, err := meta.Options().Merge(userOpts[f.ID()])
+		if err != nil {
+			return nil, fmt.Errorf("failed to merge options for feature %q: %w", f.ID(), err)
+		}
+
+		infos = append(infos, featureInstallInfo{
+			dirName: dirNames[f.ID()],
+			options: mergedOpts,
+			envVars: meta.ContainerEnv(),
+		})
+	}
+
+	return infos, nil
 }
 
 // buildImage builds a podman image for the instance.
@@ -272,9 +344,22 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to load agent config: %w", err)
 	}
 
+	// Prepare devcontainer features: download, order, and merge options.
+	// Only emits a step when features are actually configured.
+	var featureInfos []featureInstallInfo
+	if params.WorkspaceConfig != nil && params.WorkspaceConfig.Features != nil && len(*params.WorkspaceConfig.Features) > 0 {
+		stepLogger.Start("Downloading devcontainer features", "Devcontainer features downloaded")
+		var featErr error
+		featureInfos, featErr = p.prepareFeatures(ctx, instanceDir, params)
+		if featErr != nil {
+			stepLogger.Fail(featErr)
+			return runtime.RuntimeInfo{}, featErr
+		}
+	}
+
 	// Create Containerfile
 	stepLogger.Start("Generating Containerfile", "Containerfile generated")
-	if err := p.createContainerfile(instanceDir, imageConfig, agentConfig, params.AgentSettings); err != nil {
+	if err := p.createContainerfile(instanceDir, imageConfig, agentConfig, params.AgentSettings, featureInfos); err != nil {
 		stepLogger.Fail(err)
 		return runtime.RuntimeInfo{}, err
 	}

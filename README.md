@@ -1563,7 +1563,11 @@ The `workspace.json` file uses a nested JSON structure:
     "mode": "deny",
     "hosts": ["api.github.com"]
   },
-  "secrets": ["my-github-token", "my-api-key"]
+  "secrets": ["my-github-token", "my-api-key"],
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": {"version": "1.23"},
+    "./tools/my-feature": {}
+  }
 }
 ```
 
@@ -1779,6 +1783,49 @@ Configure secrets to inject into the workspace. Each entry is the name of a secr
 **Validation Rules:**
 - Secret names cannot be empty
 - Duplicate names within the list are rejected
+
+### Dev Container Features
+
+Install [Dev Container Features](https://containers.dev/implementors/features/) into the workspace image at build time. Features are reusable environment components that add languages, runtimes, and tools to your workspace.
+
+**Structure:**
+```json
+{
+  "features": {
+    "<feature-id>": {},
+    "<feature-id>": {"<option>": "<value>"}
+  }
+}
+```
+
+Each key is a feature ID — either an OCI reference (`ghcr.io/org/repo/feature:tag`) or a relative path to a local directory (`./my-feature`). Each value is a map of options that override the feature's defaults; use an empty object `{}` to accept all defaults.
+
+**Fields:**
+- Feature ID (required) — OCI reference or relative path to a local directory
+- Options (required, can be empty) — key/value pairs that customise the feature
+
+**Validation Rules:**
+- Feature IDs must be OCI references or relative paths (`./…`); `https://` tarball URIs are not supported
+- Local paths are resolved relative to the workspace configuration directory (e.g. `.kaiden/`)
+
+**Example — install Go and Node.js:**
+```json
+{
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": {"version": "1.23"},
+    "ghcr.io/devcontainers/features/node:1": {"version": "20"}
+  }
+}
+```
+
+**Example — use a local feature:**
+```json
+{
+  "features": {
+    "./tools/my-feature": {}
+  }
+}
+```
 
 ### Configuration Validation
 

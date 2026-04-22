@@ -16,11 +16,48 @@ package podman
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/openkaiden/kdn/pkg/runtime/podman/config"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/constants"
 )
+
+// featureInstallInfo holds the information needed to install a devcontainer feature in the image.
+type featureInstallInfo struct {
+	// dirName is the directory name under instanceDir/features/ (e.g. "feature-0").
+	dirName string
+	// options contains merged and normalized option env vars for the install.sh invocation.
+	options map[string]string
+	// envVars contains containerEnv entries to bake into the image after installation.
+	envVars map[string]string
+}
+
+// buildFeatureInstallCmd builds the RUN instruction body for installing a devcontainer feature.
+// Options are passed as inline environment variable assignments before the install.sh invocation.
+// Values are always double-quoted to handle spaces and special characters.
+func buildFeatureInstallCmd(options map[string]string, installPath string) string {
+	scriptPath := installPath + "/install.sh"
+
+	if len(options) == 0 {
+		return fmt.Sprintf("chmod +x %s && %s", scriptPath, scriptPath)
+	}
+
+	keys := make([]string, 0, len(options))
+	for k := range options {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var envParts []string
+	for _, k := range keys {
+		// Escape embedded double quotes in the value.
+		v := strings.ReplaceAll(options[k], `"`, `\"`)
+		envParts = append(envParts, fmt.Sprintf(`%s="%s"`, k, v))
+	}
+
+	return fmt.Sprintf("chmod +x %s && %s %s", scriptPath, strings.Join(envParts, " "), scriptPath)
+}
 
 // generateSudoers generates the sudoers file content from a list of allowed binaries.
 // It creates a single ALLOWED command alias and sets up sudo rules.
@@ -45,7 +82,9 @@ func generateSudoers(sudoBinaries []string) string {
 // generateContainerfile generates the Containerfile content from image and agent configurations.
 // If hasAgentSettings is true, a COPY instruction is added to embed the agent-settings
 // directory (written to the build context) into the agent user's home directory.
-func generateContainerfile(imageConfig *config.ImageConfig, agentConfig *config.AgentConfig, hasAgentSettings bool) string {
+// If featureInfos is non-empty, each feature is installed as root between the user setup
+// and the custom RUN commands, with containerEnv variables set after each install.
+func generateContainerfile(imageConfig *config.ImageConfig, agentConfig *config.AgentConfig, hasAgentSettings bool, featureInfos []featureInstallInfo) string {
 	if imageConfig == nil {
 		return ""
 	}
@@ -59,6 +98,31 @@ func generateContainerfile(imageConfig *config.ImageConfig, agentConfig *config.
 	baseImage := fmt.Sprintf("%s:%s", constants.BaseImageRegistry, imageConfig.Version)
 	lines = append(lines, fmt.Sprintf("FROM %s", baseImage))
 	lines = append(lines, "")
+
+	// Devcontainer feature installation section.
+	// Features run first, while the image is still root, to avoid USER switches.
+	// containerEnv vars from each feature are set immediately after installation so
+	// subsequent features can reference them during their own install.
+	if len(featureInfos) > 0 {
+		for _, f := range featureInfos {
+			installPath := fmt.Sprintf("/tmp/feature-install/%s", f.dirName)
+			lines = append(lines, fmt.Sprintf("COPY features/%s/ %s/", f.dirName, installPath))
+			lines = append(lines, fmt.Sprintf("RUN %s", buildFeatureInstallCmd(f.options, installPath)))
+			// Set containerEnv vars sorted for deterministic output.
+			if len(f.envVars) > 0 {
+				envKeys := make([]string, 0, len(f.envVars))
+				for k := range f.envVars {
+					envKeys = append(envKeys, k)
+				}
+				sort.Strings(envKeys)
+				for _, k := range envKeys {
+					v := strings.ReplaceAll(f.envVars[k], `"`, `\"`)
+					lines = append(lines, fmt.Sprintf(`ENV %s="%s"`, k, v))
+				}
+			}
+		}
+		lines = append(lines, "")
+	}
 
 	// Merge packages from image and agent configs
 	allPackages := append([]string{}, imageConfig.Packages...)
@@ -80,8 +144,9 @@ func generateContainerfile(imageConfig *config.ImageConfig, agentConfig *config.
 	lines = append(lines, fmt.Sprintf("USER %s:%s", constants.ContainerUser, constants.ContainerGroup))
 	lines = append(lines, "")
 
-	// Environment PATH
-	lines = append(lines, fmt.Sprintf("ENV PATH=/home/%s/.local/bin:/usr/local/bin:/usr/bin", constants.ContainerUser))
+	// Environment PATH — prepend agent-local and system bins while preserving any
+	// PATH additions made by devcontainer features installed above.
+	lines = append(lines, fmt.Sprintf("ENV PATH=/home/%s/.local/bin:/usr/local/bin:/usr/bin:$PATH", constants.ContainerUser))
 	lines = append(lines, "")
 
 	// Copy Containerfile to home directory for reference

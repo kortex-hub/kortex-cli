@@ -96,7 +96,7 @@ func TestGenerateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"claude"},
 		}
 
-		result := generateContainerfile(imageConfig, agentConfig, false)
+		result := generateContainerfile(imageConfig, agentConfig, false, nil)
 
 		// Check for FROM line with correct base image
 		expectedFrom := "FROM registry.fedoraproject.org/fedora:latest"
@@ -130,9 +130,9 @@ func TestGenerateContainerfile(t *testing.T) {
 			t.Error("Expected RUN chmod for sudoers")
 		}
 
-		// Check for PATH environment
-		if !strings.Contains(result, "ENV PATH=/home/agent/.local/bin:/usr/local/bin:/usr/bin") {
-			t.Error("Expected PATH environment variable")
+		// Check for PATH environment — must preserve $PATH so feature additions are not lost
+		if !strings.Contains(result, "ENV PATH=/home/agent/.local/bin:/usr/local/bin:/usr/bin:$PATH") {
+			t.Error("Expected PATH environment variable preserving $PATH")
 		}
 
 		// Check for Containerfile copy
@@ -161,7 +161,7 @@ func TestGenerateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"claude"},
 		}
 
-		result := generateContainerfile(imageConfig, agentConfig, false)
+		result := generateContainerfile(imageConfig, agentConfig, false, nil)
 
 		expectedFrom := "FROM registry.fedoraproject.org/fedora:40"
 		if !strings.Contains(result, expectedFrom) {
@@ -184,7 +184,7 @@ func TestGenerateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"claude"},
 		}
 
-		result := generateContainerfile(imageConfig, agentConfig, false)
+		result := generateContainerfile(imageConfig, agentConfig, false, nil)
 
 		// Should have all packages in a single RUN command
 		if !strings.Contains(result, "RUN dnf install -y package1 package2 package3 package4") {
@@ -207,7 +207,7 @@ func TestGenerateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"claude"},
 		}
 
-		result := generateContainerfile(imageConfig, agentConfig, false)
+		result := generateContainerfile(imageConfig, agentConfig, false, nil)
 
 		// Should not have dnf install line
 		if strings.Contains(result, "dnf install") {
@@ -231,7 +231,7 @@ func TestGenerateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"claude"},
 		}
 
-		result := generateContainerfile(imageConfig, agentConfig, false)
+		result := generateContainerfile(imageConfig, agentConfig, false, nil)
 
 		// Should have both RUN commands
 		if !strings.Contains(result, "RUN echo 'image setup'") {
@@ -257,7 +257,7 @@ func TestGenerateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"claude"},
 		}
 
-		result := generateContainerfile(imageConfig, agentConfig, true)
+		result := generateContainerfile(imageConfig, agentConfig, true, nil)
 
 		expected := "COPY --chown=agent:agent agent-settings/. /home/agent/"
 		if !strings.Contains(result, expected) {
@@ -290,7 +290,7 @@ func TestGenerateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"claude"},
 		}
 
-		result := generateContainerfile(imageConfig, agentConfig, false)
+		result := generateContainerfile(imageConfig, agentConfig, false, nil)
 
 		if strings.Contains(result, "agent-settings") {
 			t.Errorf("Expected no agent-settings COPY line, got:\n%s", result)
@@ -313,7 +313,7 @@ func TestGenerateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"claude"},
 		}
 
-		result := generateContainerfile(imageConfig, agentConfig, false)
+		result := generateContainerfile(imageConfig, agentConfig, false, nil)
 
 		// Find positions
 		imagePos := strings.Index(result, "RUN echo 'image'")
@@ -325,6 +325,217 @@ func TestGenerateContainerfile(t *testing.T) {
 
 		if imagePos > agentPos {
 			t.Error("Image RUN commands should come before agent RUN commands")
+		}
+	})
+}
+
+func TestBuildFeatureInstallCmd(t *testing.T) {
+	t.Parallel()
+
+	t.Run("no options produces simple chmod and run", func(t *testing.T) {
+		t.Parallel()
+
+		result := buildFeatureInstallCmd(nil, "/tmp/feature-install/feature-0")
+		expected := "chmod +x /tmp/feature-install/feature-0/install.sh && /tmp/feature-install/feature-0/install.sh"
+		if result != expected {
+			t.Errorf("expected %q, got %q", expected, result)
+		}
+	})
+
+	t.Run("single option is inlined before script", func(t *testing.T) {
+		t.Parallel()
+
+		result := buildFeatureInstallCmd(map[string]string{"VERSION": "1.0"}, "/tmp/feature-install/feature-0")
+		expected := `chmod +x /tmp/feature-install/feature-0/install.sh && VERSION="1.0" /tmp/feature-install/feature-0/install.sh`
+		if result != expected {
+			t.Errorf("expected %q, got %q", expected, result)
+		}
+	})
+
+	t.Run("multiple options are sorted alphabetically", func(t *testing.T) {
+		t.Parallel()
+
+		result := buildFeatureInstallCmd(
+			map[string]string{"VERSION": "1.0", "INSTALL": "true"},
+			"/tmp/feature-install/feature-0",
+		)
+		expected := `chmod +x /tmp/feature-install/feature-0/install.sh && INSTALL="true" VERSION="1.0" /tmp/feature-install/feature-0/install.sh`
+		if result != expected {
+			t.Errorf("expected %q, got %q", expected, result)
+		}
+	})
+
+	t.Run("double quotes in value are escaped", func(t *testing.T) {
+		t.Parallel()
+
+		result := buildFeatureInstallCmd(map[string]string{"KEY": `val"ue`}, "/tmp/feature-install/feature-0")
+		expected := `chmod +x /tmp/feature-install/feature-0/install.sh && KEY="val\"ue" /tmp/feature-install/feature-0/install.sh`
+		if result != expected {
+			t.Errorf("expected %q, got %q", expected, result)
+		}
+	})
+}
+
+func TestGenerateContainerfile_WithFeatures(t *testing.T) {
+	t.Parallel()
+
+	imageConfig := &config.ImageConfig{
+		Version:     "latest",
+		Packages:    []string{},
+		Sudo:        []string{},
+		RunCommands: []string{"echo 'image setup'"},
+	}
+	agentConfig := &config.AgentConfig{
+		Packages:        []string{},
+		RunCommands:     []string{"echo 'agent setup'"},
+		TerminalCommand: []string{"claude"},
+	}
+
+	t.Run("single feature without options or containerEnv", func(t *testing.T) {
+		t.Parallel()
+
+		infos := []featureInstallInfo{
+			{dirName: "feature-0", options: nil, envVars: nil},
+		}
+
+		result := generateContainerfile(imageConfig, agentConfig, false, infos)
+
+		if !strings.Contains(result, "COPY features/feature-0/ /tmp/feature-install/feature-0/") {
+			t.Error("Expected COPY instruction for feature-0")
+		}
+		if !strings.Contains(result, "RUN chmod +x /tmp/feature-install/feature-0/install.sh && /tmp/feature-install/feature-0/install.sh") {
+			t.Error("Expected RUN install.sh without options")
+		}
+
+		// Features run before user setup — no USER switches needed
+		if strings.Contains(result, "USER root") {
+			t.Error("Expected no 'USER root' instruction: features run before user creation")
+		}
+
+		// Feature section appears before the USER agent:agent line
+		featureCopyPos := strings.Index(result, "COPY features/feature-0/")
+		userAgentPos := strings.Index(result, "USER agent:agent")
+		if featureCopyPos == -1 || userAgentPos == -1 {
+			t.Fatal("Expected both feature COPY and 'USER agent:agent'")
+		}
+		if featureCopyPos > userAgentPos {
+			t.Error("Expected feature COPY to appear before 'USER agent:agent'")
+		}
+	})
+
+	t.Run("feature with options includes inline env assignments", func(t *testing.T) {
+		t.Parallel()
+
+		infos := []featureInstallInfo{
+			{dirName: "feature-0", options: map[string]string{"VERSION": "1.21", "INSTALL": "true"}, envVars: nil},
+		}
+
+		result := generateContainerfile(imageConfig, agentConfig, false, infos)
+
+		expected := `RUN chmod +x /tmp/feature-install/feature-0/install.sh && INSTALL="true" VERSION="1.21" /tmp/feature-install/feature-0/install.sh`
+		if !strings.Contains(result, expected) {
+			t.Errorf("Expected RUN with sorted options\nWant: %q\nGot:\n%s", expected, result)
+		}
+	})
+
+	t.Run("feature with containerEnv sets ENV instructions", func(t *testing.T) {
+		t.Parallel()
+
+		infos := []featureInstallInfo{
+			{
+				dirName: "feature-0",
+				options: nil,
+				envVars: map[string]string{"GOPATH": "/home/agent/go", "GOROOT": "/usr/local/go"},
+			},
+		}
+
+		result := generateContainerfile(imageConfig, agentConfig, false, infos)
+
+		if !strings.Contains(result, `ENV GOPATH="/home/agent/go"`) {
+			t.Errorf("Expected ENV GOPATH instruction\nGot:\n%s", result)
+		}
+		if !strings.Contains(result, `ENV GOROOT="/usr/local/go"`) {
+			t.Errorf("Expected ENV GOROOT instruction\nGot:\n%s", result)
+		}
+	})
+
+	t.Run("feature section appears before custom RUN commands", func(t *testing.T) {
+		t.Parallel()
+
+		infos := []featureInstallInfo{
+			{dirName: "feature-0", options: nil, envVars: nil},
+		}
+
+		result := generateContainerfile(imageConfig, agentConfig, false, infos)
+
+		featureCopyPos := strings.Index(result, "COPY features/feature-0/")
+		imageRunPos := strings.Index(result, "RUN echo 'image setup'")
+		agentRunPos := strings.Index(result, "RUN echo 'agent setup'")
+
+		if featureCopyPos == -1 {
+			t.Fatal("Expected feature COPY instruction")
+		}
+		if featureCopyPos > imageRunPos || featureCopyPos > agentRunPos {
+			t.Error("Expected feature COPY to appear before image/agent RUN commands")
+		}
+	})
+
+	t.Run("multiple features installed in declaration order with containerEnv between them", func(t *testing.T) {
+		t.Parallel()
+
+		infos := []featureInstallInfo{
+			{dirName: "feature-0", options: nil, envVars: map[string]string{"FIRST_VAR": "first"}},
+			{dirName: "feature-1", options: nil, envVars: nil},
+		}
+
+		result := generateContainerfile(imageConfig, agentConfig, false, infos)
+
+		feature0Pos := strings.Index(result, "COPY features/feature-0/")
+		feature1Pos := strings.Index(result, "COPY features/feature-1/")
+		envPos := strings.Index(result, `ENV FIRST_VAR="first"`)
+
+		if feature0Pos == -1 || feature1Pos == -1 {
+			t.Fatal("Expected both feature COPY instructions")
+		}
+		if feature0Pos > feature1Pos {
+			t.Error("Expected feature-0 to be installed before feature-1")
+		}
+		// containerEnv from feature-0 should appear before feature-1 install
+		if envPos == -1 || envPos > feature1Pos {
+			t.Error("Expected containerEnv from feature-0 to appear before feature-1 COPY")
+		}
+	})
+
+	t.Run("no feature instructions when featureInfos is nil", func(t *testing.T) {
+		t.Parallel()
+
+		result := generateContainerfile(imageConfig, agentConfig, false, nil)
+
+		if strings.Contains(result, "COPY features/") {
+			t.Errorf("Expected no feature COPY instructions\nGot:\n%s", result)
+		}
+		if strings.Contains(result, "/tmp/feature-install/") {
+			t.Errorf("Expected no feature install paths\nGot:\n%s", result)
+		}
+	})
+
+	t.Run("feature section appears before agent-settings COPY", func(t *testing.T) {
+		t.Parallel()
+
+		infos := []featureInstallInfo{
+			{dirName: "feature-0", options: nil, envVars: nil},
+		}
+
+		result := generateContainerfile(imageConfig, agentConfig, true, infos)
+
+		featureCopyPos := strings.Index(result, "COPY features/feature-0/")
+		agentSettingsPos := strings.Index(result, "COPY --chown=agent:agent agent-settings/.")
+
+		if featureCopyPos == -1 || agentSettingsPos == -1 {
+			t.Fatal("Expected both feature COPY and agent-settings COPY")
+		}
+		if featureCopyPos > agentSettingsPos {
+			t.Error("Expected feature COPY to appear before agent-settings COPY")
 		}
 	})
 }

@@ -1,6 +1,6 @@
 ---
 name: working-with-devcontainers
-description: Guide to the devcontainers features package including the Feature/FeatureMetadata/FeatureOptions interfaces, OCI and local feature implementations, and the two-phase FromMap→Download→Order workflow
+description: Guide to the devcontainers features package including the Feature/FeatureMetadata/FeatureOptions interfaces, OCI and local feature implementations, the FromMap→Download→Order workflow, and how the Podman runtime integrates features into Containerfile generation
 argument-hint: ""
 ---
 
@@ -259,3 +259,56 @@ go test -tags integration -run TestIntegration_ -timeout 2m ./pkg/devcontainers/
 ```
 
 Real-registry tests live in `pkg/devcontainers/features/oci_integration_test.go`.
+
+## Podman Runtime Integration
+
+The Podman runtime (`pkg/runtime/podman/create.go`) drives the full workflow when `WorkspaceConfig.Features` is non-empty.
+
+### prepareFeatures
+
+```go
+func (p *podmanRuntime) prepareFeatures(ctx context.Context, instanceDir string, params runtime.CreateParams) ([]featureInstallInfo, error)
+```
+
+1. Returns `nil, nil` early if `params.WorkspaceConfig.Features` is nil or empty.
+2. Calls `features.FromMap(*params.WorkspaceConfig.Features, params.WorkspaceConfigDir)` — `WorkspaceConfigDir` from `CreateParams` is required to resolve local `./…` feature paths.
+3. Downloads each feature into `<instanceDir>/features/feature-{i}/` where `i` is the index into `FromMap`'s sorted output (stable names before `Order` shuffles them).
+4. Calls `features.Order` for topological sort.
+5. Calls `FeatureOptions.Merge(userOpts[feat.ID()])` per feature.
+6. Returns `[]featureInstallInfo` — one entry per ordered feature.
+
+### featureInstallInfo
+
+```go
+type featureInstallInfo struct {
+    dirName string            // "feature-0", "feature-1", …
+    options map[string]string // merged normalised env vars (e.g. "VERSION" → "1.21")
+    envVars map[string]string // containerEnv entries from devcontainer-feature.json
+}
+```
+
+### Containerfile layout
+
+Feature instructions appear **immediately after `FROM`**, before `RUN dnf install -y` — while the image is still root. No `USER` switches are needed.
+
+```dockerfile
+FROM registry.fedoraproject.org/fedora:latest
+
+COPY features/feature-0/ /tmp/feature-install/feature-0/
+RUN chmod +x /tmp/feature-install/feature-0/install.sh && VERSION="1.21" /tmp/feature-install/feature-0/install.sh
+ENV GOROOT="/usr/local/go"
+ENV GOPATH="/home/agent/go"
+
+RUN dnf install -y …
+
+ARG UID=1000
+…
+USER agent:agent
+…
+```
+
+Options are passed as inline env var assignments (`KEY="value"`) before the script path. Double quotes in values are escaped (`\"`). Keys are sorted alphabetically for deterministic output. `chmod +x` is always emitted because local feature copy uses `0644` permissions.
+
+### Config merger requirement
+
+`pkg/config/merger.go` must explicitly handle every `WorkspaceConfiguration` field. The `Features` field is wired via `mergeFeatures()` / `copyFeatures()`. When adding new fields to `WorkspaceConfiguration`, always add the corresponding merge and copy logic — omitted fields are silently dropped.

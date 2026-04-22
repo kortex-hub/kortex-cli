@@ -202,6 +202,15 @@ The `pkg/devcontainers/features` package models, downloads, and orders Dev Conta
 
 **Typical call sequence:** `FromMap` → `Feature.Download` (parallel) → `Order` → `FeatureOptions.Merge` per feature.
 
+**Podman runtime integration** (`pkg/runtime/podman/create.go`):
+- `prepareFeatures()` drives the full sequence when `WorkspaceConfig.Features` is non-empty
+- Features are downloaded into `<instanceDir>/features/feature-{i}/` (stable names based on `FromMap`'s sorted output)
+- Each feature becomes a `featureInstallInfo{dirName, options, envVars}` passed to `generateContainerfile()`
+- `WorkspaceConfigDir` is required in `CreateParams` so `FromMap` can resolve `./local-feature` paths
+- In the Containerfile, feature `COPY`/`RUN`/`ENV` instructions are placed immediately after `FROM` (before `RUN dnf install`), while the image is still root — no `USER` switches needed
+
+**Config merger requirement:** The `pkg/config/merger.go` `Merge()` and `copyConfig()` functions must explicitly handle every field of `WorkspaceConfiguration`. Fields not wired in are silently dropped. `Features` is handled via `mergeFeatures()` / `copyFeatures()`.
+
 **For full implementation details, use:** `/working-with-devcontainers`
 
 ### StepLogger System

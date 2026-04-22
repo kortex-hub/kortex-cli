@@ -332,13 +332,14 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 
 	// Create runtime instance with merged configuration
 	runtimeInfo, err := rt.Create(ctx, runtime.CreateParams{
-		Name:            name,
-		SourcePath:      inst.GetSourceDir(),
-		WorkspaceConfig: mergedConfig,
-		Agent:           opts.Agent,
-		AgentSettings:   agentSettings,
-		OnecliSecrets:   onecliSecrets,
-		SecretEnvVars:   secretEnvVars,
+		Name:               name,
+		SourcePath:         inst.GetSourceDir(),
+		WorkspaceConfig:    mergedConfig,
+		WorkspaceConfigDir: inst.GetConfigDir(),
+		Agent:              opts.Agent,
+		AgentSettings:      agentSettings,
+		OnecliSecrets:      onecliSecrets,
+		SecretEnvVars:      secretEnvVars,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runtime instance: %w", err)

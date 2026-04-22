@@ -1438,3 +1438,121 @@ func TestMerger_Merge_MCP_PreservesOtherFields(t *testing.T) {
 		t.Error("Servers from override were not added")
 	}
 }
+
+func TestMerger_Features(t *testing.T) {
+	t.Parallel()
+
+	merger := NewMerger()
+
+	t.Run("base features preserved when override has none", func(t *testing.T) {
+		t.Parallel()
+
+		baseFeats := map[string]map[string]interface{}{
+			"ghcr.io/devcontainers/features/go:1": {"version": "1.21"},
+		}
+		base := &workspace.WorkspaceConfiguration{Features: &baseFeats}
+
+		result := merger.Merge(base, &workspace.WorkspaceConfiguration{})
+		if result.Features == nil {
+			t.Fatal("Expected Features to be preserved from base")
+		}
+		if _, ok := (*result.Features)["ghcr.io/devcontainers/features/go:1"]; !ok {
+			t.Error("Expected go feature to be present in merged result")
+		}
+	})
+
+	t.Run("override features added when base has none", func(t *testing.T) {
+		t.Parallel()
+
+		overrideFeats := map[string]map[string]interface{}{
+			"ghcr.io/devcontainers/features/node:1": {"version": "lts"},
+		}
+		override := &workspace.WorkspaceConfiguration{Features: &overrideFeats}
+
+		result := merger.Merge(&workspace.WorkspaceConfiguration{}, override)
+		if result.Features == nil {
+			t.Fatal("Expected Features to be present from override")
+		}
+		if _, ok := (*result.Features)["ghcr.io/devcontainers/features/node:1"]; !ok {
+			t.Error("Expected node feature to be present in merged result")
+		}
+	})
+
+	t.Run("override feature options replace base for same ID", func(t *testing.T) {
+		t.Parallel()
+
+		baseFeats := map[string]map[string]interface{}{
+			"ghcr.io/devcontainers/features/go:1": {"version": "1.20"},
+		}
+		overrideFeats := map[string]map[string]interface{}{
+			"ghcr.io/devcontainers/features/go:1": {"version": "1.21"},
+		}
+		base := &workspace.WorkspaceConfiguration{Features: &baseFeats}
+		override := &workspace.WorkspaceConfiguration{Features: &overrideFeats}
+
+		result := merger.Merge(base, override)
+		if result.Features == nil {
+			t.Fatal("Expected Features to be present")
+		}
+		opts, ok := (*result.Features)["ghcr.io/devcontainers/features/go:1"]
+		if !ok {
+			t.Fatal("Expected go feature to be present")
+		}
+		if opts["version"] != "1.21" {
+			t.Errorf("Expected version 1.21 (override wins), got %v", opts["version"])
+		}
+	})
+
+	t.Run("features from both base and override are combined", func(t *testing.T) {
+		t.Parallel()
+
+		baseFeats := map[string]map[string]interface{}{
+			"ghcr.io/devcontainers/features/go:1": {"version": "1.21"},
+		}
+		overrideFeats := map[string]map[string]interface{}{
+			"ghcr.io/devcontainers/features/node:1": {"version": "lts"},
+		}
+		base := &workspace.WorkspaceConfiguration{Features: &baseFeats}
+		override := &workspace.WorkspaceConfiguration{Features: &overrideFeats}
+
+		result := merger.Merge(base, override)
+		if result.Features == nil {
+			t.Fatal("Expected Features to be present")
+		}
+		if len(*result.Features) != 2 {
+			t.Errorf("Expected 2 features, got %d", len(*result.Features))
+		}
+		if _, ok := (*result.Features)["ghcr.io/devcontainers/features/go:1"]; !ok {
+			t.Error("Expected go feature from base to be present")
+		}
+		if _, ok := (*result.Features)["ghcr.io/devcontainers/features/node:1"]; !ok {
+			t.Error("Expected node feature from override to be present")
+		}
+	})
+
+	t.Run("nil features on both sides returns nil", func(t *testing.T) {
+		t.Parallel()
+
+		result := merger.Merge(&workspace.WorkspaceConfiguration{}, &workspace.WorkspaceConfiguration{})
+		if result.Features != nil {
+			t.Error("Expected nil Features when both sides have none")
+		}
+	})
+
+	t.Run("copyConfig preserves features", func(t *testing.T) {
+		t.Parallel()
+
+		feats := map[string]map[string]interface{}{
+			"ghcr.io/devcontainers/features/go:1": {"version": "1.21"},
+		}
+		cfg := &workspace.WorkspaceConfiguration{Features: &feats}
+
+		result := merger.Merge(cfg, nil)
+		if result.Features == nil {
+			t.Fatal("Expected Features to be copied")
+		}
+		if _, ok := (*result.Features)["ghcr.io/devcontainers/features/go:1"]; !ok {
+			t.Error("Expected go feature to survive copyConfig")
+		}
+	})
+}

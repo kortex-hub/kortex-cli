@@ -85,6 +85,11 @@ type CreateParams struct {
 	// for the "github" secret type) and injected into the workspace container so
 	// that CLI tools detect a configured credential. Real auth goes through OneCLI proxy.
 	SecretEnvVars map[string]string
+
+	// WorkspaceConfigDir is the directory containing the workspace configuration file.
+	// Used to resolve relative paths for local devcontainer features (e.g. "./my-feature").
+	// Can be empty if no workspace configuration exists.
+	WorkspaceConfigDir string
 }
 
 // RuntimeInfo contains information about a runtime instance.
