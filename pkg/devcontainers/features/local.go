@@ -38,7 +38,10 @@ var _ Feature = (*localFeature)(nil)
 func (f *localFeature) ID() string { return f.id }
 
 func (f *localFeature) Download(_ context.Context, destDir string) (FeatureMetadata, error) {
-	srcDir := filepath.Clean(filepath.Join(f.dir, filepath.FromSlash(f.id)))
+	srcDir, err := filepath.Abs(filepath.Join(f.dir, filepath.FromSlash(f.id)))
+	if err != nil {
+		return nil, err
+	}
 
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		return nil, err

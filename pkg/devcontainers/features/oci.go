@@ -23,6 +23,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -140,7 +142,7 @@ func (f *ociFeature) fetchManifest(ctx context.Context, registry, repository, re
 
 	var token string
 	if resp.StatusCode == http.StatusUnauthorized {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		wwwAuth := resp.Header.Get("WWW-Authenticate")
 		token, err = fetchBearerToken(ctx, client, wwwAuth, repository)
 		if err != nil {
@@ -159,7 +161,7 @@ func (f *ociFeature) fetchManifest(ctx context.Context, registry, repository, re
 			return nil, "", err
 		}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, "", fmt.Errorf("manifest fetch failed: %s", resp.Status)
@@ -203,7 +205,7 @@ func fetchBearerToken(ctx context.Context, client *http.Client, wwwAuth, reposit
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("token fetch failed: %s", resp.Status)
@@ -247,8 +249,14 @@ func parseWWWAuthenticate(header, repository string) (realm, service, scope stri
 	return
 }
 
-// downloadAndExtractLayer downloads a blob by digest and extracts it into destDir.
+// downloadAndExtractLayer downloads a blob by digest, verifies its SHA-256
+// digest, and extracts it into destDir. Extraction is only attempted after
+// the digest is confirmed to prevent processing a corrupt or tampered blob.
 func (f *ociFeature) downloadAndExtractLayer(ctx context.Context, registry, repository, digest, token, destDir string) error {
+	if !strings.HasPrefix(digest, "sha256:") {
+		return fmt.Errorf("unsupported digest algorithm: %s", digest)
+	}
+
 	blobURL := fmt.Sprintf("https://%s/v2/%s/blobs/%s", registry, repository, digest)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, blobURL, nil)
@@ -263,18 +271,46 @@ func (f *ociFeature) downloadAndExtractLayer(ctx context.Context, registry, repo
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("blob fetch failed: %s", resp.Status)
 	}
 
-	return extractTar(resp.Body, destDir)
+	// Buffer the blob to a temp file while computing its SHA-256 digest in one pass.
+	tmp, err := os.CreateTemp("", "kdn-feature-blob-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+
+	h := sha256.New()
+	if _, err := io.Copy(tmp, io.TeeReader(resp.Body, h)); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("downloading blob: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("flushing blob: %w", err)
+	}
+
+	// Verify before extracting.
+	if got := "sha256:" + hex.EncodeToString(h.Sum(nil)); got != digest {
+		return fmt.Errorf("blob digest mismatch: expected %s, got %s", digest, got)
+	}
+
+	blob, err := os.Open(tmpPath)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = blob.Close() }()
+
+	return extractTar(blob, destDir)
 }
 
 // extractTar extracts a tar stream (auto-detecting gzip compression) into destDir.
 // Peeks at the first two bytes: 0x1f 0x8b indicates gzip; otherwise plain tar.
-func extractTar(r io.Reader, destDir string) error {
+func extractTar(r io.Reader, destDir string) (retErr error) {
 	peek := make([]byte, 2)
 	n, err := io.ReadFull(r, peek)
 	if err != nil && err != io.ErrUnexpectedEOF {
@@ -292,7 +328,11 @@ func extractTar(r io.Reader, destDir string) error {
 		if err != nil {
 			return fmt.Errorf("creating gzip reader: %w", err)
 		}
-		defer gr.Close()
+		defer func() {
+			if err := gr.Close(); err != nil && retErr == nil {
+				retErr = fmt.Errorf("closing gzip reader: %w", err)
+			}
+		}()
 		tr = tar.NewReader(gr)
 	} else {
 		tr = tar.NewReader(combined)
@@ -305,9 +345,13 @@ func extractTar(r io.Reader, destDir string) error {
 // stays within destDir, preventing directory-traversal attacks.
 func safeTarTarget(destDir, name string) (string, error) {
 	cleanPath := filepath.Clean(filepath.FromSlash(name))
-	if cleanPath == "." || filepath.IsAbs(cleanPath) ||
+	if filepath.IsAbs(cleanPath) ||
 		cleanPath == ".." || strings.HasPrefix(cleanPath, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("invalid path in tar archive: %s", name)
+	}
+	// "." represents the archive root directory — map it to destDir itself.
+	if cleanPath == "." {
+		return destDir, nil
 	}
 
 	target := filepath.Join(destDir, cleanPath)
@@ -358,10 +402,12 @@ func extractTarEntries(tr *tar.Reader, destDir string) error {
 				return err
 			}
 			if _, err := io.Copy(f, tr); err != nil {
-				f.Close()
+				_ = f.Close()
 				return err
 			}
-			f.Close()
+			if err := f.Close(); err != nil {
+				return err
+			}
 		case tar.TypeSymlink, tar.TypeLink:
 			return fmt.Errorf("unsupported link in tar archive: %s", hdr.Name)
 		}

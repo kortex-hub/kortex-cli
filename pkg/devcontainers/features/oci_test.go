@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -477,10 +478,14 @@ func TestDownloadAndExtractLayer_WithToken(t *testing.T) {
 	_, _ = tw.Write(content)
 	tw.Close()
 
+	tarBytes := tarBuf.Bytes()
+	h := sha256.Sum256(tarBytes)
+	digest := fmt.Sprintf("sha256:%x", h)
+
 	var gotAuth string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotAuth = r.Header.Get("Authorization")
-		w.Write(tarBuf.Bytes())
+		w.Write(tarBytes)
 	}))
 	defer srv.Close()
 
@@ -489,7 +494,7 @@ func TestDownloadAndExtractLayer_WithToken(t *testing.T) {
 
 	destDir := t.TempDir()
 	err := feat.downloadAndExtractLayer(
-		context.Background(), host, "org/feat", "sha256:abc", "mytoken", destDir,
+		context.Background(), host, "org/feat", digest, "mytoken", destDir,
 	)
 	if err != nil {
 		t.Fatalf("downloadAndExtractLayer: %v", err)
@@ -708,8 +713,11 @@ func TestOCIFeatureDownload_MissingFeatureJSON(t *testing.T) {
 	tw.Close()
 	tarBytes := tarBuf.Bytes()
 
+	h := sha256.Sum256(tarBytes)
+	digest := fmt.Sprintf("sha256:%x", h)
+
 	manifest, _ := json.Marshal(map[string]interface{}{
-		"layers": []map[string]interface{}{{"digest": "sha256:only"}},
+		"layers": []map[string]interface{}{{"digest": digest}},
 	})
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -23,7 +23,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -687,8 +689,10 @@ func TestOCIFeature_Download(t *testing.T) {
 	gw.Close()
 	gzipTarBytes := gzBuf.Bytes()
 
-	const digest1 = "sha256:aaaa"
-	const digest2 = "sha256:bbbb"
+	h1 := sha256.Sum256(plainTarBytes)
+	digest1 := fmt.Sprintf("sha256:%x", h1)
+	h2 := sha256.Sum256(gzipTarBytes)
+	digest2 := fmt.Sprintf("sha256:%x", h2)
 
 	manifest := map[string]interface{}{
 		"schemaVersion": 2,
