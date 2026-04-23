@@ -20,6 +20,7 @@ package cmd
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -52,7 +53,7 @@ func (f *fakeStore) List() ([]secret.ListItem, error) {
 }
 
 func (f *fakeStore) Get(name string) (secret.ListItem, string, error) {
-	return secret.ListItem{}, "", nil
+	return secret.ListItem{}, "", fmt.Errorf("secret %q: %w", name, secret.ErrSecretNotFound)
 }
 
 // buildPreRunCmd creates a cobra.Command that mirrors the flag set seen by

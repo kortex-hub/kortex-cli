@@ -14,7 +14,7 @@ The config system manages **workspace configuration** for injecting environment 
 - Skills directories to provide to agents inside the workspace
 - MCP servers to configure in the agent (command-based and URL-based)
 - Network access policies (allow all or deny with host exceptions)
-- Secrets to inject into the workspace (typed credentials with optional host/header bindings)
+- Secrets to inject into the workspace (secret names resolved from the CLI-managed store)
 
 **What this does NOT control:**
 - Runtime-specific settings (e.g., Podman container image, packages to install)

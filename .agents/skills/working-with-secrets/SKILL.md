@@ -177,6 +177,15 @@ type fakeListStore struct {
     err   error
 }
 
-func (f *fakeListStore) Create(params secret.CreateParams) error { return nil }
-func (f *fakeListStore) List() ([]secret.ListItem, error)        { return f.items, f.err }
+func (f *fakeListStore) Create(_ secret.CreateParams) error     { return nil }
+func (f *fakeListStore) List() ([]secret.ListItem, error)       { return f.items, f.err }
+func (f *fakeListStore) Remove(_ string) error                  { return f.err }
+func (f *fakeListStore) Get(name string) (secret.ListItem, string, error) {
+    for _, item := range f.items {
+        if item.Name == name {
+            return item, "", f.err
+        }
+    }
+    return secret.ListItem{}, "", f.err
+}
 ```
