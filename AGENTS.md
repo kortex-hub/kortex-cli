@@ -188,6 +188,21 @@ The secret service system provides a pluggable architecture for managing secret 
 
 **For detailed guidance on the full secrets abstraction (Store, registry, adding new types), use:** `/working-with-secrets`
 
+### Dev Container Features
+
+The `pkg/devcontainers/features` package models, downloads, and orders Dev Container Features (OCI registry artifacts or local file trees) prior to container image generation.
+
+**Key Components:**
+- **`Feature` interface** (`pkg/devcontainers/features/features.go`): `ID()` + `Download(ctx, destDir) (FeatureMetadata, error)`
+- **`FeatureMetadata` interface**: exposes `ContainerEnv()`, `Options()`, `InstallsAfter()` parsed from `devcontainer-feature.json`
+- **`FeatureOptions` interface**: `Merge(userOptions) (map[string]string, error)` — normalises keys (uppercase, non-alphanumeric → `_`), applies defaults, validates types and enums
+- **`FromMap`**: classifies IDs (`./…` → local, `https?://` → error, otherwise → OCI), returns a sorted `[]Feature` slice plus the user-options map — no I/O
+- **`Order`**: topological sort (Kahn's algorithm) on `installsAfter` fields; matches versionless `installsAfter` IDs against versioned registered IDs by stripping the tag
+
+**Typical call sequence:** `FromMap` → `Feature.Download` (parallel) → `Order` → `FeatureOptions.Merge` per feature.
+
+**For full implementation details, use:** `/working-with-devcontainers`
+
 ### StepLogger System
 
 The StepLogger system provides user-facing progress feedback during runtime operations with spinners and completion messages.

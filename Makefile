@@ -58,7 +58,7 @@ test-integration: ## Run integration tests (requires Podman)
 		--junitfile-testsuite-name short \
 		--junitfile-testcase-classname short \
 		--format testdox \
-		-- -tags integration -run TestIntegration_ -timeout 30m -count=1 -parallel 2 ./pkg/cmd/
+		-- -tags integration -run TestIntegration_ -timeout 30m -count=1 -parallel 2 ./...
 
 test-coverage: ## Run tests with coverage report
 	@echo "Running tests with coverage..."
