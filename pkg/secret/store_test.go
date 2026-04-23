@@ -24,23 +24,37 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	gokeyring "github.com/zalando/go-keyring"
 )
 
-// fakeKeyring records Set calls without touching the real system keychain.
+// fakeKeyring records Set/Delete calls without touching the real system keychain.
 type fakeKeyring struct {
-	calls []fakeKeyringCall
-	err   error
+	setCalls    []fakeKeyringSetCall
+	deleteCalls []fakeKeyringDeleteCall
+	setErr      error
+	deleteErr   error
 }
 
-type fakeKeyringCall struct {
+type fakeKeyringSetCall struct {
 	service  string
 	user     string
 	password string
 }
 
+type fakeKeyringDeleteCall struct {
+	service string
+	user    string
+}
+
 func (f *fakeKeyring) Set(service, user, password string) error {
-	f.calls = append(f.calls, fakeKeyringCall{service, user, password})
-	return f.err
+	f.setCalls = append(f.setCalls, fakeKeyringSetCall{service, user, password})
+	return f.setErr
+}
+
+func (f *fakeKeyring) Delete(service, user string) error {
+	f.deleteCalls = append(f.deleteCalls, fakeKeyringDeleteCall{service, user})
+	return f.deleteErr
 }
 
 func TestStore_Create_StoresValueInKeychain(t *testing.T) {
@@ -58,10 +72,10 @@ func TestStore_Create_StoresValueInKeychain(t *testing.T) {
 		t.Fatalf("Create() failed: %v", err)
 	}
 
-	if len(kr.calls) != 1 {
-		t.Fatalf("expected 1 keychain call, got %d", len(kr.calls))
+	if len(kr.setCalls) != 1 {
+		t.Fatalf("expected 1 keychain Set call, got %d", len(kr.setCalls))
 	}
-	call := kr.calls[0]
+	call := kr.setCalls[0]
 	if call.service != keyringService {
 		t.Errorf("expected service %q, got %q", keyringService, call.service)
 	}
@@ -151,7 +165,7 @@ func TestStore_Create_ErrorsOnDuplicate(t *testing.T) {
 		t.Fatalf("first Create() failed: %v", err)
 	}
 
-	callsBefore := len(kr.calls)
+	callsBefore := len(kr.setCalls)
 	params.Value = "v2"
 	err := st.Create(params)
 	if err == nil {
@@ -161,8 +175,8 @@ func TestStore_Create_ErrorsOnDuplicate(t *testing.T) {
 		t.Errorf("expected ErrSecretAlreadyExists, got: %v", err)
 	}
 	// Keychain must not be touched when the duplicate is detected
-	if len(kr.calls) != callsBefore {
-		t.Errorf("keychain was written despite duplicate: got %d total calls, want %d", len(kr.calls), callsBefore)
+	if len(kr.setCalls) != callsBefore {
+		t.Errorf("keychain was written despite duplicate: got %d total calls, want %d", len(kr.setCalls), callsBefore)
 	}
 }
 
@@ -218,11 +232,112 @@ func TestStore_List(t *testing.T) {
 func TestStore_Create_KeychainError(t *testing.T) {
 	t.Parallel()
 
-	kr := &fakeKeyring{err: os.ErrPermission}
+	kr := &fakeKeyring{setErr: os.ErrPermission}
 	st := newStoreWithKeyring(t.TempDir(), kr)
 
 	err := st.Create(CreateParams{Name: "x", Type: "github", Value: "v"})
 	if err == nil {
 		t.Fatal("expected error when keychain fails")
+	}
+}
+
+func TestStore_Remove_DeletesFromKeychainAndFile(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	kr := &fakeKeyring{}
+	st := newStoreWithKeyring(dir, kr)
+
+	if err := st.Create(CreateParams{Name: "my-token", Type: "github", Value: "ghp_secret"}); err != nil {
+		t.Fatalf("Create() failed: %v", err)
+	}
+
+	if err := st.Remove("my-token"); err != nil {
+		t.Fatalf("Remove() failed: %v", err)
+	}
+
+	if len(kr.deleteCalls) != 1 {
+		t.Fatalf("expected 1 keychain Delete call, got %d", len(kr.deleteCalls))
+	}
+	call := kr.deleteCalls[0]
+	if call.service != keyringService {
+		t.Errorf("expected service %q, got %q", keyringService, call.service)
+	}
+	if call.user != "my-token" {
+		t.Errorf("expected user %q, got %q", "my-token", call.user)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, secretsFileName))
+	if err != nil {
+		t.Fatalf("failed to read secrets file: %v", err)
+	}
+	var sf secretsFile
+	if err := json.Unmarshal(data, &sf); err != nil {
+		t.Fatalf("failed to parse secrets file: %v", err)
+	}
+	if len(sf.Secrets) != 0 {
+		t.Errorf("expected 0 secrets after Remove, got %d", len(sf.Secrets))
+	}
+}
+
+func TestStore_Remove_NotFound(t *testing.T) {
+	t.Parallel()
+
+	st := newStoreWithKeyring(t.TempDir(), &fakeKeyring{})
+
+	err := st.Remove("nonexistent")
+	if err == nil {
+		t.Fatal("expected error when secret does not exist")
+	}
+	if !errors.Is(err, ErrSecretNotFound) {
+		t.Errorf("expected ErrSecretNotFound, got: %v", err)
+	}
+}
+
+func TestStore_Remove_KeyringNotFound_StillRemovesMetadata(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	kr := &fakeKeyring{deleteErr: gokeyring.ErrNotFound}
+	st := newStoreWithKeyring(dir, kr)
+
+	if err := st.Create(CreateParams{Name: "my-token", Type: "github", Value: "v"}); err != nil {
+		t.Fatalf("Create() failed: %v", err)
+	}
+	// Reset setErr after create so delete can proceed
+	kr.setErr = nil
+
+	if err := st.Remove("my-token"); err != nil {
+		t.Fatalf("Remove() should succeed even when keyring reports not found: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, secretsFileName))
+	if err != nil {
+		t.Fatalf("failed to read secrets file: %v", err)
+	}
+	var sf secretsFile
+	if err := json.Unmarshal(data, &sf); err != nil {
+		t.Fatalf("failed to parse secrets file: %v", err)
+	}
+	if len(sf.Secrets) != 0 {
+		t.Errorf("expected 0 secrets after Remove, got %d", len(sf.Secrets))
+	}
+}
+
+func TestStore_Remove_KeychainError(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	kr := &fakeKeyring{}
+	st := newStoreWithKeyring(dir, kr)
+
+	if err := st.Create(CreateParams{Name: "my-token", Type: "github", Value: "v"}); err != nil {
+		t.Fatalf("Create() failed: %v", err)
+	}
+	kr.deleteErr = os.ErrPermission
+
+	err := st.Remove("my-token")
+	if err == nil {
+		t.Fatal("expected error when keychain delete fails")
 	}
 }

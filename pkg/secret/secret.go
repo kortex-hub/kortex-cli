@@ -57,4 +57,7 @@ type Store interface {
 	Create(params CreateParams) error
 	// List returns the metadata for all stored secrets.
 	List() ([]ListItem, error)
+	// Remove deletes the secret value from the system keychain and removes
+	// its metadata from the storage directory.
+	Remove(name string) error
 }

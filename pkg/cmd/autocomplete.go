@@ -25,6 +25,7 @@ import (
 	api "github.com/openkaiden/kdn-api/cli/go"
 	"github.com/openkaiden/kdn/pkg/instances"
 	"github.com/openkaiden/kdn/pkg/runtimesetup"
+	"github.com/openkaiden/kdn/pkg/secret"
 	"github.com/spf13/cobra"
 )
 
@@ -115,6 +116,37 @@ func completeRemoveWorkspaceID(cmd *cobra.Command, args []string, toComplete str
 	return getFilteredWorkspaceIDs(cmd, func(state api.WorkspaceState) bool {
 		return state != api.WorkspaceStateRunning
 	})
+}
+
+// completeSecretName provides completion for secret names by reading the secrets store.
+// The args and toComplete parameters are part of Cobra's ValidArgsFunction signature but are unused
+// because Cobra's shell completion framework automatically filters results based on user input.
+func completeSecretName(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	storageDir, err := cmd.Flags().GetString("storage")
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	absStorageDir, err := filepath.Abs(storageDir)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	if _, err := os.Stat(absStorageDir); os.IsNotExist(err) {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	items, err := secret.NewStore(absStorageDir).List()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	names := make([]string, 0, len(items))
+	for _, item := range items {
+		names = append(names, item.Name)
+	}
+
+	return names, cobra.ShellCompDirectiveNoFileComp
 }
 
 // newOutputFlagCompletion creates a completion function for the --output flag

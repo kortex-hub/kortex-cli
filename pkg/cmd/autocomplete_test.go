@@ -20,6 +20,8 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -615,6 +617,96 @@ func TestCompleteRemoveWorkspaceID(t *testing.T) {
 
 		if directive != cobra.ShellCompDirectiveNoFileComp {
 			t.Errorf("Expected ShellCompDirectiveNoFileComp, got %v", directive)
+		}
+	})
+}
+
+func TestCompleteSecretName(t *testing.T) {
+	t.Parallel()
+
+	// writeSecretsJSON writes a minimal secrets.json so List() returns known names without
+	// touching the keychain (only List() is called during completion — it reads metadata only).
+	writeSecretsJSON := func(t *testing.T, dir string, names []string) {
+		t.Helper()
+		type record struct {
+			Name string `json:"name"`
+			Type string `json:"type"`
+		}
+		type file struct {
+			Secrets []record `json:"secrets"`
+		}
+		records := make([]record, 0, len(names))
+		for _, n := range names {
+			records = append(records, record{Name: n, Type: "github"})
+		}
+		data, err := json.Marshal(file{Secrets: records})
+		if err != nil {
+			t.Fatalf("failed to marshal secrets: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "secrets.json"), data, 0600); err != nil {
+			t.Fatalf("failed to write secrets.json: %v", err)
+		}
+	}
+
+	t.Run("returns names of stored secrets", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		writeSecretsJSON(t, storageDir, []string{"github-token", "api-key"})
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "")
+
+		completions, directive := completeSecretName(cmd, []string{}, "")
+
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("expected ShellCompDirectiveNoFileComp, got %v", directive)
+		}
+		if len(completions) != 2 {
+			t.Fatalf("expected 2 completions, got %d: %v", len(completions), completions)
+		}
+		found := map[string]bool{}
+		for _, c := range completions {
+			found[c] = true
+		}
+		for _, name := range []string{"github-token", "api-key"} {
+			if !found[name] {
+				t.Errorf("expected %q in completions, got %v", name, completions)
+			}
+		}
+	})
+
+	t.Run("returns no completions when storage directory does not exist", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", filepath.Join(t.TempDir(), "nonexistent"), "")
+
+		completions, directive := completeSecretName(cmd, []string{}, "")
+
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("expected ShellCompDirectiveNoFileComp, got %v", directive)
+		}
+		if len(completions) != 0 {
+			t.Errorf("expected 0 completions, got %d: %v", len(completions), completions)
+		}
+	})
+
+	t.Run("returns empty list when no secrets exist", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "")
+
+		completions, directive := completeSecretName(cmd, []string{}, "")
+
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("expected ShellCompDirectiveNoFileComp, got %v", directive)
+		}
+		if len(completions) != 0 {
+			t.Errorf("expected 0 completions, got %d: %v", len(completions), completions)
 		}
 	})
 }

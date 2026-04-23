@@ -32,6 +32,9 @@ import (
 // ErrSecretAlreadyExists is returned when a secret with the same name already exists.
 var ErrSecretAlreadyExists = errors.New("secret already exists")
 
+// ErrSecretNotFound is returned when no secret with the given name exists.
+var ErrSecretNotFound = errors.New("secret not found")
+
 const (
 	keyringService  = "kdn"
 	secretsFileName = "secrets.json"
@@ -40,6 +43,7 @@ const (
 // keyring is an internal interface so tests can inject a fake implementation.
 type keyring interface {
 	Set(service, user, password string) error
+	Delete(service, user string) error
 }
 
 // realKeyring delegates to the go-keyring library.
@@ -49,6 +53,10 @@ var _ keyring = (*realKeyring)(nil)
 
 func (r *realKeyring) Set(service, user, password string) error {
 	return gokeyring.Set(service, user, password)
+}
+
+func (r *realKeyring) Delete(service, user string) error {
+	return gokeyring.Delete(service, user)
 }
 
 // store is the unexported implementation of Store.
@@ -130,6 +138,33 @@ func (s *store) List() ([]ListItem, error) {
 	return items, nil
 }
 
+// Remove deletes the secret from the system keychain and removes its metadata.
+// If the secret is not present in the keychain, it is still removed from storage.
+func (s *store) Remove(name string) error {
+	sf, err := s.loadSecretsFile()
+	if err != nil {
+		return err
+	}
+
+	idx := -1
+	for i, rec := range sf.Secrets {
+		if rec.Name == name {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		return fmt.Errorf("secret %q: %w", name, ErrSecretNotFound)
+	}
+
+	if err := s.kr.Delete(keyringService, name); err != nil && !errors.Is(err, gokeyring.ErrNotFound) {
+		return fmt.Errorf("failed to delete secret from keychain: %w", err)
+	}
+
+	sf.Secrets = append(sf.Secrets[:idx], sf.Secrets[idx+1:]...)
+	return s.saveSecretsFile(sf)
+}
+
 // loadSecretsFile reads and parses secrets.json, returning an empty struct when
 // the file does not yet exist.
 func (s *store) loadSecretsFile() (secretsFile, error) {
@@ -160,13 +195,18 @@ func (s *store) appendAndSave(sf secretsFile, params CreateParams) error {
 		Envs:           params.Envs,
 	})
 
+	if err := os.MkdirAll(s.storageDir, 0700); err != nil {
+		return fmt.Errorf("failed to create storage directory: %w", err)
+	}
+
+	return s.saveSecretsFile(sf)
+}
+
+// saveSecretsFile marshals sf and writes it to disk.
+func (s *store) saveSecretsFile(sf secretsFile) error {
 	jsonData, err := json.MarshalIndent(sf, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal secrets: %w", err)
-	}
-
-	if err := os.MkdirAll(s.storageDir, 0700); err != nil {
-		return fmt.Errorf("failed to create storage directory: %w", err)
 	}
 
 	if err := os.WriteFile(filepath.Join(s.storageDir, secretsFileName), jsonData, 0600); err != nil {

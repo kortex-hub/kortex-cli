@@ -28,15 +28,22 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// fakeStore records Create calls for assertion in tests.
+// fakeStore records Create/Remove calls for assertion in tests.
 type fakeStore struct {
-	params secret.CreateParams
-	err    error
+	params     secret.CreateParams
+	createErr  error
+	removeErr  error
+	removeName string
 }
 
 func (f *fakeStore) Create(params secret.CreateParams) error {
 	f.params = params
-	return f.err
+	return f.createErr
+}
+
+func (f *fakeStore) Remove(name string) error {
+	f.removeName = name
+	return f.removeErr
 }
 
 func (f *fakeStore) List() ([]secret.ListItem, error) {
@@ -299,7 +306,7 @@ func TestSecretCreateCmd_Run(t *testing.T) {
 	t.Run("store error propagates", func(t *testing.T) {
 		t.Parallel()
 
-		fs := &fakeStore{err: os.ErrPermission}
+		fs := &fakeStore{createErr: os.ErrPermission}
 		c := &secretCreateCmd{store: fs, validTypes: testValidTypes}
 
 		cmd := &cobra.Command{}
