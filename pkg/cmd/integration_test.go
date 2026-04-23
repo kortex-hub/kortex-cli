@@ -779,6 +779,50 @@ func TestIntegration_OperationsOnNonExistentWorkspace(t *testing.T) {
 	}
 }
 
+func TestIntegration_RemoveWithSharedImageRunning(t *testing.T) {
+	skipIfNoPodman(t)
+	t.Parallel()
+
+	storageDir := t.TempDir()
+	sourcesDir := t.TempDir()
+
+	_, wsID := integrationInit(t, storageDir, sourcesDir, "rm-shared-img", "claude")
+	imageName := "kdn-rm-shared-img"
+
+	// Start an external container from the workspace image so the image has a
+	// running dependent. This reproduces the CI failure where parallel workspaces
+	// share the same image hash and `podman image rm` refuses to delete it.
+	externalContainer := "rm-shared-img-external"
+	out, err := exec.Command("podman", "run", "-d", "--name", externalContainer, imageName, "sleep", "300").CombinedOutput()
+	if err != nil {
+		t.Fatalf("Failed to start external container: %v\nOutput: %s", err, string(out))
+	}
+	t.Cleanup(func() {
+		_ = exec.Command("podman", "rm", "-f", externalContainer).Run()
+	})
+
+	integrationExecCmd(t, "--storage", storageDir, "start", wsID, "--output", "json")
+
+	// Force-remove the workspace while the external container still uses the image.
+	// If image cleanup uses `podman image rm` without --force, it will fail with
+	// "image is in use by a container".
+	integrationExecCmd(t, "--storage", storageDir, "remove", wsID, "--force", "--output", "json")
+
+	listResult := integrationListWorkspaces(t, storageDir)
+	if len(listResult.Items) != 0 {
+		t.Errorf("Expected 0 workspaces after removal, got %d", len(listResult.Items))
+	}
+
+	// External container must still be functional
+	out2, err := exec.Command("podman", "exec", externalContainer, "echo", "still-alive").CombinedOutput()
+	if err != nil {
+		t.Fatalf("podman exec on external container failed: %v\nOutput: %s", err, string(out2))
+	}
+	if !strings.Contains(string(out2), "still-alive") {
+		t.Errorf("Expected 'still-alive' from external container, got: %s", string(out2))
+	}
+}
+
 func TestIntegration_MultipleWorkspacesIsolated(t *testing.T) {
 	skipIfNoPodman(t)
 	t.Parallel()
