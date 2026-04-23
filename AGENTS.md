@@ -219,6 +219,18 @@ type Logger interface {
 
 **Context integration** (`pkg/logger/context.go`): `WithLogger()` / `FromContext()` — mirrors the StepLogger pattern.
 
+### OneCLI System
+
+The OneCLI system (`pkg/onecli`) provides a typed HTTP client and higher-level abstractions for interacting with the OneCLI API, which proxies outbound HTTP requests and injects secrets as headers inside workspace containers.
+
+**Key Points:**
+- `Client` — raw CRUD for secrets and networking rules against the OneCLI API
+- `CredentialProvider` — retrieves the `oc_` API key from `/api/user/api-key` (bootstraps local user on first call)
+- `SecretMapper` — converts `workspace.Secret` values to `CreateSecretInput` for the API; handles known types via the secret service registry and the `other` type via explicit fields
+- `SecretProvisioner` — idempotently creates or updates secrets; handles 409 conflicts by patching the existing secret
+
+**For detailed OneCLI integration guidance, use:** `/working-with-onecli`
+
 ### Config System
 
 The config system manages workspace configuration for **injecting environment variables, mounting directories, providing skills, configuring MCP servers, managing secrets and controlling network access** into workspaces (different from runtime-specific configuration).

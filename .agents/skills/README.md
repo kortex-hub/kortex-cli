@@ -29,6 +29,7 @@ Each skill is contained in its own subdirectory with a `SKILL.md` file that defi
 - **working-with-steplogger**: Complete guide to integrating StepLogger for user progress feedback in commands and runtimes
 - **working-with-instances-manager**: Guide to using the instances manager API for workspace management and project detection
 - **working-with-secrets**: Guide to the secrets abstraction including the Store, SecretService registry, and how to add new named secret types
+- **working-with-onecli**: Guide to the OneCLI package including the Client, CredentialProvider, SecretMapper, and SecretProvisioner interfaces, and how they integrate with the Podman runtime
 
 ### Testing
 - **testing-commands**: Comprehensive guide to testing CLI commands with unit tests, E2E tests, and best practices
