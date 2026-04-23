@@ -19,11 +19,13 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	api "github.com/openkaiden/kdn-api/cli/go"
 	"github.com/openkaiden/kdn/pkg/secret"
 	"github.com/openkaiden/kdn/pkg/secretservicesetup"
 	"github.com/spf13/cobra"
@@ -38,6 +40,7 @@ type secretCreateCmd struct {
 	header         string
 	headerTemplate string
 	envs           []string
+	output         string
 	store          secret.Store
 	validTypes     []string
 }
@@ -52,50 +55,57 @@ func (s *secretCreateCmd) isValidType(t string) bool {
 }
 
 func (s *secretCreateCmd) preRun(cmd *cobra.Command, args []string) error {
+	if s.output != "" && s.output != "json" {
+		return fmt.Errorf("unsupported output format: %s (supported: json)", s.output)
+	}
+	if s.output == "json" {
+		cmd.SilenceErrors = true
+	}
+
 	if s.secretType == "" {
-		return fmt.Errorf("--type is required")
+		return outputErrorIfJSON(cmd, s.output, fmt.Errorf("--type is required"))
 	}
 	if !s.isValidType(s.secretType) {
-		return fmt.Errorf("invalid --type %q: must be one of %s", s.secretType, strings.Join(s.validTypes, ", "))
+		return outputErrorIfJSON(cmd, s.output, fmt.Errorf("invalid --type %q: must be one of %s", s.secretType, strings.Join(s.validTypes, ", ")))
 	}
 	if s.value == "" {
-		return fmt.Errorf("--value is required")
+		return outputErrorIfJSON(cmd, s.output, fmt.Errorf("--value is required"))
 	}
 
 	if s.secretType == secret.TypeOther {
 		if len(s.hosts) == 0 {
-			return fmt.Errorf("--host is required when --type=%s", secret.TypeOther)
+			return outputErrorIfJSON(cmd, s.output, fmt.Errorf("--host is required when --type=%s", secret.TypeOther))
 		}
 		if !cmd.Flags().Changed("header") {
-			return fmt.Errorf("--header is required when --type=%s", secret.TypeOther)
+			return outputErrorIfJSON(cmd, s.output, fmt.Errorf("--header is required when --type=%s", secret.TypeOther))
 		}
 	} else {
 		// Descriptor flags are not valid for named types
 		if len(s.hosts) > 0 {
-			return fmt.Errorf("--host is only valid when --type=%s", secret.TypeOther)
+			return outputErrorIfJSON(cmd, s.output, fmt.Errorf("--host is only valid when --type=%s", secret.TypeOther))
 		}
 		if cmd.Flags().Changed("path") {
-			return fmt.Errorf("--path is only valid when --type=%s", secret.TypeOther)
+			return outputErrorIfJSON(cmd, s.output, fmt.Errorf("--path is only valid when --type=%s", secret.TypeOther))
 		}
 		if cmd.Flags().Changed("header") {
-			return fmt.Errorf("--header is only valid when --type=%s", secret.TypeOther)
+			return outputErrorIfJSON(cmd, s.output, fmt.Errorf("--header is only valid when --type=%s", secret.TypeOther))
 		}
 		if cmd.Flags().Changed("headerTemplate") {
-			return fmt.Errorf("--headerTemplate is only valid when --type=%s", secret.TypeOther)
+			return outputErrorIfJSON(cmd, s.output, fmt.Errorf("--headerTemplate is only valid when --type=%s", secret.TypeOther))
 		}
 		if len(s.envs) > 0 {
-			return fmt.Errorf("--env is only valid when --type=%s", secret.TypeOther)
+			return outputErrorIfJSON(cmd, s.output, fmt.Errorf("--env is only valid when --type=%s", secret.TypeOther))
 		}
 	}
 
 	storageDir, err := cmd.Flags().GetString("storage")
 	if err != nil {
-		return fmt.Errorf("failed to read --storage flag: %w", err)
+		return outputErrorIfJSON(cmd, s.output, fmt.Errorf("failed to read --storage flag: %w", err))
 	}
 
 	absStorageDir, err := filepath.Abs(storageDir)
 	if err != nil {
-		return fmt.Errorf("failed to resolve storage directory path: %w", err)
+		return outputErrorIfJSON(cmd, s.output, fmt.Errorf("failed to resolve storage directory path: %w", err))
 	}
 
 	s.store = secret.NewStore(absStorageDir)
@@ -116,10 +126,26 @@ func (s *secretCreateCmd) run(cmd *cobra.Command, args []string) error {
 		HeaderTemplate: s.headerTemplate,
 		Envs:           s.envs,
 	}); err != nil {
-		return fmt.Errorf("failed to create secret: %w", err)
+		return outputErrorIfJSON(cmd, s.output, fmt.Errorf("failed to create secret: %w", err))
+	}
+
+	if s.output == "json" {
+		return s.outputJSON(cmd, name)
 	}
 
 	fmt.Fprintf(cmd.OutOrStdout(), "Secret %q created successfully\n", name)
+	return nil
+}
+
+func (s *secretCreateCmd) outputJSON(cmd *cobra.Command, name string) error {
+	response := api.SecretName{Name: name}
+
+	jsonData, err := json.MarshalIndent(response, "", "  ")
+	if err != nil {
+		return outputErrorIfJSON(cmd, s.output, fmt.Errorf("failed to marshal secret to JSON: %w", err))
+	}
+
+	fmt.Fprintln(cmd.OutOrStdout(), string(jsonData))
 	return nil
 }
 
@@ -152,7 +178,10 @@ kdn secret create my-github-token --type github --value ghp_mytoken
 kdn secret create my-api-key --type other --value secret123 --host api.example.com --host dev.example.com --path /api/v1 --header Authorization --headerTemplate "Bearer ${value}" --env MY_API_KEY --env API_KEY
 
 # Create a custom secret (type=other) with only required flags
-kdn secret create my-api-key --type other --value secret123 --host api.example.com --header Authorization`,
+kdn secret create my-api-key --type other --value secret123 --host api.example.com --header Authorization
+
+# Create a GitHub token secret with JSON output
+kdn secret create my-github-token --type github --value ghp_mytoken --output json`,
 		Args:    cobra.ExactArgs(1),
 		PreRunE: c.preRun,
 		RunE:    c.run,
@@ -169,6 +198,8 @@ kdn secret create my-api-key --type other --value secret123 --host api.example.c
 	cmd.Flags().StringVar(&c.header, "header", "", "HTTP header name (required for --type=other)")
 	cmd.Flags().StringVar(&c.headerTemplate, "headerTemplate", "", "HTTP header value template using ${value} as placeholder (optional for --type=other)")
 	cmd.Flags().StringArrayVar(&c.envs, "env", nil, "Environment variable name to expose the secret value (optional for --type=other, can be specified multiple times)")
+	cmd.Flags().StringVarP(&c.output, "output", "o", "", "Output format (supported: json)")
+	cmd.RegisterFlagCompletionFunc("output", newOutputFlagCompletion([]string{"json"}))
 
 	return cmd
 }

@@ -299,6 +299,8 @@ The `Agent` interface (`pkg/agent/agent.go`) exposes `SkillsDir() string` which 
 
 **For advanced command patterns, use:** `/implementing-command-patterns`
 
+**For JSON output types (where they are defined and how to use them), use:** `/working-with-json-output-types`
+
 **For testing commands, use:** `/testing-commands`
 
 ### Working with the Instances Manager
