@@ -38,7 +38,7 @@ func (p *podmanRuntime) GetURL(ctx context.Context, instanceID string) (string, 
 	}
 	tmplData, err := p.readPodTemplateData(instanceID)
 	if err != nil {
-		return "", fmt.Errorf("failed to read pod template data: %w", err)
+		return "", fmt.Errorf("failed to get dashboard URL: %w", err)
 	}
 	return fmt.Sprintf("http://localhost:%d", tmplData.OnecliWebPort), nil
 }
