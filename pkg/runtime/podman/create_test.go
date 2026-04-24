@@ -194,7 +194,7 @@ func TestCreateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"claude"},
 		}
 
-		err := p.createContainerfile(instanceDir, imageConfig, agentConfig, nil)
+		err := p.createContainerfile(instanceDir, imageConfig, agentConfig, nil, nil)
 		if err != nil {
 			t.Fatalf("createContainerfile() failed: %v", err)
 		}
@@ -245,7 +245,7 @@ func TestCreateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"custom-agent"},
 		}
 
-		err := p.createContainerfile(instanceDir, imageConfig, agentConfig, nil)
+		err := p.createContainerfile(instanceDir, imageConfig, agentConfig, nil, nil)
 		if err != nil {
 			t.Fatalf("createContainerfile() failed: %v", err)
 		}
@@ -311,7 +311,7 @@ func TestCreateContainerfile(t *testing.T) {
 			".gitconfig":            []byte("[user]\n\tname = Agent\n"),
 		}
 
-		err := p.createContainerfile(instanceDir, imageConfig, agentConfig, settings)
+		err := p.createContainerfile(instanceDir, imageConfig, agentConfig, settings, nil)
 		if err != nil {
 			t.Fatalf("createContainerfile() failed: %v", err)
 		}
@@ -371,7 +371,7 @@ func TestCreateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"claude"},
 		}
 
-		err := p.createContainerfile(instanceDir, imageConfig, agentConfig, nil)
+		err := p.createContainerfile(instanceDir, imageConfig, agentConfig, nil, nil)
 		if err != nil {
 			t.Fatalf("createContainerfile() failed: %v", err)
 		}
@@ -1171,6 +1171,170 @@ func TestCreate_StepLogger_FailOnCreateContainer(t *testing.T) {
 	}
 }
 
+func TestCreate_StepLogger_FailOnPrepareFeatures(t *testing.T) {
+	t.Parallel()
+
+	storageDir := t.TempDir()
+	sourcePath := t.TempDir()
+
+	fakeExec := exec.NewFake()
+	fakeExec.RunFunc = func(ctx context.Context, args ...string) error {
+		return nil
+	}
+	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		return []byte("container-id-123"), nil
+	}
+
+	p := &podmanRuntime{
+		system:     &fakeSystem{},
+		executor:   fakeExec,
+		storageDir: storageDir,
+		config:     &fakeConfig{},
+	}
+
+	fakeLogger := &fakeStepLogger{}
+	ctx := steplogger.WithLogger(context.Background(), fakeLogger)
+
+	// Reference a non-existent local feature to cause Download to fail.
+	featuresMap := map[string]map[string]interface{}{
+		"./nonexistent-feature": {},
+	}
+	params := runtime.CreateParams{
+		Name:               "test-workspace",
+		SourcePath:         sourcePath,
+		Agent:              "test_agent",
+		WorkspaceConfigDir: sourcePath,
+		WorkspaceConfig: &workspace.WorkspaceConfiguration{
+			Features: &featuresMap,
+		},
+	}
+
+	_, err := p.Create(ctx, params)
+	if err == nil {
+		t.Fatal("Expected Create() to fail, got nil")
+	}
+
+	if fakeLogger.completeCalls != 1 {
+		t.Errorf("Expected Complete() to be called 1 time, got %d", fakeLogger.completeCalls)
+	}
+
+	// Exactly two Start calls: create dir, then download features.
+	if len(fakeLogger.startCalls) != 2 {
+		t.Fatalf("Expected 2 Start() calls, got %d", len(fakeLogger.startCalls))
+	}
+
+	expectedSteps := []string{
+		"Creating temporary build directory",
+		"Downloading devcontainer features",
+	}
+	for i, expected := range expectedSteps {
+		if fakeLogger.startCalls[i].inProgress != expected {
+			t.Errorf("Step %d: expected %q, got %q", i, expected, fakeLogger.startCalls[i].inProgress)
+		}
+	}
+
+	if len(fakeLogger.failCalls) != 1 {
+		t.Fatalf("Expected 1 Fail() call, got %d", len(fakeLogger.failCalls))
+	}
+	if fakeLogger.failCalls[0] == nil {
+		t.Error("Expected Fail() to be called with non-nil error")
+	}
+}
+
+func TestCreate_StepLogger_Success_WithFeatures(t *testing.T) {
+	t.Parallel()
+
+	storageDir := t.TempDir()
+	sourcePath := t.TempDir()
+
+	// Set up a minimal local feature.
+	configDir := t.TempDir()
+	featureDir := filepath.Join(configDir, "my-feature")
+	if err := os.MkdirAll(featureDir, 0755); err != nil {
+		t.Fatalf("failed to create feature dir: %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(featureDir, "devcontainer-feature.json"),
+		[]byte(`{"id":"my-feature","version":"1.0.0"}`),
+		0644,
+	); err != nil {
+		t.Fatalf("failed to write devcontainer-feature.json: %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(featureDir, "install.sh"),
+		[]byte("#!/bin/bash\necho installed"),
+		0755,
+	); err != nil {
+		t.Fatalf("failed to write install.sh: %v", err)
+	}
+
+	fakeExec := exec.NewFake()
+	fakeExec.RunFunc = func(ctx context.Context, args ...string) error {
+		return nil
+	}
+	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		return []byte("container-id-123"), nil
+	}
+
+	p := &podmanRuntime{
+		system:     &fakeSystem{},
+		executor:   fakeExec,
+		storageDir: storageDir,
+		config:     &fakeConfig{},
+	}
+
+	fakeLogger := &fakeStepLogger{}
+	ctx := steplogger.WithLogger(context.Background(), fakeLogger)
+
+	featuresMap := map[string]map[string]interface{}{
+		"./my-feature": {},
+	}
+	params := runtime.CreateParams{
+		Name:               "test-workspace",
+		SourcePath:         sourcePath,
+		Agent:              "test_agent",
+		WorkspaceConfigDir: configDir,
+		WorkspaceConfig: &workspace.WorkspaceConfiguration{
+			Features: &featuresMap,
+		},
+	}
+
+	_, err := p.Create(ctx, params)
+	if err != nil {
+		t.Fatalf("Create() failed: %v", err)
+	}
+
+	if fakeLogger.completeCalls != 1 {
+		t.Errorf("Expected Complete() to be called 1 time, got %d", fakeLogger.completeCalls)
+	}
+	if len(fakeLogger.failCalls) != 0 {
+		t.Errorf("Expected no Fail() calls, got %d", len(fakeLogger.failCalls))
+	}
+
+	// Six steps: create dir, download features, containerfile, build, onecli services, workspace container.
+	expectedSteps := []stepCall{
+		{inProgress: "Creating temporary build directory", completed: "Temporary build directory created"},
+		{inProgress: "Downloading devcontainer features", completed: "Devcontainer features downloaded"},
+		{inProgress: "Generating Containerfile", completed: "Containerfile generated"},
+		{inProgress: "Building container image: kdn-test-workspace", completed: "Container image built"},
+		{inProgress: "Creating onecli services", completed: "Onecli services created"},
+		{inProgress: "Creating workspace container: test-workspace", completed: "Workspace container created"},
+	}
+
+	if len(fakeLogger.startCalls) != len(expectedSteps) {
+		t.Fatalf("Expected %d Start() calls, got %d", len(expectedSteps), len(fakeLogger.startCalls))
+	}
+	for i, expected := range expectedSteps {
+		actual := fakeLogger.startCalls[i]
+		if actual.inProgress != expected.inProgress {
+			t.Errorf("Step %d: expected inProgress %q, got %q", i, expected.inProgress, actual.inProgress)
+		}
+		if actual.completed != expected.completed {
+			t.Errorf("Step %d: expected completed %q, got %q", i, expected.completed, actual.completed)
+		}
+	}
+}
+
 func TestCreate_CleansUpInstanceDirectory(t *testing.T) {
 	t.Parallel()
 
@@ -1276,6 +1440,140 @@ func (f *fakeExecutor) Output(ctx context.Context, stderr io.Writer, args ...str
 
 func (f *fakeExecutor) RunInteractive(ctx context.Context, args ...string) error {
 	return f.runErr
+}
+
+func TestPrepareFeatures(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns nil when WorkspaceConfig is nil", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{}
+		instanceDir := t.TempDir()
+		params := runtime.CreateParams{}
+
+		infos, err := p.prepareFeatures(context.Background(), instanceDir, params)
+		if err != nil {
+			t.Fatalf("prepareFeatures() returned unexpected error: %v", err)
+		}
+		if infos != nil {
+			t.Errorf("Expected nil infos, got %v", infos)
+		}
+	})
+
+	t.Run("returns nil when Features map is nil", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{}
+		instanceDir := t.TempDir()
+		params := runtime.CreateParams{
+			WorkspaceConfig: &workspace.WorkspaceConfiguration{},
+		}
+
+		infos, err := p.prepareFeatures(context.Background(), instanceDir, params)
+		if err != nil {
+			t.Fatalf("prepareFeatures() returned unexpected error: %v", err)
+		}
+		if infos != nil {
+			t.Errorf("Expected nil infos, got %v", infos)
+		}
+	})
+
+	t.Run("returns nil when Features map is empty", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{}
+		instanceDir := t.TempDir()
+		empty := map[string]map[string]interface{}{}
+		params := runtime.CreateParams{
+			WorkspaceConfig: &workspace.WorkspaceConfiguration{Features: &empty},
+		}
+
+		infos, err := p.prepareFeatures(context.Background(), instanceDir, params)
+		if err != nil {
+			t.Fatalf("prepareFeatures() returned unexpected error: %v", err)
+		}
+		if infos != nil {
+			t.Errorf("Expected nil infos, got %v", infos)
+		}
+	})
+
+	t.Run("downloads local feature and returns install info", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a local feature directory with required files.
+		configDir := t.TempDir()
+		featureDir := filepath.Join(configDir, "my-feature")
+		if err := os.MkdirAll(featureDir, 0755); err != nil {
+			t.Fatalf("failed to create feature dir: %v", err)
+		}
+
+		featureJSON := `{
+			"id": "my-feature",
+			"version": "1.0.0",
+			"options": {
+				"version": {"type": "string", "default": "latest"}
+			},
+			"containerEnv": {
+				"MY_FEATURE_HOME": "/opt/my-feature"
+			}
+		}`
+		if err := os.WriteFile(filepath.Join(featureDir, "devcontainer-feature.json"), []byte(featureJSON), 0644); err != nil {
+			t.Fatalf("failed to write devcontainer-feature.json: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(featureDir, "install.sh"), []byte("#!/usr/bin/env bash\necho installed"), 0755); err != nil {
+			t.Fatalf("failed to write install.sh: %v", err)
+		}
+
+		instanceDir := t.TempDir()
+		featureID := "./my-feature"
+		featuresMap := map[string]map[string]interface{}{
+			featureID: {"version": "1.21"},
+		}
+		params := runtime.CreateParams{
+			WorkspaceConfigDir: configDir,
+			WorkspaceConfig: &workspace.WorkspaceConfiguration{
+				Features: &featuresMap,
+			},
+		}
+
+		p := &podmanRuntime{}
+		infos, err := p.prepareFeatures(context.Background(), instanceDir, params)
+		if err != nil {
+			t.Fatalf("prepareFeatures() failed: %v", err)
+		}
+
+		if len(infos) != 1 {
+			t.Fatalf("Expected 1 featureInstallInfo, got %d", len(infos))
+		}
+
+		info := infos[0]
+		if info.dirName == "" {
+			t.Error("Expected non-empty dirName")
+		}
+
+		// Verify the feature directory was created in the build context.
+		featureBuildDir := filepath.Join(instanceDir, "features", info.dirName)
+		if _, err := os.Stat(featureBuildDir); os.IsNotExist(err) {
+			t.Errorf("Expected feature build directory %s to exist", featureBuildDir)
+		}
+
+		// Verify install.sh was copied.
+		installSh := filepath.Join(featureBuildDir, "install.sh")
+		if _, err := os.Stat(installSh); os.IsNotExist(err) {
+			t.Error("Expected install.sh to be copied into build context")
+		}
+
+		// Verify user-supplied option was merged.
+		if info.options["VERSION"] != "1.21" {
+			t.Errorf("Expected VERSION=1.21, got %q", info.options["VERSION"])
+		}
+
+		// Verify containerEnv was returned.
+		if info.envVars["MY_FEATURE_HOME"] != "/opt/my-feature" {
+			t.Errorf("Expected MY_FEATURE_HOME=/opt/my-feature, got %q", info.envVars["MY_FEATURE_HOME"])
+		}
+	})
 }
 
 // assertDirectoryRemoved checks that a directory has been removed.

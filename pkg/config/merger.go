@@ -78,6 +78,9 @@ func (m *merger) Merge(base, override *workspace.WorkspaceConfiguration) *worksp
 	// Merge network configuration
 	result.Network = mergeNetwork(base.Network, override.Network)
 
+	// Merge features
+	result.Features = mergeFeatures(base.Features, override.Features)
+
 	return result
 }
 
@@ -551,5 +554,60 @@ func copyConfig(cfg *workspace.WorkspaceConfiguration) *workspace.WorkspaceConfi
 	// Copy network configuration
 	result.Network = copyNetwork(cfg.Network)
 
+	// Copy features
+	result.Features = copyFeatures(cfg.Features)
+
 	return result
+}
+
+// copyFeatureOptions creates a shallow copy of a feature options map.
+// Values are JSON-derived primitives (string, bool, float64), so a shallow copy is sufficient.
+func copyFeatureOptions(opts map[string]interface{}) map[string]interface{} {
+	if opts == nil {
+		return nil
+	}
+	result := make(map[string]interface{}, len(opts))
+	for k, v := range opts {
+		result[k] = v
+	}
+	return result
+}
+
+// copyFeatures creates a deep copy of a features map.
+func copyFeatures(feats *map[string]map[string]interface{}) *map[string]map[string]interface{} {
+	if feats == nil {
+		return nil
+	}
+	result := make(map[string]map[string]interface{}, len(*feats))
+	for id, opts := range *feats {
+		result[id] = copyFeatureOptions(opts)
+	}
+	return &result
+}
+
+// mergeFeatures merges two features maps, with override taking precedence by feature ID.
+// Base features are included first; override entries replace base entries with the same ID.
+func mergeFeatures(base, override *map[string]map[string]interface{}) *map[string]map[string]interface{} {
+	if base == nil && override == nil {
+		return nil
+	}
+
+	result := make(map[string]map[string]interface{})
+
+	if base != nil {
+		for id, opts := range *base {
+			result[id] = copyFeatureOptions(opts)
+		}
+	}
+
+	if override != nil {
+		for id, opts := range *override {
+			result[id] = copyFeatureOptions(opts)
+		}
+	}
+
+	if len(result) == 0 {
+		return nil
+	}
+	return &result
 }
