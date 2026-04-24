@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -84,6 +85,10 @@ type Manager interface {
 	// Reconcile removes instances with inaccessible directories
 	// Returns the list of removed instance IDs
 	Reconcile() ([]string, error)
+	// GetDashboardURL returns the dashboard URL for a workspace instance by name or ID.
+	// Returns ErrInstanceNotFound if the workspace does not exist.
+	// Returns ErrDashboardNotSupported if the runtime does not implement the Dashboard interface.
+	GetDashboardURL(ctx context.Context, nameOrID string) (string, error)
 	// RegisterRuntime registers a runtime with the manager's registry
 	RegisterRuntime(rt runtime.Runtime) error
 	// RegisterAgent registers an agent with the manager's registry
@@ -418,6 +423,12 @@ func (m *manager) Start(ctx context.Context, id string) error {
 		return fmt.Errorf("runtime %q returned invalid state: %w", runtimeData.Type, err)
 	}
 
+	// Merge info: preserve existing fields (e.g. onecli_web_port set at Create time),
+	// then overlay any updated fields returned by Start.
+	mergedInfo := make(map[string]string, len(runtimeData.Info)+len(runtimeInfo.Info))
+	maps.Copy(mergedInfo, runtimeData.Info)
+	maps.Copy(mergedInfo, runtimeInfo.Info)
+
 	// Update the instance with new runtime state
 	updatedInstance := &instance{
 		ID:        instanceToStart.GetID(),
@@ -428,7 +439,7 @@ func (m *manager) Start(ctx context.Context, id string) error {
 			Type:       runtimeData.Type,
 			InstanceID: runtimeData.InstanceID,
 			State:      runtimeInfo.State,
-			Info:       runtimeInfo.Info,
+			Info:       mergedInfo,
 		},
 		Project: instanceToStart.GetProject(),
 		Agent:   instanceToStart.GetAgent(),
@@ -494,6 +505,12 @@ func (m *manager) Stop(ctx context.Context, id string) error {
 		return fmt.Errorf("runtime %q returned invalid state: %w", runtimeData.Type, err)
 	}
 
+	// Merge info: preserve existing fields (e.g. onecli_web_port set at Create time),
+	// then overlay any updated fields returned by Stop.
+	mergedInfo := make(map[string]string, len(runtimeData.Info)+len(runtimeInfo.Info))
+	maps.Copy(mergedInfo, runtimeData.Info)
+	maps.Copy(mergedInfo, runtimeInfo.Info)
+
 	// Update the instance with new runtime state
 	updatedInstance := &instance{
 		ID:        instanceToStop.GetID(),
@@ -504,7 +521,7 @@ func (m *manager) Stop(ctx context.Context, id string) error {
 			Type:       runtimeData.Type,
 			InstanceID: runtimeData.InstanceID,
 			State:      runtimeInfo.State,
-			Info:       runtimeInfo.Info,
+			Info:       mergedInfo,
 		},
 		Project: instanceToStop.GetProject(),
 		Agent:   instanceToStop.GetAgent(),
@@ -706,6 +723,31 @@ func (m *manager) Reconcile() ([]string, error) {
 	}
 
 	return removed, nil
+}
+
+// GetDashboardURL returns the dashboard URL for a workspace instance by name or ID.
+func (m *manager) GetDashboardURL(ctx context.Context, nameOrID string) (string, error) {
+	instance, err := m.Get(nameOrID)
+	if err != nil {
+		return "", err
+	}
+
+	runtimeData := instance.GetRuntimeData()
+	if runtimeData.State != api.WorkspaceStateRunning {
+		return "", fmt.Errorf("workspace is not running (state: %s)", runtimeData.State)
+	}
+
+	rt, err := m.runtimeRegistry.Get(runtimeData.Type)
+	if err != nil {
+		return "", fmt.Errorf("failed to get runtime: %w", err)
+	}
+
+	dashboardRuntime, ok := rt.(runtime.Dashboard)
+	if !ok {
+		return "", fmt.Errorf("%w: %s", ErrDashboardNotSupported, runtimeData.Type)
+	}
+
+	return dashboardRuntime.GetURL(ctx, runtimeData.InstanceID)
 }
 
 // RegisterRuntime registers a runtime with the manager's registry.

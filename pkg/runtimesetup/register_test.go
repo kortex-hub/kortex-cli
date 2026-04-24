@@ -71,6 +71,85 @@ func (t *testRuntime) Available() bool {
 	return t.available
 }
 
+// testRuntimeWithDashboard wraps testRuntime and implements runtime.Dashboard.
+type testRuntimeWithDashboard struct {
+	*testRuntime
+}
+
+func (t *testRuntimeWithDashboard) GetURL(_ context.Context, _ string) (string, error) {
+	return "http://localhost:8888", nil
+}
+
+func TestListDashboardRuntimeTypesWithFactories(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns type names of runtimes that implement Dashboard", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		factories := []runtimeFactory{
+			func() runtime.Runtime {
+				return &testRuntimeWithDashboard{&testRuntime{runtimeType: "dashboard-rt", available: true}}
+			},
+			func() runtime.Runtime {
+				return &testRuntime{runtimeType: "no-dashboard-rt", available: true}
+			},
+		}
+
+		types, err := listDashboardRuntimeTypesWithFactories(storageDir, factories)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(types) != 1 {
+			t.Fatalf("expected 1 type, got %d: %v", len(types), types)
+		}
+		if types[0] != "dashboard-rt" {
+			t.Errorf("expected 'dashboard-rt', got %q", types[0])
+		}
+	})
+
+	t.Run("returns empty when no runtimes implement Dashboard", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		factories := []runtimeFactory{
+			func() runtime.Runtime {
+				return &testRuntime{runtimeType: "no-dashboard-rt", available: true}
+			},
+		}
+
+		types, err := listDashboardRuntimeTypesWithFactories(storageDir, factories)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(types) != 0 {
+			t.Errorf("expected 0 types, got %d: %v", len(types), types)
+		}
+	})
+
+	t.Run("skips unavailable runtimes even if they implement Dashboard", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		factories := []runtimeFactory{
+			func() runtime.Runtime {
+				return &testRuntimeWithDashboard{&testRuntime{runtimeType: "dashboard-rt", available: false}}
+			},
+		}
+
+		types, err := listDashboardRuntimeTypesWithFactories(storageDir, factories)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(types) != 0 {
+			t.Errorf("expected 0 types (runtime unavailable), got %d: %v", len(types), types)
+		}
+	})
+}
+
 func TestRegisterAll(t *testing.T) {
 	t.Parallel()
 

@@ -148,6 +148,41 @@ func listAgentsWithFactories(runtimeStorageDir string, factories []runtimeFactor
 	return agents, nil
 }
 
+// ListDashboardRuntimeTypes returns the type names of all available runtimes
+// that implement the Dashboard interface.
+// It instantiates each runtime and checks for the interface, skipping unavailable runtimes.
+func ListDashboardRuntimeTypes(runtimeStorageDir string) ([]string, error) {
+	return listDashboardRuntimeTypesWithFactories(runtimeStorageDir, availableRuntimes)
+}
+
+// listDashboardRuntimeTypesWithFactories returns Dashboard-capable runtime type names
+// from the given factories. This function is internal and used for testing.
+func listDashboardRuntimeTypesWithFactories(runtimeStorageDir string, factories []runtimeFactory) ([]string, error) {
+	registry, err := runtime.NewRegistry(runtimeStorageDir)
+	if err != nil {
+		return nil, err
+	}
+
+	var types []string
+	for _, factory := range factories {
+		rt := factory()
+
+		if avail, ok := rt.(Available); ok && !avail.Available() {
+			continue
+		}
+
+		if err := registry.Register(rt); err != nil {
+			continue
+		}
+
+		if _, ok := rt.(runtime.Dashboard); ok {
+			types = append(types, rt.Type())
+		}
+	}
+
+	return types, nil
+}
+
 // RegisterAll registers all available runtimes to the given registrar.
 // It skips runtimes that implement the Available interface and report false.
 // Returns an error if any runtime fails to register.

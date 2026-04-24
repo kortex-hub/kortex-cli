@@ -19,34 +19,22 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 )
 
-func NewWorkspaceCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "workspace",
-		Short: "Manage workspaces",
-		Long:  "Manage workspaces registered with kdn init",
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 0 {
-				return fmt.Errorf("unknown command %q for %q", args[0], cmd.CommandPath())
-			}
-			return nil
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return cmd.Help()
-		},
-	}
+func NewDashboardCmd() *cobra.Command {
+	workspaceDashboardCmd := NewWorkspaceDashboardCmd()
 
-	// Add subcommands
-	cmd.AddCommand(NewWorkspaceDashboardCmd())
-	cmd.AddCommand(NewWorkspaceListCmd())
-	cmd.AddCommand(NewWorkspaceRemoveCmd())
-	cmd.AddCommand(NewWorkspaceStartCmd())
-	cmd.AddCommand(NewWorkspaceStopCmd())
-	cmd.AddCommand(NewWorkspaceTerminalCmd())
+	cmd := &cobra.Command{
+		Use:               "dashboard NAME|ID",
+		Short:             workspaceDashboardCmd.Short + " (alias for 'workspace dashboard')",
+		Long:              workspaceDashboardCmd.Long,
+		Example:           AdaptExampleForAlias(workspaceDashboardCmd.Example, "workspace dashboard", "dashboard"),
+		Args:              workspaceDashboardCmd.Args,
+		ValidArgsFunction: workspaceDashboardCmd.ValidArgsFunction,
+		PreRunE:           workspaceDashboardCmd.PreRunE,
+		RunE:              workspaceDashboardCmd.RunE,
+	}
 
 	return cmd
 }

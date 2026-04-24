@@ -89,6 +89,10 @@ func NewRootCmd() *cobra.Command {
 	stopCmd.GroupID = "main"
 	rootCmd.AddCommand(stopCmd)
 
+	dashboardCmd := NewDashboardCmd()
+	dashboardCmd.GroupID = "main"
+	rootCmd.AddCommand(dashboardCmd)
+
 	terminalCmd := NewTerminalCmd()
 	terminalCmd.GroupID = "main"
 	rootCmd.AddCommand(terminalCmd)

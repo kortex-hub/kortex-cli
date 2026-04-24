@@ -742,6 +742,184 @@ func TestCompleteSecretName(t *testing.T) {
 	})
 }
 
+func TestCompleteDashboardWorkspaceID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns running instances whose runtime supports Dashboard", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		storageDir := t.TempDir()
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("failed to create manager: %v", err)
+		}
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("failed to register fake runtime: %v", err)
+		}
+
+		sourceDir := t.TempDir()
+		inst, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourceDir,
+			ConfigDir: filepath.Join(sourceDir, ".kaiden"),
+		})
+		if err != nil {
+			t.Fatalf("failed to create instance: %v", err)
+		}
+		added, err := manager.Add(ctx, instances.AddOptions{Instance: inst, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("failed to add instance: %v", err)
+		}
+		if err := manager.Start(ctx, added.GetID()); err != nil {
+			t.Fatalf("failed to start instance: %v", err)
+		}
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "test storage flag")
+
+		completions, directive := completeDashboardWorkspaceIDWith(cmd, func(_ string) ([]string, error) {
+			return []string{"fake"}, nil
+		})
+
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("Expected ShellCompDirectiveNoFileComp, got %v", directive)
+		}
+		if len(completions) != 2 {
+			t.Fatalf("Expected 2 completions (ID and name), got %d: %v", len(completions), completions)
+		}
+		completionSet := make(map[string]bool)
+		for _, c := range completions {
+			completionSet[c] = true
+		}
+		if !completionSet[added.GetID()] {
+			t.Errorf("Expected ID %q in completions, got %v", added.GetID(), completions)
+		}
+		if !completionSet[added.GetName()] {
+			t.Errorf("Expected name %q in completions, got %v", added.GetName(), completions)
+		}
+	})
+
+	t.Run("excludes running instances whose runtime does not support Dashboard", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		storageDir := t.TempDir()
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("failed to create manager: %v", err)
+		}
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("failed to register fake runtime: %v", err)
+		}
+
+		sourceDir := t.TempDir()
+		inst, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourceDir,
+			ConfigDir: filepath.Join(sourceDir, ".kaiden"),
+		})
+		if err != nil {
+			t.Fatalf("failed to create instance: %v", err)
+		}
+		added, err := manager.Add(ctx, instances.AddOptions{Instance: inst, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("failed to add instance: %v", err)
+		}
+		if err := manager.Start(ctx, added.GetID()); err != nil {
+			t.Fatalf("failed to start instance: %v", err)
+		}
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "test storage flag")
+
+		completions, directive := completeDashboardWorkspaceIDWith(cmd, func(_ string) ([]string, error) {
+			return nil, nil
+		})
+
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("Expected ShellCompDirectiveNoFileComp, got %v", directive)
+		}
+		if len(completions) != 0 {
+			t.Errorf("Expected 0 completions (runtime not Dashboard-capable), got %d: %v", len(completions), completions)
+		}
+	})
+
+	t.Run("excludes stopped instances even if runtime supports Dashboard", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		storageDir := t.TempDir()
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("failed to create manager: %v", err)
+		}
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("failed to register fake runtime: %v", err)
+		}
+
+		sourceDir := t.TempDir()
+		inst, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourceDir,
+			ConfigDir: filepath.Join(sourceDir, ".kaiden"),
+		})
+		if err != nil {
+			t.Fatalf("failed to create instance: %v", err)
+		}
+		_, err = manager.Add(ctx, instances.AddOptions{Instance: inst, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("failed to add instance: %v", err)
+		}
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "test storage flag")
+
+		completions, directive := completeDashboardWorkspaceIDWith(cmd, func(_ string) ([]string, error) {
+			return []string{"fake"}, nil
+		})
+
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("Expected ShellCompDirectiveNoFileComp, got %v", directive)
+		}
+		if len(completions) != 0 {
+			t.Errorf("Expected 0 completions (instance is stopped), got %d: %v", len(completions), completions)
+		}
+	})
+
+	t.Run("returns error directive when storage flag is missing", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &cobra.Command{}
+
+		_, directive := completeDashboardWorkspaceIDWith(cmd, func(_ string) ([]string, error) {
+			return []string{"fake"}, nil
+		})
+
+		if directive != cobra.ShellCompDirectiveError {
+			t.Errorf("Expected ShellCompDirectiveError, got %v", directive)
+		}
+	})
+
+	t.Run("returns no suggestions when storage does not exist", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", filepath.Join(t.TempDir(), "nonexistent"), "")
+
+		completions, directive := completeDashboardWorkspaceIDWith(cmd, func(_ string) ([]string, error) {
+			return []string{"fake"}, nil
+		})
+
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("Expected ShellCompDirectiveNoFileComp, got %v", directive)
+		}
+		if len(completions) != 0 {
+			t.Errorf("Expected 0 completions, got %d: %v", len(completions), completions)
+		}
+	})
+}
+
 func TestCompleteRuntimeFlag(t *testing.T) {
 	t.Parallel()
 

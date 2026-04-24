@@ -30,6 +30,8 @@ var (
 	ErrInstanceExists = errors.New("instance already exists")
 	// ErrInvalidPath is returned when a path is invalid or empty
 	ErrInvalidPath = errors.New("invalid path")
+	// ErrDashboardNotSupported is returned when the runtime does not implement the Dashboard interface
+	ErrDashboardNotSupported = errors.New("dashboard not supported by this runtime")
 )
 
 // InstancePaths represents the paths in an instance

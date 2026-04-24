@@ -806,3 +806,71 @@ func TestFakeRuntime_LoadWithNilInfoMap(t *testing.T) {
 		t.Error("Expected stopped_at timestamp to be set")
 	}
 }
+
+func TestNewWithDashboard_GetURL(t *testing.T) {
+	t.Parallel()
+
+	const dashboardURL = "http://localhost:8888"
+	rt := NewWithDashboard(dashboardURL)
+
+	d, ok := rt.(interface {
+		GetURL(ctx context.Context, instanceID string) (string, error)
+	})
+	if !ok {
+		t.Fatal("NewWithDashboard() returned a runtime that does not implement Dashboard")
+	}
+
+	url, err := d.GetURL(context.Background(), "any-instance-id")
+	if err != nil {
+		t.Fatalf("GetURL() failed: %v", err)
+	}
+	if url != dashboardURL {
+		t.Errorf("GetURL() = %q, want %q", url, dashboardURL)
+	}
+}
+
+func TestNewWithDashboard_IsFullRuntime(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	rt := NewWithDashboard("http://localhost:9999")
+
+	info, err := rt.Create(ctx, runtime.CreateParams{
+		Name:       "test-ws",
+		SourcePath: "/tmp/src",
+	})
+	if err != nil {
+		t.Fatalf("Create() failed: %v", err)
+	}
+
+	if _, err := rt.Start(ctx, info.ID); err != nil {
+		t.Fatalf("Start() failed: %v", err)
+	}
+	if err := rt.Stop(ctx, info.ID); err != nil {
+		t.Fatalf("Stop() failed: %v", err)
+	}
+	if err := rt.Remove(ctx, info.ID); err != nil {
+		t.Fatalf("Remove() failed: %v", err)
+	}
+}
+
+func TestNewWithDashboard_GetURL_AnyInstance(t *testing.T) {
+	t.Parallel()
+
+	const dashboardURL = "http://localhost:7777"
+	rt := NewWithDashboard(dashboardURL)
+
+	d := rt.(interface {
+		GetURL(ctx context.Context, instanceID string) (string, error)
+	})
+
+	for _, id := range []string{"", "fake-001", "some-other-id"} {
+		url, err := d.GetURL(context.Background(), id)
+		if err != nil {
+			t.Errorf("GetURL(%q) failed: %v", id, err)
+		}
+		if url != dashboardURL {
+			t.Errorf("GetURL(%q) = %q, want %q", id, url, dashboardURL)
+		}
+	}
+}

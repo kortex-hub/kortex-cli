@@ -172,6 +172,7 @@ The runtime system provides a pluggable architecture for managing workspaces on 
 - **StorageAware**: Enables runtimes to persist data in a dedicated storage directory
 - **AgentLister**: Enables runtimes to report which agents they support
 - **Terminal**: Enables interactive terminal sessions with instances (auto-starts if needed)
+- **Dashboard**: Enables runtimes to expose a web dashboard URL (`GetURL(ctx, instanceID) (string, error)`)
 
 **For detailed runtime implementation guidance, use:** `/working-with-runtime-system`
 
@@ -358,6 +359,9 @@ manager.Delete(id)
 // Start, Stop instances
 manager.Start(ctx, id)
 manager.Stop(ctx, id)
+
+// Dashboard URL (returns ErrDashboardNotSupported if runtime does not implement Dashboard)
+manager.GetDashboardURL(ctx, id)
 
 // Interactive terminal
 manager.Terminal(ctx, id, []string{"bash"})

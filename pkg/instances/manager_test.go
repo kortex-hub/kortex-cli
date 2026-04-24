@@ -1120,6 +1120,41 @@ func TestManager_Start(t *testing.T) {
 			t.Errorf("After Start, GetModel() = %q, want %q", updated.GetModel(), "claude-sonnet-4-20250514")
 		}
 	})
+
+	t.Run("preserves info fields not returned by runtime Start", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		tmpDir := t.TempDir()
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeGitDetector())
+
+		instanceTmpDir := t.TempDir()
+		inst := newFakeInstance(newFakeInstanceParams{
+			SourceDir:  filepath.Join(instanceTmpDir, "source"),
+			ConfigDir:  filepath.Join(instanceTmpDir, "config"),
+			Accessible: true,
+		})
+		added, _ := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake"})
+
+		// Inject an extra Info field into storage (simulates onecli_web_port set at Create time
+		// by the Podman runtime but not returned by the runtime's Start call).
+		stored, _ := manager.Get(added.GetID())
+		storedData := stored.Dump()
+		storedData.Runtime.Info["onecli_web_port"] = "8080"
+		data := []InstanceData{storedData}
+		jsonData, _ := json.Marshal(data)
+		storageFile := filepath.Join(tmpDir, DefaultStorageFileName)
+		os.WriteFile(storageFile, jsonData, 0644)
+
+		if err := manager.Start(ctx, added.GetID()); err != nil {
+			t.Fatalf("Start() unexpected error = %v", err)
+		}
+
+		updated, _ := manager.Get(added.GetID())
+		if updated.GetRuntimeData().Info["onecli_web_port"] != "8080" {
+			t.Errorf("After Start, onecli_web_port = %q, want %q", updated.GetRuntimeData().Info["onecli_web_port"], "8080")
+		}
+	})
 }
 
 func TestManager_Stop(t *testing.T) {
@@ -1374,6 +1409,42 @@ func TestManager_Stop(t *testing.T) {
 		updated, _ := manager.Get(added.GetID())
 		if updated.GetModel() != "claude-sonnet-4-20250514" {
 			t.Errorf("After Stop, GetModel() = %q, want %q", updated.GetModel(), "claude-sonnet-4-20250514")
+		}
+	})
+
+	t.Run("preserves info fields not returned by runtime Stop", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		tmpDir := t.TempDir()
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeGitDetector())
+
+		instanceTmpDir := t.TempDir()
+		inst := newFakeInstance(newFakeInstanceParams{
+			SourceDir:  filepath.Join(instanceTmpDir, "source"),
+			ConfigDir:  filepath.Join(instanceTmpDir, "config"),
+			Accessible: true,
+		})
+		added, _ := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake"})
+		manager.Start(ctx, added.GetID())
+
+		// Inject an extra Info field into storage (simulates onecli_web_port set at Create time
+		// by the Podman runtime but not returned by the runtime's Stop/Info call).
+		running, _ := manager.Get(added.GetID())
+		runningData := running.Dump()
+		runningData.Runtime.Info["onecli_web_port"] = "8080"
+		data := []InstanceData{runningData}
+		jsonData, _ := json.Marshal(data)
+		storageFile := filepath.Join(tmpDir, DefaultStorageFileName)
+		os.WriteFile(storageFile, jsonData, 0644)
+
+		if err := manager.Stop(ctx, added.GetID()); err != nil {
+			t.Fatalf("Stop() unexpected error = %v", err)
+		}
+
+		updated, _ := manager.Get(added.GetID())
+		if updated.GetRuntimeData().Info["onecli_web_port"] != "8080" {
+			t.Errorf("After Stop, onecli_web_port = %q, want %q", updated.GetRuntimeData().Info["onecli_web_port"], "8080")
 		}
 	})
 }
@@ -4441,6 +4512,167 @@ func (f *fakeSecretServiceImpl) Path() string           { return f.path }
 func (f *fakeSecretServiceImpl) EnvVars() []string      { return f.envVars }
 func (f *fakeSecretServiceImpl) HeaderName() string     { return f.headerName }
 func (f *fakeSecretServiceImpl) HeaderTemplate() string { return f.headerTemplate }
+
+func TestManager_GetDashboardURL(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns URL when runtime supports Dashboard", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		tmpDir := t.TempDir()
+		const dashboardURL = "http://localhost:8080"
+		// Use an empty registry and register the dashboard runtime directly to avoid
+		// a duplicate "fake" registration conflict with newTestRegistry.
+		runtimesDir := filepath.Join(tmpDir, RuntimesSubdirectory)
+		reg, err := runtime.NewRegistry(runtimesDir)
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+		if err := reg.Register(fake.NewWithDashboard(dashboardURL)); err != nil {
+			t.Fatalf("Register() error = %v", err)
+		}
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), reg, agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeGitDetector())
+
+		instanceTmpDir := t.TempDir()
+		inst := newFakeInstance(newFakeInstanceParams{
+			SourceDir:  filepath.Join(instanceTmpDir, "source"),
+			ConfigDir:  filepath.Join(instanceTmpDir, "config"),
+			Accessible: true,
+		})
+		added, err := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("Add() error = %v", err)
+		}
+		if err := manager.Start(ctx, added.GetID()); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+
+		url, err := manager.GetDashboardURL(ctx, added.GetID())
+		if err != nil {
+			t.Fatalf("GetDashboardURL() error = %v", err)
+		}
+		if url != dashboardURL {
+			t.Errorf("GetDashboardURL() = %q, want %q", url, dashboardURL)
+		}
+	})
+
+	t.Run("returns error when instance is not running", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		tmpDir := t.TempDir()
+		const dashboardURL = "http://localhost:8080"
+		runtimesDir := filepath.Join(tmpDir, RuntimesSubdirectory)
+		reg, err := runtime.NewRegistry(runtimesDir)
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+		if err := reg.Register(fake.NewWithDashboard(dashboardURL)); err != nil {
+			t.Fatalf("Register() error = %v", err)
+		}
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), reg, agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeGitDetector())
+
+		instanceTmpDir := t.TempDir()
+		inst := newFakeInstance(newFakeInstanceParams{
+			SourceDir:  filepath.Join(instanceTmpDir, "source"),
+			ConfigDir:  filepath.Join(instanceTmpDir, "config"),
+			Accessible: true,
+		})
+		added, err := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("Add() error = %v", err)
+		}
+
+		_, err = manager.GetDashboardURL(ctx, added.GetID())
+		if err == nil {
+			t.Fatal("GetDashboardURL() error = nil, want error for stopped instance")
+		}
+		if !strings.Contains(err.Error(), "workspace is not running") {
+			t.Errorf("GetDashboardURL() error = %v, want 'workspace is not running'", err)
+		}
+	})
+
+	t.Run("returns ErrDashboardNotSupported when runtime does not implement Dashboard", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		tmpDir := t.TempDir()
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeGitDetector())
+
+		instanceTmpDir := t.TempDir()
+		inst := newFakeInstance(newFakeInstanceParams{
+			SourceDir:  filepath.Join(instanceTmpDir, "source"),
+			ConfigDir:  filepath.Join(instanceTmpDir, "config"),
+			Accessible: true,
+		})
+		added, err := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("Add() error = %v", err)
+		}
+		if err := manager.Start(ctx, added.GetID()); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+
+		_, err = manager.GetDashboardURL(ctx, added.GetID())
+		if !errors.Is(err, ErrDashboardNotSupported) {
+			t.Errorf("GetDashboardURL() error = %v, want ErrDashboardNotSupported", err)
+		}
+	})
+
+	t.Run("returns ErrInstanceNotFound for nonexistent instance", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		tmpDir := t.TempDir()
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeGitDetector())
+
+		_, err := manager.GetDashboardURL(ctx, "nonexistent-id")
+		if !errors.Is(err, ErrInstanceNotFound) {
+			t.Errorf("GetDashboardURL() error = %v, want ErrInstanceNotFound", err)
+		}
+	})
+
+	t.Run("resolves by name", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		tmpDir := t.TempDir()
+		const dashboardURL = "http://localhost:7777"
+		runtimesDir := filepath.Join(tmpDir, RuntimesSubdirectory)
+		reg, err := runtime.NewRegistry(runtimesDir)
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+		if err := reg.Register(fake.NewWithDashboard(dashboardURL)); err != nil {
+			t.Fatalf("Register() error = %v", err)
+		}
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), reg, agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeGitDetector())
+
+		instanceTmpDir := t.TempDir()
+		inst := newFakeInstance(newFakeInstanceParams{
+			SourceDir:  filepath.Join(instanceTmpDir, "source"),
+			ConfigDir:  filepath.Join(instanceTmpDir, "config"),
+			Accessible: true,
+			Name:       "my-workspace",
+		})
+		added, err := manager.Add(ctx, AddOptions{Instance: inst, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("Add() error = %v", err)
+		}
+		if err := manager.Start(ctx, added.GetID()); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+
+		url, err := manager.GetDashboardURL(ctx, "my-workspace")
+		if err != nil {
+			t.Fatalf("GetDashboardURL() by name error = %v", err)
+		}
+		if url != dashboardURL {
+			t.Errorf("GetDashboardURL() = %q, want %q", url, dashboardURL)
+		}
+	})
+}
 
 func TestManager_RegisterSecretService(t *testing.T) {
 	t.Parallel()

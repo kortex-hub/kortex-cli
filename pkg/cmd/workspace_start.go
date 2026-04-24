@@ -136,12 +136,7 @@ func (w *workspaceStartCmd) run(cmd *cobra.Command, args []string) error {
 		return w.outputJSON(cmd, instanceID)
 	}
 
-	// Output the ID and OneCLI dashboard URL if available (text mode)
-	out := cmd.OutOrStdout()
-	fmt.Fprintln(out, instanceID)
-	if port, ok := instance.GetRuntimeData().Info["onecli_web_port"]; ok {
-		fmt.Fprintf(out, "OneCLI dashboard: http://localhost:%s\n", port)
-	}
+	fmt.Fprintln(cmd.OutOrStdout(), instanceID)
 	return nil
 }
 

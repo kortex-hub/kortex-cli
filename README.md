@@ -3350,3 +3350,71 @@ kdn remove a1b2c3d4e5f6... --force
 - JSON output format is useful for scripting and automation
 - When using `--output json`, errors are also returned in JSON format for consistent parsing
 - **JSON error handling**: When `--output json` is used, errors are written to stdout (not stderr) in JSON format, and the CLI exits with code 1. Always check the exit code to determine success/failure
+
+### `workspace dashboard` - Open the Dashboard for a Workspace
+
+Prints the dashboard URL for a running workspace and opens it in the default browser. Also available as the shorter alias `dashboard`.
+
+The dashboard is only available for runtimes that support it (e.g. Podman via the OneCLI web interface).
+
+#### Usage
+
+```bash
+kdn workspace dashboard NAME|ID [flags]
+kdn dashboard NAME|ID [flags]
+```
+
+#### Arguments
+
+- `NAME|ID` - The workspace name or unique identifier (required)
+
+#### Flags
+
+- `--storage <path>` - Storage directory for kdn data (default: `$HOME/.kdn`)
+
+#### Examples
+
+**Open dashboard by ID:**
+```bash
+kdn workspace dashboard a1b2c3d4e5f6...
+```
+Output: `http://localhost:8888` (URL printed; browser opened automatically)
+
+**Open dashboard by name:**
+```bash
+kdn workspace dashboard my-project
+```
+
+**Use the short alias:**
+```bash
+kdn dashboard my-project
+```
+
+#### Error Handling
+
+**Workspace not found:**
+```bash
+kdn dashboard invalid-id
+```
+Output:
+```text
+Error: workspace not found: invalid-id
+Use 'workspace list' to see available workspaces
+```
+
+**Runtime does not support dashboard:**
+```bash
+kdn dashboard my-project
+```
+Output:
+```text
+Error: dashboard not supported for workspace "my-project"
+```
+
+#### Notes
+
+- The workspace must be running; the command does not auto-start it
+- The URL is always printed to stdout, even when the browser opens successfully
+- Opening the browser is best-effort; errors are silently ignored
+- Tab completion suggests only running workspaces whose runtime supports the Dashboard interface
+- JSON output is **not supported** for this command

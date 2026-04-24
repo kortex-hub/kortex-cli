@@ -104,6 +104,65 @@ func completeRunningWorkspaceID(cmd *cobra.Command, args []string, toComplete st
 	})
 }
 
+// completeDashboardWorkspaceID provides completion for running workspaces whose runtime supports the Dashboard interface.
+// The args and toComplete parameters are part of Cobra's ValidArgsFunction signature but are unused
+// because Cobra's shell completion framework automatically filters results based on user input.
+func completeDashboardWorkspaceID(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return completeDashboardWorkspaceIDWith(cmd, runtimesetup.ListDashboardRuntimeTypes)
+}
+
+// completeDashboardWorkspaceIDWith is the testable implementation of completeDashboardWorkspaceID.
+// It accepts a listDashboardTypes function so tests can inject a custom implementation.
+func completeDashboardWorkspaceIDWith(cmd *cobra.Command, listDashboardTypes func(string) ([]string, error)) ([]string, cobra.ShellCompDirective) {
+	storageDir, err := cmd.Flags().GetString("storage")
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	absStorageDir, err := filepath.Abs(storageDir)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	if _, err := os.Stat(absStorageDir); os.IsNotExist(err) {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	runtimesDir := filepath.Join(absStorageDir, instances.RuntimesSubdirectory)
+	dashboardTypes, err := listDashboardTypes(runtimesDir)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	dashboardTypeSet := make(map[string]struct{}, len(dashboardTypes))
+	for _, t := range dashboardTypes {
+		dashboardTypeSet[t] = struct{}{}
+	}
+
+	manager, err := instances.NewManager(absStorageDir)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	instancesList, err := manager.List()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	var completions []string
+	for _, instance := range instancesList {
+		runtimeData := instance.GetRuntimeData()
+		if runtimeData.State == api.WorkspaceStateRunning {
+			if _, ok := dashboardTypeSet[runtimeData.Type]; ok {
+				completions = append(completions, instance.GetID())
+				completions = append(completions, instance.GetName())
+			}
+		}
+	}
+
+	return completions, cobra.ShellCompDirectiveNoFileComp
+}
+
 // completeRemoveWorkspaceID provides completion for the remove command.
 // When --force is set, all workspaces are suggested; otherwise only non-running workspaces.
 // The args and toComplete parameters are part of Cobra's ValidArgsFunction signature but are unused
