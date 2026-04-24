@@ -103,9 +103,19 @@ func (m *secretMapper) mapOtherSecret(item secret.ListItem, value string) ([]Cre
 	}
 
 	inputs := make([]CreateSecretInput, 0, len(item.Hosts))
+	seen := make(map[string]string, len(item.Hosts))
 	for _, host := range item.Hosts {
+		suffix := sanitizeName(host)
+		if suffix == "" {
+			return nil, fmt.Errorf("host %q sanitizes to an empty name segment", host)
+		}
+		name := item.Name + "-" + suffix
+		if prev, ok := seen[name]; ok {
+			return nil, fmt.Errorf("hosts %q and %q produce duplicate secret name %q", prev, host, name)
+		}
+		seen[name] = host
 		input := CreateSecretInput{
-			Name:        item.Name + "-" + sanitizeName(host),
+			Name:        name,
 			Type:        "generic",
 			Value:       value,
 			HostPattern: host,

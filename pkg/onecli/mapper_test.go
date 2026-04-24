@@ -176,6 +176,40 @@ func TestMapper_OtherType_MultipleHosts(t *testing.T) {
 	}
 }
 
+func TestMapper_OtherType_EmptyNameSegment(t *testing.T) {
+	t.Parallel()
+
+	mapper := NewSecretMapper(secretservice.NewRegistry())
+	// "***" sanitizes to "" (all non-alphanumeric, trimmed to empty)
+	item := secret.ListItem{
+		Name:  "my-token",
+		Type:  "other",
+		Hosts: []string{"api.example.com", "***"},
+	}
+
+	_, err := mapper.Map(item, "val")
+	if err == nil {
+		t.Fatal("expected error for host that sanitizes to empty, got nil")
+	}
+}
+
+func TestMapper_OtherType_DuplicateNameSegment(t *testing.T) {
+	t.Parallel()
+
+	mapper := NewSecretMapper(secretservice.NewRegistry())
+	// Both hosts sanitize to "example-com", producing the same secret name
+	item := secret.ListItem{
+		Name:  "my-token",
+		Type:  "other",
+		Hosts: []string{"example.com", "example-com"},
+	}
+
+	_, err := mapper.Map(item, "val")
+	if err == nil {
+		t.Fatal("expected error for duplicate sanitized name, got nil")
+	}
+}
+
 func TestMapper_OtherType_MinimalFields(t *testing.T) {
 	t.Parallel()
 
