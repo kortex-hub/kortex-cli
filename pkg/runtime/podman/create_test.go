@@ -1250,6 +1250,7 @@ func TestCreate_StepLogger_Success_WithFeatures(t *testing.T) {
 
 	storageDir := t.TempDir()
 	sourcePath := t.TempDir()
+	onecliServer := newOnecliTestServer(t)
 
 	// Set up a minimal local feature.
 	configDir := t.TempDir()
@@ -1281,10 +1282,11 @@ func TestCreate_StepLogger_Success_WithFeatures(t *testing.T) {
 	}
 
 	p := &podmanRuntime{
-		system:     &fakeSystem{},
-		executor:   fakeExec,
-		storageDir: storageDir,
-		config:     &fakeConfig{},
+		system:          &fakeSystem{},
+		executor:        fakeExec,
+		storageDir:      storageDir,
+		config:          &fakeConfig{},
+		onecliBaseURLFn: func(_ int) string { return onecliServer.URL },
 	}
 
 	fakeLogger := &fakeStepLogger{}
@@ -1315,13 +1317,18 @@ func TestCreate_StepLogger_Success_WithFeatures(t *testing.T) {
 		t.Errorf("Expected no Fail() calls, got %d", len(fakeLogger.failCalls))
 	}
 
-	// Six steps: create dir, download features, containerfile, build, onecli services, workspace container.
 	expectedSteps := []stepCall{
 		{inProgress: "Creating temporary build directory", completed: "Temporary build directory created"},
 		{inProgress: "Downloading devcontainer features", completed: "Devcontainer features downloaded"},
 		{inProgress: "Generating Containerfile", completed: "Containerfile generated"},
 		{inProgress: "Building container image: kdn-test-workspace", completed: "Container image built"},
 		{inProgress: "Creating onecli services", completed: "Onecli services created"},
+		{inProgress: "Starting postgres", completed: "Postgres started"},
+		{inProgress: "Waiting for postgres readiness", completed: "Postgres ready"},
+		{inProgress: "Starting OneCLI", completed: "OneCLI started"},
+		{inProgress: "Waiting for OneCLI readiness", completed: "OneCLI ready"},
+		{inProgress: "Retrieving OneCLI container config", completed: "Container config retrieved"},
+		{inProgress: "Stopping OneCLI services", completed: "OneCLI services stopped"},
 		{inProgress: "Creating workspace container: test-workspace", completed: "Workspace container created"},
 	}
 
