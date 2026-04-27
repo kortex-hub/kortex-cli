@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 
 	api "github.com/openkaiden/kdn-api/cli/go"
+	"github.com/openkaiden/kdn/pkg/envvars"
 	"github.com/openkaiden/kdn/pkg/instances"
 	"github.com/openkaiden/kdn/pkg/runtimesetup"
 	"github.com/openkaiden/kdn/pkg/secret"
@@ -31,15 +32,6 @@ import (
 
 // stateFilter is a function that determines if an instance with the given state should be included
 type stateFilter func(state api.WorkspaceState) bool
-
-// isTruthyEnv returns true if val is a recognised truthy string ("1", "true", "yes" in any case).
-func isTruthyEnv(val string) bool {
-	switch val {
-	case "1", "true", "True", "TRUE", "yes", "Yes", "YES":
-		return true
-	}
-	return false
-}
 
 // getFilteredWorkspaceIDs retrieves workspace IDs and names, optionally filtered by state
 func getFilteredWorkspaceIDs(cmd *cobra.Command, filter stateFilter) ([]string, cobra.ShellCompDirective) {
@@ -73,7 +65,7 @@ func getFilteredWorkspaceIDs(cmd *cobra.Command, filter stateFilter) ([]string, 
 		return nil, cobra.ShellCompDirectiveError
 	}
 
-	ignoreIDs := isTruthyEnv(os.Getenv("KDN_AUTOCOMPLETE_IGNORE_IDS"))
+	ignoreIDs := envvars.IsTruthy("KDN_AUTOCOMPLETE_IGNORE_IDS")
 
 	// Extract IDs and names with optional filtering
 	var completions []string
@@ -161,7 +153,7 @@ func completeDashboardWorkspaceIDWith(cmd *cobra.Command, listDashboardTypes fun
 		return nil, cobra.ShellCompDirectiveError
 	}
 
-	ignoreIDs := isTruthyEnv(os.Getenv("KDN_AUTOCOMPLETE_IGNORE_IDS"))
+	ignoreIDs := envvars.IsTruthy("KDN_AUTOCOMPLETE_IGNORE_IDS")
 
 	var completions []string
 	for _, instance := range instancesList {

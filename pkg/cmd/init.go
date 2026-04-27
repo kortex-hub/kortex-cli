@@ -28,6 +28,7 @@ import (
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/agentsetup"
 	"github.com/openkaiden/kdn/pkg/config"
+	"github.com/openkaiden/kdn/pkg/envvars"
 	"github.com/openkaiden/kdn/pkg/instances"
 	"github.com/openkaiden/kdn/pkg/logger"
 	"github.com/openkaiden/kdn/pkg/runtimesetup"
@@ -131,14 +132,7 @@ func (i *initCmd) preRun(cmd *cobra.Command, args []string) error {
 
 	// Determine start behavior: if flag is not set to true, check environment variable
 	if !i.start {
-		// Check environment variable
-		if envStart := os.Getenv("KDN_INIT_AUTO_START"); envStart != "" {
-			// Accept "1", "true", "yes" as truthy values (case-insensitive)
-			switch envStart {
-			case "1", "true", "True", "TRUE", "yes", "Yes", "YES":
-				i.start = true
-			}
-		}
+		i.start = envvars.IsTruthy("KDN_INIT_AUTO_START")
 	}
 
 	// Get sources directory (default to current directory)

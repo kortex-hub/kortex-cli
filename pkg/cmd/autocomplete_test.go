@@ -920,32 +920,6 @@ func TestCompleteDashboardWorkspaceID(t *testing.T) {
 	})
 }
 
-func TestIsTruthyEnv(t *testing.T) {
-	t.Parallel()
-
-	truthy := []string{"1", "true", "True", "TRUE", "yes", "Yes", "YES"}
-	for _, v := range truthy {
-		v := v
-		t.Run("truthy_"+v, func(t *testing.T) {
-			t.Parallel()
-			if !isTruthyEnv(v) {
-				t.Errorf("expected isTruthyEnv(%q) to be true", v)
-			}
-		})
-	}
-
-	falsy := []string{"0", "false", "no", "", "random"}
-	for _, v := range falsy {
-		v := v
-		t.Run("falsy_"+v, func(t *testing.T) {
-			t.Parallel()
-			if isTruthyEnv(v) {
-				t.Errorf("expected isTruthyEnv(%q) to be false", v)
-			}
-		})
-	}
-}
-
 func TestCompleteWorkspaceIDIgnoreIDs(t *testing.T) {
 	// Cannot use t.Parallel() on the parent because subtests use t.Setenv.
 

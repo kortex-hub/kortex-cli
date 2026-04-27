@@ -244,6 +244,12 @@ type Logger interface {
 
 **Context integration** (`pkg/logger/context.go`): `WithLogger()` / `FromContext()` — mirrors the StepLogger pattern.
 
+### Environment Variable Utilities
+
+The `pkg/envvars` package provides shared helpers for reading environment variables.
+
+**`IsTruthy(key string) bool`** — returns `true` if the environment variable named by `key` is set to a recognised truthy string (`1`, `true`, `True`, `TRUE`, `yes`, `Yes`, `YES`). Use this instead of inlining a `switch` whenever a boolean env var controls behaviour.
+
 ### OneCLI System
 
 The OneCLI system (`pkg/onecli`) provides a typed HTTP client and higher-level abstractions for interacting with the OneCLI API, which proxies outbound HTTP requests and injects secrets as headers inside workspace containers.
