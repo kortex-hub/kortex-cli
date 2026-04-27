@@ -18,8 +18,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/config"
@@ -140,4 +142,95 @@ func (p *podmanRuntime) configureNetworking(ctx context.Context, onecliBaseURL s
 	}
 
 	return nil
+}
+
+// setupFirewallRules execs into the network-guard container and configures
+// nftables rules that DROP outbound traffic from the agent's UID, except:
+//   - Loopback (localhost / intra-pod communication including the OneCLI proxy)
+//   - Traffic to host.containers.internal (for host-local LLMs like Ollama/RamaLama)
+//
+// All other UIDs (OneCLI, postgres, approval-handler) retain full outbound access.
+// Rules are idempotent: existing tables are deleted before being recreated.
+// Both IPv4 and IPv6 families are configured.
+func (p *podmanRuntime) setupFirewallRules(ctx context.Context, podName string, agentUID int) error {
+	container := podName + "-network-guard"
+
+	// Resolve host.containers.internal inside the container.
+	// If it cannot be resolved the host-gateway rule is simply skipped.
+	hostGW := p.resolveHostGateway(ctx, container)
+
+	script := buildNftScript(agentUID, hostGW)
+
+	if err := p.executor.Run(ctx, io.Discard, io.Discard,
+		"exec", container, "sh", "-c", script,
+	); err != nil {
+		return fmt.Errorf("failed to set up nftables firewall rules: %w", err)
+	}
+	return nil
+}
+
+// clearFirewallRules removes the nftables filter tables installed by
+// setupFirewallRules, restoring the default ACCEPT policy. This is called on
+// Start() when the workspace is in allow mode to clear leftover rules from a
+// previous deny-mode start.
+func (p *podmanRuntime) clearFirewallRules(ctx context.Context, podName string) error {
+	container := podName + "-network-guard"
+
+	script := "command -v nft >/dev/null 2>&1 || true; nft delete table ip filter 2>/dev/null || true; nft delete table ip6 filter 2>/dev/null || true"
+
+	if err := p.executor.Run(ctx, io.Discard, io.Discard,
+		"exec", container, "sh", "-c", script,
+	); err != nil {
+		return fmt.Errorf("failed to clear nftables firewall rules: %w", err)
+	}
+	return nil
+}
+
+// resolveHostGateway attempts to resolve host.containers.internal inside the
+// given container. Returns the IP string on success or empty string on failure.
+func (p *podmanRuntime) resolveHostGateway(ctx context.Context, container string) string {
+	out, err := p.executor.Output(ctx, io.Discard,
+		"exec", container, "sh", "-c", "getent hosts host.containers.internal | awk '{print $1}'",
+	)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// buildNftScript generates the shell script that sets up nftables OUTPUT rules.
+// The script is executed as a single sh -c invocation inside the network-guard
+// container.
+//
+// Uses a blacklist approach: default policy is ACCEPT, and only the agent UID
+// is blocked from outbound traffic (except loopback and host.containers.internal).
+// All other UIDs (OneCLI, postgres, etc.) retain full outbound access.
+func buildNftScript(agentUID int, hostGW string) string {
+	var parts []string
+
+	// Ensure nftables is installed before applying rules.
+	parts = append(parts, "command -v nft >/dev/null 2>&1 || dnf install -y nftables >/dev/null 2>&1")
+
+	// IPv4 rules — default accept, block agent UID (except loopback + host gateway)
+	parts = append(parts,
+		"nft delete table ip filter 2>/dev/null || true",
+		"nft add table ip filter",
+		"nft add chain ip filter output '{ type filter hook output priority 0; policy accept; }'",
+		"nft add rule ip filter output oif lo accept",
+	)
+	if hostGW != "" {
+		parts = append(parts, fmt.Sprintf("nft add rule ip filter output ip daddr %s accept", hostGW))
+	}
+	parts = append(parts, fmt.Sprintf("nft add rule ip filter output meta skuid %d drop", agentUID))
+
+	// IPv6 rules — mirror
+	parts = append(parts,
+		"nft delete table ip6 filter 2>/dev/null || true",
+		"nft add table ip6 filter",
+		"nft add chain ip6 filter output '{ type filter hook output priority 0; policy accept; }'",
+		"nft add rule ip6 filter output oif lo accept",
+		fmt.Sprintf("nft add rule ip6 filter output meta skuid %d drop", agentUID),
+	)
+
+	return strings.Join(parts, "; ")
 }

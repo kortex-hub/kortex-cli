@@ -30,6 +30,7 @@ import (
 	"github.com/openkaiden/kdn/pkg/onecli"
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/config"
+	"github.com/openkaiden/kdn/pkg/runtime/podman/constants"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/pods"
 	podmanSystem "github.com/openkaiden/kdn/pkg/runtime/podman/system"
 	"github.com/openkaiden/kdn/pkg/steplogger"
@@ -45,6 +46,9 @@ type podTemplateData struct {
 	Name               string
 	OnecliWebPort      int
 	OnecliVersion      string
+	AgentUID           int
+	BaseImageRegistry  string
+	BaseImageVersion   string
 	SourcePath         string
 	ProjectID          string
 	ApprovalHandlerDir string
@@ -236,11 +240,21 @@ func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageNam
 	// Add OneCLI proxy env vars after workspace config (OneCLI takes precedence).
 	// Log collisions so users know their workspace values are being overridden.
 	if ccArgs != nil {
+		onecliEnvNames := make(map[string]bool)
 		for k, v := range ccArgs.envVars {
 			if workspaceEnvNames[k] {
 				fmt.Fprintf(os.Stderr, "warning: OneCLI overrides workspace env var %q\n", k)
 			}
 			args = append(args, "-e", fmt.Sprintf("%s=%s", k, v))
+			onecliEnvNames[k] = true
+		}
+		// Ensure local addresses bypass the OneCLI proxy so tools can reach
+		// localhost and host.containers.internal (e.g. Ollama) directly.
+		// Only inject if neither the workspace config nor OneCLI already set NO_PROXY.
+		if !workspaceEnvNames["NO_PROXY"] && !workspaceEnvNames["no_proxy"] &&
+			!onecliEnvNames["NO_PROXY"] && !onecliEnvNames["no_proxy"] {
+			const noProxy = "localhost,127.0.0.1,host.containers.internal"
+			args = append(args, "-e", "NO_PROXY="+noProxy, "-e", "no_proxy="+noProxy)
 		}
 		if ccArgs.caFilePath != "" && ccArgs.caContainerPath != "" {
 			args = append(args, "-v", fmt.Sprintf("%s:%s:ro,Z", ccArgs.caFilePath, ccArgs.caContainerPath))
@@ -397,6 +411,9 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		Name:               params.Name,
 		OnecliWebPort:      freePorts[0],
 		OnecliVersion:      defaultOnecliVersion,
+		AgentUID:           p.system.Getuid(),
+		BaseImageRegistry:  constants.BaseImageRegistry,
+		BaseImageVersion:   imageConfig.Version,
 		SourcePath:         params.SourcePath,
 		ProjectID:          params.ProjectID,
 		ApprovalHandlerDir: podmanSystem.HostPathToMachinePath(approvalHandlerDir),

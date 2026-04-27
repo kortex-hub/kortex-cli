@@ -619,10 +619,112 @@ func TestBuildContainerArgs(t *testing.T) {
 			t.Error("Expected HTTPS_PROXY env var")
 		}
 
+		// Verify NO_PROXY is injected so local addresses bypass the proxy
+		if !strings.Contains(argsStr, "-e NO_PROXY=localhost,127.0.0.1,host.containers.internal") {
+			t.Errorf("Expected NO_PROXY env var in args: %s", argsStr)
+		}
+		if !strings.Contains(argsStr, "-e no_proxy=localhost,127.0.0.1,host.containers.internal") {
+			t.Errorf("Expected no_proxy env var in args: %s", argsStr)
+		}
+
 		// Verify CA cert volume mount
 		expectedMount := fmt.Sprintf("-v %s:/etc/ssl/certs/onecli-ca.pem:ro,Z", caFile)
 		if !strings.Contains(argsStr, expectedMount) {
 			t.Errorf("Expected CA cert mount %q in args: %s", expectedMount, argsStr)
+		}
+	})
+
+	t.Run("no_proxy not injected when onecli already sets it", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{}
+		sourcePath := t.TempDir()
+
+		params := runtime.CreateParams{
+			Name:       "test-workspace",
+			SourcePath: sourcePath,
+			Agent:      "test_agent",
+		}
+
+		ccArgs := &containerConfigArgs{
+			envVars: map[string]string{
+				"HTTP_PROXY": "http://proxy:8080",
+				"NO_PROXY":   "custom.internal",
+				"no_proxy":   "custom.internal",
+			},
+		}
+
+		args, err := p.buildContainerArgs(params, "kdn-test", ccArgs)
+		if err != nil {
+			t.Fatalf("buildContainerArgs() failed: %v", err)
+		}
+		argsStr := strings.Join(args, " ")
+
+		// OneCLI's NO_PROXY must be preserved as-is; we must not inject a second one.
+		if !strings.Contains(argsStr, "-e NO_PROXY=custom.internal") {
+			t.Errorf("Expected OneCLI NO_PROXY in args: %s", argsStr)
+		}
+		if strings.Contains(argsStr, "-e NO_PROXY=localhost") || strings.Contains(argsStr, "-e no_proxy=localhost") {
+			t.Errorf("Should not inject default NO_PROXY when OneCLI already provides it: %s", argsStr)
+		}
+	})
+
+	t.Run("no_proxy not injected when workspace config sets it", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{}
+		sourcePath := t.TempDir()
+		noProxyVal := "my-internal-host"
+
+		params := runtime.CreateParams{
+			Name:       "test-workspace",
+			SourcePath: sourcePath,
+			Agent:      "test_agent",
+			WorkspaceConfig: &workspace.WorkspaceConfiguration{
+				Environment: &[]workspace.EnvironmentVariable{
+					{Name: "NO_PROXY", Value: &noProxyVal},
+				},
+			},
+		}
+
+		ccArgs := &containerConfigArgs{
+			envVars: map[string]string{"HTTP_PROXY": "http://proxy:8080"},
+		}
+
+		args, err := p.buildContainerArgs(params, "kdn-test", ccArgs)
+		if err != nil {
+			t.Fatalf("buildContainerArgs() failed: %v", err)
+		}
+		argsStr := strings.Join(args, " ")
+
+		if !strings.Contains(argsStr, "-e NO_PROXY=my-internal-host") {
+			t.Errorf("Expected workspace NO_PROXY in args: %s", argsStr)
+		}
+		if strings.Contains(argsStr, "-e NO_PROXY=localhost") || strings.Contains(argsStr, "-e no_proxy=localhost") {
+			t.Errorf("Should not inject default NO_PROXY when workspace config already sets it: %s", argsStr)
+		}
+	})
+
+	t.Run("no_proxy not injected when ccArgs is nil", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{}
+		sourcePath := t.TempDir()
+
+		params := runtime.CreateParams{
+			Name:       "test-workspace",
+			SourcePath: sourcePath,
+			Agent:      "test_agent",
+		}
+
+		args, err := p.buildContainerArgs(params, "kdn-test", nil)
+		if err != nil {
+			t.Fatalf("buildContainerArgs() failed: %v", err)
+		}
+		argsStr := strings.Join(args, " ")
+
+		if strings.Contains(argsStr, "-e NO_PROXY=") || strings.Contains(argsStr, "-e no_proxy=") {
+			t.Errorf("Should not inject NO_PROXY when no OneCLI config: %s", argsStr)
 		}
 	})
 

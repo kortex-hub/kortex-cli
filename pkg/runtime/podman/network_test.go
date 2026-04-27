@@ -17,13 +17,16 @@ package podman
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/openkaiden/kdn/pkg/onecli"
+	"github.com/openkaiden/kdn/pkg/runtime/podman/exec"
 )
 
 func assertAuth(t *testing.T, r *http.Request) {
@@ -319,6 +322,201 @@ func TestClearNetworkingRules(t *testing.T) {
 
 		rt := &podmanRuntime{}
 		if err := rt.clearNetworkingRules(context.Background(), server.URL); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+}
+
+func TestBuildNftScript(t *testing.T) {
+	t.Parallel()
+
+	t.Run("generates IPv4 and IPv6 rules blocking agent UID", func(t *testing.T) {
+		t.Parallel()
+
+		script := buildNftScript(1000, "")
+
+		if !strings.Contains(script, "command -v nft") {
+			t.Error("expected nftables install guard")
+		}
+		if !strings.Contains(script, "nft add table ip filter") {
+			t.Error("expected IPv4 table creation")
+		}
+		if !strings.Contains(script, "nft add table ip6 filter") {
+			t.Error("expected IPv6 table creation")
+		}
+		if !strings.Contains(script, "policy accept") {
+			t.Error("expected ACCEPT default policy")
+		}
+		if !strings.Contains(script, "meta skuid 1000 drop") {
+			t.Error("expected agent UID drop rule")
+		}
+		if !strings.Contains(script, "oif lo accept") {
+			t.Error("expected loopback rule")
+		}
+		if strings.Contains(script, "ip daddr") {
+			t.Error("expected no host-gateway rule when hostGW is empty")
+		}
+	})
+
+	t.Run("includes host-gateway rule when IP provided", func(t *testing.T) {
+		t.Parallel()
+
+		script := buildNftScript(1000, "10.0.2.2")
+
+		if !strings.Contains(script, "nft add rule ip filter output ip daddr 10.0.2.2 accept") {
+			t.Error("expected host-gateway rule for 10.0.2.2")
+		}
+	})
+
+	t.Run("host-gateway rule comes before agent drop rule", func(t *testing.T) {
+		t.Parallel()
+
+		script := buildNftScript(1000, "10.0.2.2")
+
+		hostGWIdx := strings.Index(script, "ip daddr 10.0.2.2 accept")
+		dropIdx := strings.Index(script, "meta skuid 1000 drop")
+		if hostGWIdx >= dropIdx {
+			t.Error("host-gateway accept should come before agent drop rule")
+		}
+	})
+
+	t.Run("idempotent delete before create", func(t *testing.T) {
+		t.Parallel()
+
+		script := buildNftScript(1000, "")
+
+		ipv4DeleteIdx := strings.Index(script, "nft delete table ip filter")
+		ipv4CreateIdx := strings.Index(script, "nft add table ip filter")
+		if ipv4DeleteIdx >= ipv4CreateIdx {
+			t.Error("IPv4 delete should come before create")
+		}
+
+		ipv6DeleteIdx := strings.Index(script, "nft delete table ip6 filter")
+		ipv6CreateIdx := strings.Index(script, "nft add table ip6 filter")
+		if ipv6DeleteIdx >= ipv6CreateIdx {
+			t.Error("IPv6 delete should come before create")
+		}
+	})
+}
+
+func TestSetupFirewallRules(t *testing.T) {
+	t.Parallel()
+
+	t.Run("execs nft commands into network-guard container", func(t *testing.T) {
+		t.Parallel()
+
+		fakeExec := exec.NewFake()
+		fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+			if len(args) >= 5 && args[0] == "exec" && args[2] == "sh" && args[3] == "-c" {
+				return []byte("10.0.2.2\n"), nil
+			}
+			return []byte{}, nil
+		}
+
+		rt := &podmanRuntime{executor: fakeExec}
+
+		err := rt.setupFirewallRules(context.Background(), "my-pod", 1000)
+		if err != nil {
+			t.Fatalf("setupFirewallRules() error: %v", err)
+		}
+
+		found := false
+		for _, call := range fakeExec.RunCalls {
+			if len(call) >= 4 && call[0] == "exec" && call[1] == "my-pod-network-guard" && call[2] == "sh" && call[3] == "-c" {
+				script := call[4]
+				if strings.Contains(script, "meta skuid 1000 drop") && strings.Contains(script, "ip daddr 10.0.2.2") {
+					found = true
+					break
+				}
+			}
+		}
+		if !found {
+			t.Error("expected exec call with nft script including agent UID drop and host-gateway rules")
+		}
+	})
+
+	t.Run("skips host-gateway rule when resolution fails", func(t *testing.T) {
+		t.Parallel()
+
+		fakeExec := exec.NewFake()
+		fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+			return nil, fmt.Errorf("getent failed")
+		}
+
+		rt := &podmanRuntime{executor: fakeExec}
+
+		err := rt.setupFirewallRules(context.Background(), "my-pod", 1000)
+		if err != nil {
+			t.Fatalf("setupFirewallRules() error: %v", err)
+		}
+
+		for _, call := range fakeExec.RunCalls {
+			if len(call) >= 5 && call[0] == "exec" && call[2] == "sh" {
+				if strings.Contains(call[4], "ip daddr") {
+					t.Error("expected no host-gateway rule when resolution fails")
+				}
+			}
+		}
+	})
+
+	t.Run("returns error when exec fails", func(t *testing.T) {
+		t.Parallel()
+
+		fakeExec := exec.NewFake()
+		fakeExec.RunFunc = func(ctx context.Context, args ...string) error {
+			return fmt.Errorf("exec failed")
+		}
+
+		rt := &podmanRuntime{executor: fakeExec}
+
+		err := rt.setupFirewallRules(context.Background(), "my-pod", 1000)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+}
+
+func TestClearFirewallRules(t *testing.T) {
+	t.Parallel()
+
+	t.Run("execs delete commands into network-guard container", func(t *testing.T) {
+		t.Parallel()
+
+		fakeExec := exec.NewFake()
+		rt := &podmanRuntime{executor: fakeExec}
+
+		err := rt.clearFirewallRules(context.Background(), "my-pod")
+		if err != nil {
+			t.Fatalf("clearFirewallRules() error: %v", err)
+		}
+
+		found := false
+		for _, call := range fakeExec.RunCalls {
+			if len(call) >= 4 && call[0] == "exec" && call[1] == "my-pod-network-guard" && call[2] == "sh" && call[3] == "-c" {
+				script := call[4]
+				if strings.Contains(script, "nft delete table ip filter") && strings.Contains(script, "nft delete table ip6 filter") {
+					found = true
+					break
+				}
+			}
+		}
+		if !found {
+			t.Error("expected exec call with delete table commands")
+		}
+	})
+
+	t.Run("returns error when exec fails", func(t *testing.T) {
+		t.Parallel()
+
+		fakeExec := exec.NewFake()
+		fakeExec.RunFunc = func(ctx context.Context, args ...string) error {
+			return fmt.Errorf("exec failed")
+		}
+
+		rt := &podmanRuntime{executor: fakeExec}
+
+		err := rt.clearFirewallRules(context.Background(), "my-pod")
+		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
 	})

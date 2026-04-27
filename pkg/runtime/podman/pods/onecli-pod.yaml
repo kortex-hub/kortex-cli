@@ -58,3 +58,10 @@ spec:
       volumeMounts:
         - name: approval-handler
           mountPath: /app
+
+    - name: network-guard
+      image: {{.BaseImageRegistry}}:{{.BaseImageVersion}}
+      securityContext:
+        capabilities:
+          add: ["NET_ADMIN"]
+      command: ["sleep", "infinity"]

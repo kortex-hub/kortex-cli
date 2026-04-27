@@ -102,6 +102,9 @@ func setupPodFiles(t *testing.T, p *podmanRuntime, containerID, workspaceName st
 		Name:               workspaceName,
 		OnecliWebPort:      20254,
 		OnecliVersion:      defaultOnecliVersion,
+		AgentUID:           1000,
+		BaseImageRegistry:  "registry.fedoraproject.org/fedora",
+		BaseImageVersion:   "latest",
 		ApprovalHandlerDir: approvalDir,
 	}
 	if err := p.writePodFiles(containerID, data); err != nil {

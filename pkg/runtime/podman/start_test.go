@@ -104,6 +104,9 @@ func TestStart_Success(t *testing.T) {
 	// Verify pg_isready was called to wait for postgres
 	fakeExec.AssertOutputCalledWith(t, "exec", podName+"-postgres", "pg_isready", "-U", "onecli")
 
+	// Verify network-guard was started
+	fakeExec.AssertRunCalledWith(t, "start", podName+"-network-guard")
+
 	// Verify pod start was called for remaining containers
 	fakeExec.AssertRunCalledWith(t, "pod", "start", podName)
 
@@ -281,12 +284,20 @@ func TestStart_StepLogger_Success(t *testing.T) {
 			completed:  "OneCLI started",
 		},
 		{
+			inProgress: "Starting network guard",
+			completed:  "Network guard started",
+		},
+		{
 			inProgress: "Waiting for OneCLI readiness",
 			completed:  "OneCLI ready",
 		},
 		{
 			inProgress: "Clearing network rules",
 			completed:  "Network rules cleared",
+		},
+		{
+			inProgress: "Clearing firewall rules",
+			completed:  "Firewall rules cleared",
 		},
 		{
 			inProgress: fmt.Sprintf("Starting pod: %s", podName),
@@ -381,16 +392,18 @@ func TestStart_StepLogger_FailOnGetContainerInfo(t *testing.T) {
 		t.Errorf("Expected Complete() to be called 1 time, got %d", fakeLogger.completeCalls)
 	}
 
-	if len(fakeLogger.startCalls) != 7 {
-		t.Fatalf("Expected 7 Start() calls, got %d", len(fakeLogger.startCalls))
+	if len(fakeLogger.startCalls) != 9 {
+		t.Fatalf("Expected 9 Start() calls, got %d", len(fakeLogger.startCalls))
 	}
 
 	expectedSteps := []string{
 		"Starting postgres",
 		"Waiting for postgres to be ready",
 		"Starting OneCLI",
+		"Starting network guard",
 		"Waiting for OneCLI readiness",
 		"Clearing network rules",
+		"Clearing firewall rules",
 		fmt.Sprintf("Starting pod: %s", podName),
 		"Verifying container status",
 	}
@@ -434,6 +447,9 @@ func setupPodFilesWithSource(t *testing.T, p *podmanRuntime, containerID, worksp
 		Name:               workspaceName,
 		OnecliWebPort:      20254,
 		OnecliVersion:      defaultOnecliVersion,
+		AgentUID:           1000,
+		BaseImageRegistry:  "registry.fedoraproject.org/fedora",
+		BaseImageVersion:   "latest",
 		SourcePath:         sourceDir,
 		ApprovalHandlerDir: approvalDir,
 	}
@@ -497,6 +513,9 @@ func TestStart_AllowMode_ClearsRules(t *testing.T) {
 		t.Errorf("deleted IDs = %v, want [stale-rule-1 stale-rule-2]", deletedIDs)
 	}
 
+	// Network-guard must be started in allow mode (to clear firewall rules).
+	fakeExec.AssertRunCalledWith(t, "start", "test-ws-network-guard")
+
 	// Approval handler must NOT be started individually in allow mode.
 	fakeExec.AssertRunNotCalledWith(t, "start", "test-ws-approval-handler")
 
@@ -549,8 +568,152 @@ func TestStart_AllowMode_StepLogger(t *testing.T) {
 		{"Starting postgres", "Postgres started"},
 		{"Waiting for postgres to be ready", "Postgres is ready"},
 		{"Starting OneCLI", "OneCLI started"},
+		{"Starting network guard", "Network guard started"},
 		{"Waiting for OneCLI readiness", "OneCLI ready"},
 		{"Clearing network rules", "Network rules cleared"},
+		{"Clearing firewall rules", "Firewall rules cleared"},
+		{fmt.Sprintf("Starting pod: %s", podName), "Pod started"},
+		{"Verifying container status", "Container status verified"},
+	}
+
+	if len(fakeLogger.startCalls) != len(expectedSteps) {
+		t.Fatalf("expected %d steps, got %d: %v", len(expectedSteps), len(fakeLogger.startCalls), fakeLogger.startCalls)
+	}
+	for i, want := range expectedSteps {
+		got := fakeLogger.startCalls[i]
+		if got.inProgress != want.inProgress || got.completed != want.completed {
+			t.Errorf("step %d: got {%q, %q}, want {%q, %q}", i, got.inProgress, got.completed, want.inProgress, want.completed)
+		}
+	}
+}
+
+func TestStart_DenyMode_ConfiguresNetworking(t *testing.T) {
+	t.Parallel()
+
+	containerID := "abc123def456"
+	fakeExec := exec.NewFake()
+
+	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) > 0 && args[0] == "exec" {
+			return []byte("accepting connections\n"), nil
+		}
+		output := fmt.Sprintf("%s|running|kdn-test\n", containerID)
+		return []byte(output), nil
+	}
+
+	var ruleActions []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/health":
+			w.WriteHeader(http.StatusOK)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/user/api-key":
+			_ = json.NewEncoder(w).Encode(map[string]string{"apiKey": "oc_testkey"})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/rules":
+			_ = json.NewEncoder(w).Encode([]any{})
+		case r.Method == http.MethodPost && r.URL.Path == "/api/rules":
+			var body struct {
+				Action string `json:"action"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			ruleActions = append(ruleActions, body.Action)
+			_ = json.NewEncoder(w).Encode(map[string]string{"id": "new-rule"})
+		default:
+			t.Errorf("unexpected OneCLI request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	p.onecliBaseURLFn = func(_ int) string { return server.URL }
+	podName := setupPodFilesWithSource(t, p, containerID, "test-ws", `{"network":{"mode":"deny","hosts":["*.github.com","registry.npmjs.org"]}}`)
+
+	_, err := p.Start(context.Background(), containerID)
+	if err != nil {
+		t.Fatalf("Start() failed: %v", err)
+	}
+
+	// A single manual_approval catch-all rule should be created; the approval-handler
+	// decides per-request using the hosts list, so OneCLI doesn't need per-host rules.
+	if len(ruleActions) != 1 || ruleActions[0] != "manual_approval" {
+		t.Errorf("expected one manual_approval rule, got: %v", ruleActions)
+	}
+
+	// config.json must contain the glob pattern so the approval-handler's matchesPattern
+	// can approve api.github.com when *.github.com is in the hosts list.
+	approvalDir := filepath.Join(p.storageDir, "approval-handler", "test-ws")
+	data, readErr := os.ReadFile(filepath.Join(approvalDir, "config.json"))
+	if readErr != nil {
+		t.Fatalf("reading config.json: %v", readErr)
+	}
+	var cfg approvalHandlerConfig
+	if jsonErr := json.Unmarshal(data, &cfg); jsonErr != nil {
+		t.Fatalf("unmarshaling config.json: %v", jsonErr)
+	}
+	if len(cfg.Hosts) != 2 || cfg.Hosts[0] != "*.github.com" || cfg.Hosts[1] != "registry.npmjs.org" {
+		t.Errorf("config.hosts = %v, want [*.github.com registry.npmjs.org]", cfg.Hosts)
+	}
+
+	// Approval-handler must be started individually after config.json is written,
+	// not via pod start (which would run it before config is available).
+	fakeExec.AssertRunCalledWith(t, "start", podName+"-approval-handler")
+
+	// Pod start brings up the workspace agent container last.
+	fakeExec.AssertRunCalledWith(t, "pod", "start", podName)
+}
+
+func TestStart_DenyMode_StepLogger(t *testing.T) {
+	t.Parallel()
+
+	containerID := "abc123def456"
+	fakeExec := exec.NewFake()
+
+	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) > 0 && args[0] == "exec" {
+			return []byte("accepting connections\n"), nil
+		}
+		output := fmt.Sprintf("%s|running|kdn-test\n", containerID)
+		return []byte(output), nil
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/health":
+			w.WriteHeader(http.StatusOK)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/user/api-key":
+			_ = json.NewEncoder(w).Encode(map[string]string{"apiKey": "oc_testkey"})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/rules":
+			_ = json.NewEncoder(w).Encode([]any{})
+		case r.Method == http.MethodPost && r.URL.Path == "/api/rules":
+			_ = json.NewEncoder(w).Encode(map[string]string{"id": "new-rule"})
+		default:
+			t.Errorf("unexpected OneCLI request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	p.onecliBaseURLFn = func(_ int) string { return server.URL }
+	podName := setupPodFilesWithSource(t, p, containerID, "test-ws", `{"network":{"mode":"deny","hosts":["*.github.com"]}}`)
+
+	fakeLogger := &fakeStepLogger{}
+	ctx := steplogger.WithLogger(context.Background(), fakeLogger)
+
+	_, err := p.Start(ctx, containerID)
+	if err != nil {
+		t.Fatalf("Start() failed: %v", err)
+	}
+
+	expectedSteps := []stepCall{
+		{"Starting postgres", "Postgres started"},
+		{"Waiting for postgres to be ready", "Postgres is ready"},
+		{"Starting OneCLI", "OneCLI started"},
+		{"Starting network guard", "Network guard started"},
+		{"Waiting for OneCLI readiness", "OneCLI ready"},
+		{"Configuring network rules", "Network rules configured"},
+		{"Configuring firewall rules", "Firewall rules configured"},
+		{"Starting approval handler", "Approval handler started"},
 		{fmt.Sprintf("Starting pod: %s", podName), "Pod started"},
 		{"Verifying container status", "Container status verified"},
 	}

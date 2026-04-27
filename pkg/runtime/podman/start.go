@@ -105,6 +105,14 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 		wsCfg.Network.Hosts != nil &&
 		len(*wsCfg.Network.Hosts) > 0
 
+	// Start the network-guard container so we can exec nftables commands into it.
+	networkGuardContainer := podName + "-network-guard"
+	stepLogger.Start("Starting network guard", "Network guard started")
+	if err := p.executor.Run(ctx, l.Stdout(), l.Stderr(), "start", networkGuardContainer); err != nil {
+		stepLogger.Fail(err)
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to start network-guard container: %w", err)
+	}
+
 	// Always connect to OneCLI so networking state is kept consistent across
 	// mode switches without recreating the workspace.
 	onecliBaseURL := p.onecliURL(tmplData.OnecliWebPort)
@@ -124,6 +132,13 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 			return runtime.RuntimeInfo{}, fmt.Errorf("failed to configure networking: %w", err)
 		}
 
+		// Apply nftables firewall rules to block direct outbound from the agent UID.
+		stepLogger.Start("Configuring firewall rules", "Firewall rules configured")
+		if err := p.setupFirewallRules(ctx, podName, tmplData.AgentUID); err != nil {
+			stepLogger.Fail(err)
+			return runtime.RuntimeInfo{}, fmt.Errorf("failed to set up firewall rules: %w", err)
+		}
+
 		// Start the approval-handler now that config.json is in place.
 		approvalContainer := podName + "-approval-handler"
 		stepLogger.Start("Starting approval handler", "Approval handler started")
@@ -132,11 +147,18 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 			return runtime.RuntimeInfo{}, fmt.Errorf("failed to start approval handler: %w", err)
 		}
 	} else {
-		// Clear any leftover rules from a previous deny-mode start.
+		// Clear any leftover OneCLI proxy rules from a previous deny-mode start.
 		stepLogger.Start("Clearing network rules", "Network rules cleared")
 		if err := p.clearNetworkingRules(ctx, onecliBaseURL); err != nil {
 			stepLogger.Fail(err)
 			return runtime.RuntimeInfo{}, fmt.Errorf("failed to clear networking rules: %w", err)
+		}
+
+		// Clear any leftover nftables firewall rules from a previous deny-mode start.
+		stepLogger.Start("Clearing firewall rules", "Firewall rules cleared")
+		if err := p.clearFirewallRules(ctx, podName); err != nil {
+			stepLogger.Fail(err)
+			return runtime.RuntimeInfo{}, fmt.Errorf("failed to clear firewall rules: %w", err)
 		}
 	}
 

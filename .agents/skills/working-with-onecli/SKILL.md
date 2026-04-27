@@ -175,17 +175,63 @@ for _, name := range *mergedConfig.Secrets {
 
 ## Deny-mode Networking
 
-When a workspace is configured with `network.mode = deny`, outbound HTTP traffic from the agent container is intercepted by the OneCLI proxy. A single `manual_approval` rule covering all hosts (`*`) is created. Every intercepted request is held by the OneCLI gateway until the approval-handler sidecar approves or denies it.
+When a workspace is configured with `network.mode = deny`, two layers of enforcement prevent the agent from reaching the internet directly:
+
+1. **nftables firewall (kernel level)**: A `network-guard` sidecar container with `CAP_NET_ADMIN` sets nftables OUTPUT rules that DROP all outbound traffic from the agent's UID. Only loopback (intra-pod) and `host.containers.internal` (host-local services) are allowed. This prevents bypassing the proxy by unsetting `HTTP_PROXY`.
+2. **OneCLI proxy (application level)**: A `manual_approval` rule covering all hosts (`*`) is created. The approval-handler sidecar approves or denies each intercepted request based on the configured `hosts` list.
 
 ### Architecture
 
-```
-agent container
-  │  (HTTP_PROXY → OneCLI)
+```text
+agent container (UID blocked by nftables except loopback + host gateway)
+  │  (HTTP_PROXY → OneCLI on localhost)
   ▼
 OneCLI gateway (port 10255) ──► approval-handler sidecar
-                                  (polls gateway, approves/denies per hosts list)
+  │                               (polls gateway, approves/denies per hosts list)
+  ▼
+Internet (only OneCLI can reach it)
 ```
+
+### nftables firewall enforcement
+
+The `network-guard` container (`pkg/runtime/podman/pods/onecli-pod.yaml`) runs the same Fedora base image as the workspace. It has `CAP_NET_ADMIN` and installs `nftables` on first start, then sleeps. During `Start()`, the Podman runtime execs `nft` commands into this container.
+
+**Key files:**
+
+- `pkg/runtime/podman/network.go` — `setupFirewallRules()` / `clearFirewallRules()` / `buildNftScript()`
+- `pkg/runtime/podman/pods/onecli-pod.yaml` — network-guard container definition
+
+**nftables rules (deny mode):**
+
+```bash
+# IPv4 — default accept, block agent UID (except loopback + host gateway)
+nft add chain ip filter output '{ type filter hook output priority 0; policy accept; }'
+nft add rule ip filter output oif lo accept
+nft add rule ip filter output ip daddr <host-gw-ip> accept   # if resolvable
+nft add rule ip filter output meta skuid <agent-uid> drop
+
+# IPv6 — mirror (without host gateway since it's IPv4 only)
+nft add chain ip6 filter output '{ type filter hook output priority 0; policy accept; }'
+nft add rule ip6 filter output oif lo accept
+nft add rule ip6 filter output meta skuid <agent-uid> drop
+```
+
+Rules are **idempotent**: existing tables are deleted before being recreated on each `Start()`.
+
+**Always-allowed destinations:**
+
+- **localhost / loopback** (`oif lo accept`): Intra-pod communication — OneCLI proxy, postgres, local web servers. Required for the proxy to work.
+- **`host.containers.internal`** (resolved IP): The host machine gateway. Allows agents to reach host-local services like Ollama, RamaLama, or any LLM provider running on the host.
+
+**Why the agent cannot remove the rules:**
+
+- The workspace container does NOT have `CAP_NET_ADMIN` — only network-guard does
+- `nft` commands from the workspace container fail with EPERM
+- Even `sudo nft flush ruleset` fails because the capability is absent from the container
+
+**In allow mode**, `clearFirewallRules()` deletes the filter tables to restore default connectivity.
+
+### Application-level enforcement (OneCLI + approval-handler)
 
 ### Approval-handler sidecar
 
