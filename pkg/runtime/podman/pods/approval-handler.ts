@@ -43,10 +43,18 @@ const onecli = new OneCLI({
   apiKey: config.apiKey,
 });
 
+function matchesPattern(pattern: string, hostname: string): boolean {
+  if (pattern === "*") return true;
+  if (!pattern.includes("*")) return pattern === hostname;
+  // Convert glob to regex: * matches one hostname segment (no dots)
+  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  return new RegExp("^" + escaped.replace(/\*/g, "[^.]+") + "$").test(hostname);
+}
+
 const handle = onecli.configureManualApproval(async (request) => {
   // Strip port from host (e.g. "api.github.com:443" → "api.github.com")
   const hostname = request.host.split(":")[0];
-  const decision = allowedHosts.has("*") || allowedHosts.has(hostname) ? "approve" : "deny";
+  const decision = [...allowedHosts].some((p) => matchesPattern(p, hostname)) ? "approve" : "deny";
   console.log(`approval-handler: ${decision} ${request.host} (hostname: ${hostname})`);
   return decision;
 });
