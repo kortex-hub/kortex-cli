@@ -57,8 +57,12 @@ console.log("approval-handler: listening for approval requests");
 // hold the event loop open on its own.
 const keepalive = setInterval(() => {}, 1 << 30);
 
-process.on("SIGTERM", () => {
-  console.log("approval-handler: received SIGTERM, stopping");
+function shutdown(signal: string): void {
+  console.log(`approval-handler: received ${signal}, stopping`);
   clearInterval(keepalive);
   handle.stop();
-});
+}
+
+// SIGTERM on Linux/macOS; SIGINT covers Ctrl+C on all platforms including Windows.
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

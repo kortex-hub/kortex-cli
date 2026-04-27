@@ -30,12 +30,12 @@ import (
 
 // podmanRuntime implements the runtime.Runtime interface for Podman.
 type podmanRuntime struct {
-	system          system.System
-	executor        exec.Executor
-	storageDir      string                // Runtime-specific storage: <globalStorageDir>/runtimes/podman
-	globalStorageDir string               // Top-level kdn storage dir: where config/projects.json lives
-	config          config.Config         // Configuration manager for runtime settings
-	onecliBaseURLFn func(port int) string // overridable in tests; nil uses default http://localhost:<port>
+	system           system.System
+	executor         exec.Executor
+	storageDir       string                // Runtime-specific storage: <globalStorageDir>/runtimes/podman
+	globalStorageDir string                // Top-level kdn storage dir: where config/projects.json lives
+	config           config.Config         // Configuration manager for runtime settings
+	onecliBaseURLFn  func(port int) string // overridable in tests; nil uses default http://localhost:<port>
 }
 
 // onecliURL returns the base URL for the OneCLI service on the given port.
