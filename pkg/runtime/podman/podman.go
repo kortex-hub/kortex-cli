@@ -25,6 +25,7 @@ import (
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/config"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/exec"
+	podmanSystem "github.com/openkaiden/kdn/pkg/runtime/podman/system"
 	"github.com/openkaiden/kdn/pkg/system"
 )
 
@@ -192,6 +193,7 @@ func (p *podmanRuntime) readPodTemplateData(containerID string) (podTemplateData
 	if err := json.Unmarshal(data, &tmplData); err != nil {
 		return podTemplateData{}, fmt.Errorf("failed to unmarshal pod template data: %w", err)
 	}
+	tmplData.ApprovalHandlerDir = podmanSystem.MachinePathToHostPath(tmplData.ApprovalHandlerDir)
 	return tmplData, nil
 }
 
