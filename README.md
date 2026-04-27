@@ -1211,6 +1211,41 @@ kdn init /path/to/another-project --runtime podman --agent claude --start
 - If the workspace fails to start, the registration still succeeds, but an error is returned
 - The `--start` flag always takes precedence over the environment variable
 
+### `KDN_AUTOCOMPLETE_IGNORE_IDS`
+
+Hides workspace IDs from shell autocompletion, so only names are suggested.
+
+By default, commands like `kdn start`, `kdn stop`, and `kdn remove` autocomplete both workspace IDs and names. If only one workspace exists, the shell cannot complete the argument immediately because there are two candidates (ID and name). Setting `KDN_AUTOCOMPLETE_IGNORE_IDS` removes IDs from the suggestions, allowing instant completion when a single workspace is registered.
+
+**Usage:**
+
+```bash
+export KDN_AUTOCOMPLETE_IGNORE_IDS=1
+kdn start <TAB>   # suggests names only
+```
+
+**Supported Values:**
+
+The environment variable accepts the following truthy values (case-insensitive):
+- `1`
+- `true`, `True`, `TRUE`
+- `yes`, `Yes`, `YES`
+
+Any other value (including `0`, `false`, `no`, or empty string) keeps the default behaviour of suggesting both IDs and names.
+
+**Example:**
+
+```bash
+# Show only names during tab-completion
+export KDN_AUTOCOMPLETE_IGNORE_IDS=1
+kdn start <TAB>      # completes to the workspace name immediately if only one exists
+kdn stop <TAB>
+kdn remove <TAB>
+
+# Restore default behaviour (show IDs and names)
+unset KDN_AUTOCOMPLETE_IGNORE_IDS
+```
+
 ## Podman Runtime
 
 The Podman runtime provides a container-based development environment for workspaces. It creates an isolated environment with all necessary tools pre-installed and configured.

@@ -920,6 +920,243 @@ func TestCompleteDashboardWorkspaceID(t *testing.T) {
 	})
 }
 
+func TestIsTruthyEnv(t *testing.T) {
+	t.Parallel()
+
+	truthy := []string{"1", "true", "True", "TRUE", "yes", "Yes", "YES"}
+	for _, v := range truthy {
+		v := v
+		t.Run("truthy_"+v, func(t *testing.T) {
+			t.Parallel()
+			if !isTruthyEnv(v) {
+				t.Errorf("expected isTruthyEnv(%q) to be true", v)
+			}
+		})
+	}
+
+	falsy := []string{"0", "false", "no", "", "random"}
+	for _, v := range falsy {
+		v := v
+		t.Run("falsy_"+v, func(t *testing.T) {
+			t.Parallel()
+			if isTruthyEnv(v) {
+				t.Errorf("expected isTruthyEnv(%q) to be false", v)
+			}
+		})
+	}
+}
+
+func TestCompleteWorkspaceIDIgnoreIDs(t *testing.T) {
+	// Cannot use t.Parallel() on the parent because subtests use t.Setenv.
+
+	ctx := context.Background()
+
+	setup := func(t *testing.T) (storageDir string, id1, name1, id2, name2 string) {
+		t.Helper()
+		storageDir = t.TempDir()
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("failed to create manager: %v", err)
+		}
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("failed to register fake runtime: %v", err)
+		}
+
+		src1 := t.TempDir()
+		inst1, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: src1,
+			ConfigDir: filepath.Join(src1, ".kaiden"),
+		})
+		if err != nil {
+			t.Fatalf("failed to create instance1: %v", err)
+		}
+		added1, err := manager.Add(ctx, instances.AddOptions{Instance: inst1, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("failed to add instance1: %v", err)
+		}
+
+		src2 := t.TempDir()
+		inst2, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: src2,
+			ConfigDir: filepath.Join(src2, ".kaiden"),
+		})
+		if err != nil {
+			t.Fatalf("failed to create instance2: %v", err)
+		}
+		added2, err := manager.Add(ctx, instances.AddOptions{Instance: inst2, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("failed to add instance2: %v", err)
+		}
+
+		return storageDir, added1.GetID(), added1.GetName(), added2.GetID(), added2.GetName()
+	}
+
+	t.Run("returns IDs and names when KDN_AUTOCOMPLETE_IGNORE_IDS is not set", func(t *testing.T) {
+		t.Setenv("KDN_AUTOCOMPLETE_IGNORE_IDS", "")
+
+		storageDir, id1, name1, id2, name2 := setup(t)
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "")
+
+		completions, directive := completeWorkspaceID(cmd, []string{}, "")
+
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("Expected ShellCompDirectiveNoFileComp, got %v", directive)
+		}
+		if len(completions) != 4 {
+			t.Errorf("Expected 4 completions (ID+name for each), got %d: %v", len(completions), completions)
+		}
+		set := make(map[string]bool)
+		for _, c := range completions {
+			set[c] = true
+		}
+		for _, v := range []string{id1, name1, id2, name2} {
+			if !set[v] {
+				t.Errorf("Expected %q in completions, got %v", v, completions)
+			}
+		}
+	})
+
+	t.Run("returns only names when KDN_AUTOCOMPLETE_IGNORE_IDS is truthy", func(t *testing.T) {
+		t.Setenv("KDN_AUTOCOMPLETE_IGNORE_IDS", "1")
+
+		storageDir, id1, name1, id2, name2 := setup(t)
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "")
+
+		completions, directive := completeWorkspaceID(cmd, []string{}, "")
+
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("Expected ShellCompDirectiveNoFileComp, got %v", directive)
+		}
+		if len(completions) != 2 {
+			t.Errorf("Expected 2 completions (names only), got %d: %v", len(completions), completions)
+		}
+		set := make(map[string]bool)
+		for _, c := range completions {
+			set[c] = true
+		}
+		for _, name := range []string{name1, name2} {
+			if !set[name] {
+				t.Errorf("Expected name %q in completions, got %v", name, completions)
+			}
+		}
+		for _, id := range []string{id1, id2} {
+			if set[id] {
+				t.Errorf("Did not expect ID %q in completions when KDN_AUTOCOMPLETE_IGNORE_IDS=1", id)
+			}
+		}
+	})
+}
+
+func TestCompleteDashboardWorkspaceIDIgnoreIDs(t *testing.T) {
+	// Cannot use t.Parallel() on the parent because subtests use t.Setenv.
+
+	ctx := context.Background()
+
+	t.Run("returns ID and name when KDN_AUTOCOMPLETE_IGNORE_IDS is not set", func(t *testing.T) {
+		t.Setenv("KDN_AUTOCOMPLETE_IGNORE_IDS", "")
+
+		storageDir := t.TempDir()
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("failed to create manager: %v", err)
+		}
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("failed to register fake runtime: %v", err)
+		}
+		src := t.TempDir()
+		inst, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: src,
+			ConfigDir: filepath.Join(src, ".kaiden"),
+		})
+		if err != nil {
+			t.Fatalf("failed to create instance: %v", err)
+		}
+		added, err := manager.Add(ctx, instances.AddOptions{Instance: inst, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("failed to add instance: %v", err)
+		}
+		if err := manager.Start(ctx, added.GetID()); err != nil {
+			t.Fatalf("failed to start instance: %v", err)
+		}
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "")
+
+		completions, directive := completeDashboardWorkspaceIDWith(cmd, func(_ string) ([]string, error) {
+			return []string{"fake"}, nil
+		})
+
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("Expected ShellCompDirectiveNoFileComp, got %v", directive)
+		}
+		if len(completions) != 2 {
+			t.Errorf("Expected 2 completions (ID and name), got %d: %v", len(completions), completions)
+		}
+		set := make(map[string]bool)
+		for _, c := range completions {
+			set[c] = true
+		}
+		if !set[added.GetID()] {
+			t.Errorf("Expected ID %q in completions, got %v", added.GetID(), completions)
+		}
+		if !set[added.GetName()] {
+			t.Errorf("Expected name %q in completions, got %v", added.GetName(), completions)
+		}
+	})
+
+	t.Run("returns only name when KDN_AUTOCOMPLETE_IGNORE_IDS is truthy", func(t *testing.T) {
+		t.Setenv("KDN_AUTOCOMPLETE_IGNORE_IDS", "true")
+
+		storageDir := t.TempDir()
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("failed to create manager: %v", err)
+		}
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("failed to register fake runtime: %v", err)
+		}
+		src := t.TempDir()
+		inst, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: src,
+			ConfigDir: filepath.Join(src, ".kaiden"),
+		})
+		if err != nil {
+			t.Fatalf("failed to create instance: %v", err)
+		}
+		added, err := manager.Add(ctx, instances.AddOptions{Instance: inst, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("failed to add instance: %v", err)
+		}
+		if err := manager.Start(ctx, added.GetID()); err != nil {
+			t.Fatalf("failed to start instance: %v", err)
+		}
+
+		cmd := &cobra.Command{}
+		cmd.Flags().String("storage", storageDir, "")
+
+		completions, directive := completeDashboardWorkspaceIDWith(cmd, func(_ string) ([]string, error) {
+			return []string{"fake"}, nil
+		})
+
+		if directive != cobra.ShellCompDirectiveNoFileComp {
+			t.Errorf("Expected ShellCompDirectiveNoFileComp, got %v", directive)
+		}
+		if len(completions) != 1 {
+			t.Errorf("Expected 1 completion (name only), got %d: %v", len(completions), completions)
+		}
+		if len(completions) > 0 && completions[0] != added.GetName() {
+			t.Errorf("Expected name %q, got %q", added.GetName(), completions[0])
+		}
+		for _, c := range completions {
+			if c == added.GetID() {
+				t.Errorf("Did not expect ID %q in completions when KDN_AUTOCOMPLETE_IGNORE_IDS=true", added.GetID())
+			}
+		}
+	})
+}
+
 func TestCompleteRuntimeFlag(t *testing.T) {
 	t.Parallel()
 

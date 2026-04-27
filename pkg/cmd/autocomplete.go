@@ -32,6 +32,15 @@ import (
 // stateFilter is a function that determines if an instance with the given state should be included
 type stateFilter func(state api.WorkspaceState) bool
 
+// isTruthyEnv returns true if val is a recognised truthy string ("1", "true", "yes" in any case).
+func isTruthyEnv(val string) bool {
+	switch val {
+	case "1", "true", "True", "TRUE", "yes", "Yes", "YES":
+		return true
+	}
+	return false
+}
+
 // getFilteredWorkspaceIDs retrieves workspace IDs and names, optionally filtered by state
 func getFilteredWorkspaceIDs(cmd *cobra.Command, filter stateFilter) ([]string, cobra.ShellCompDirective) {
 	// Get storage directory from global flag
@@ -64,14 +73,17 @@ func getFilteredWorkspaceIDs(cmd *cobra.Command, filter stateFilter) ([]string, 
 		return nil, cobra.ShellCompDirectiveError
 	}
 
+	ignoreIDs := isTruthyEnv(os.Getenv("KDN_AUTOCOMPLETE_IGNORE_IDS"))
+
 	// Extract IDs and names with optional filtering
 	var completions []string
 	for _, instance := range instancesList {
 		state := instance.GetRuntimeData().State
 		// Apply filter if provided, otherwise include all
 		if filter == nil || filter(state) {
-			// Add both ID and name for better discoverability
-			completions = append(completions, instance.GetID())
+			if !ignoreIDs {
+				completions = append(completions, instance.GetID())
+			}
 			completions = append(completions, instance.GetName())
 		}
 	}
@@ -149,12 +161,16 @@ func completeDashboardWorkspaceIDWith(cmd *cobra.Command, listDashboardTypes fun
 		return nil, cobra.ShellCompDirectiveError
 	}
 
+	ignoreIDs := isTruthyEnv(os.Getenv("KDN_AUTOCOMPLETE_IGNORE_IDS"))
+
 	var completions []string
 	for _, instance := range instancesList {
 		runtimeData := instance.GetRuntimeData()
 		if runtimeData.State == api.WorkspaceStateRunning {
 			if _, ok := dashboardTypeSet[runtimeData.Type]; ok {
-				completions = append(completions, instance.GetID())
+				if !ignoreIDs {
+					completions = append(completions, instance.GetID())
+				}
 				completions = append(completions, instance.GetName())
 			}
 		}
