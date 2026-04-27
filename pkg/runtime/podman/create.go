@@ -31,6 +31,7 @@ import (
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/config"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/pods"
+	podmanSystem "github.com/openkaiden/kdn/pkg/runtime/podman/system"
 	"github.com/openkaiden/kdn/pkg/steplogger"
 )
 
@@ -398,7 +399,7 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		OnecliVersion:      defaultOnecliVersion,
 		SourcePath:         params.SourcePath,
 		ProjectID:          params.ProjectID,
-		ApprovalHandlerDir: approvalHandlerDir,
+		ApprovalHandlerDir: podmanSystem.HostPathToMachinePath(approvalHandlerDir),
 	}
 
 	tmpPodDir := filepath.Join(instanceDir, "pod")
