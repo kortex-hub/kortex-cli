@@ -46,7 +46,7 @@ const onecli = new OneCLI({
 const handle = onecli.configureManualApproval(async (request) => {
   // Strip port from host (e.g. "api.github.com:443" → "api.github.com")
   const hostname = request.host.split(":")[0];
-  const decision = allowedHosts.has(hostname) ? "approve" : "deny";
+  const decision = allowedHosts.has("*") || allowedHosts.has(hostname) ? "approve" : "deny";
   console.log(`approval-handler: ${decision} ${request.host} (hostname: ${hostname})`);
   return decision;
 });
