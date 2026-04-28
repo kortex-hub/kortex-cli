@@ -28,6 +28,7 @@ import (
 // fakeSecretService is a test implementation of the SecretService interface
 type fakeSecretService struct {
 	name           string
+	description    string
 	hostsPatterns  []string
 	path           string
 	envVars        []string
@@ -36,6 +37,7 @@ type fakeSecretService struct {
 }
 
 func (f *fakeSecretService) Name() string            { return f.name }
+func (f *fakeSecretService) Description() string     { return f.description }
 func (f *fakeSecretService) HostsPatterns() []string { return f.hostsPatterns }
 func (f *fakeSecretService) Path() string            { return f.path }
 func (f *fakeSecretService) EnvVars() []string       { return f.envVars }
@@ -196,6 +198,9 @@ func TestAvailableSecretServicesContainGitHub(t *testing.T) {
 	if svc.Name() != "github" {
 		t.Errorf("Name() = %q, want %q", svc.Name(), "github")
 	}
+	if svc.Description() == "" {
+		t.Error("Description() should not be empty")
+	}
 	if len(svc.HostsPatterns()) == 0 || svc.HostsPatterns()[0] != "api.github.com" {
 		t.Errorf("HostsPatterns() = %v, want %v", svc.HostsPatterns(), []string{"api.github.com"})
 	}
@@ -236,6 +241,9 @@ func TestAvailableSecretServicesContainGemini(t *testing.T) {
 	if svc.Name() != "gemini" {
 		t.Errorf("Name() = %q, want %q", svc.Name(), "gemini")
 	}
+	if svc.Description() == "" {
+		t.Error("Description() should not be empty")
+	}
 	if len(svc.HostsPatterns()) == 0 || svc.HostsPatterns()[0] != "generativelanguage.googleapis.com" {
 		t.Errorf("HostsPatterns() = %v, want %v", svc.HostsPatterns(), []string{"generativelanguage.googleapis.com"})
 	}
@@ -275,6 +283,9 @@ func TestAvailableSecretServicesContainAnthropic(t *testing.T) {
 
 	if svc.Name() != "anthropic" {
 		t.Errorf("Name() = %q, want %q", svc.Name(), "anthropic")
+	}
+	if svc.Description() == "" {
+		t.Error("Description() should not be empty")
 	}
 	if len(svc.HostsPatterns()) == 0 || svc.HostsPatterns()[0] != "api.anthropic.com" {
 		t.Errorf("HostsPatterns() = %v, want %v", svc.HostsPatterns(), []string{"api.anthropic.com"})

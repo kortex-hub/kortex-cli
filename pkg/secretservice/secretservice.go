@@ -27,6 +27,10 @@ type SecretService interface {
 	// Name returns the identifier of the secret service.
 	Name() string
 
+	// Description returns a human-readable description of the secret service.
+	// Returns an empty string if not set.
+	Description() string
+
 	// HostsPatterns returns the list of regular expression patterns for matching hosts.
 	// Returns nil if not set.
 	HostsPatterns() []string
@@ -51,6 +55,7 @@ type SecretService interface {
 // service is the concrete implementation of SecretService.
 type service struct {
 	name           string
+	description    string
 	hostsPatterns  []string
 	path           string
 	envVars        []string
@@ -62,9 +67,10 @@ type service struct {
 var _ SecretService = (*service)(nil)
 
 // NewSecretService creates a new SecretService implementation with the given parameters.
-func NewSecretService(name string, hostsPatterns []string, path string, envVars []string, headerName, headerTemplate string) SecretService {
+func NewSecretService(name string, hostsPatterns []string, path string, envVars []string, headerName, headerTemplate, description string) SecretService {
 	return &service{
 		name:           name,
+		description:    description,
 		hostsPatterns:  hostsPatterns,
 		path:           path,
 		envVars:        envVars,
@@ -76,6 +82,11 @@ func NewSecretService(name string, hostsPatterns []string, path string, envVars 
 // Name returns the identifier of the secret service.
 func (s *service) Name() string {
 	return s.name
+}
+
+// Description returns a human-readable description of the secret service.
+func (s *service) Description() string {
+	return s.description
 }
 
 // HostsPatterns returns the list of regular expression patterns for matching hosts.

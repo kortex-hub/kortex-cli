@@ -19,7 +19,7 @@ The secrets system uses a two-layer architecture: a **Store** that persists secr
 
 - **Store interface** (`pkg/secret/secret.go`): `Create(CreateParams) error`, `List() ([]ListItem, error)`, `Get(name string) (ListItem, string, error)`, `Remove(name string) error`
 - **Store implementation** (`pkg/secret/store.go`): writes the value to the keychain, metadata to `secrets.json`
-- **SecretService interface** (`pkg/secretservice/secretservice.go`): describes a named type — host pattern, path, header name, header template, env vars
+- **SecretService interface** (`pkg/secretservice/secretservice.go`): describes a named type — description, host pattern, path, header name, header template, env vars
 - **Registry** (`pkg/secretservice/registry.go`): maps names to `SecretService` implementations
 - **Centralized registration** (`pkg/secretservicesetup/register.go`): loads definitions from the embedded `secretservices.json` and exposes `ListAvailable()` and `RegisterAll()`
 

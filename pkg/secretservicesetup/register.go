@@ -42,6 +42,7 @@ var secretServicesJSON []byte
 // secretServiceDefinition represents a secret service entry in the embedded JSON file.
 type secretServiceDefinition struct {
 	Name           string   `json:"name"`
+	Description    string   `json:"description"`
 	HostsPatterns  []string `json:"hostsPatterns"`
 	Path           string   `json:"path"`
 	HeaderName     string   `json:"headerName"`
@@ -81,6 +82,7 @@ func loadSecretServices() ([]secretServiceFactory, error) {
 				d.EnvVars,
 				d.HeaderName,
 				d.HeaderTemplate,
+				d.Description,
 			)
 		})
 	}

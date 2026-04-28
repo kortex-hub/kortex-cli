@@ -146,6 +146,9 @@ func TestServiceListCmd_E2E(t *testing.T) {
 		if !strings.Contains(output, "ENV VARS") {
 			t.Errorf("Expected output to contain 'ENV VARS' header, got: %s", output)
 		}
+		if !strings.Contains(output, "DESCRIPTION") {
+			t.Errorf("Expected output to contain 'DESCRIPTION' header, got: %s", output)
+		}
 		if !strings.Contains(output, "Bearer ${value}") {
 			t.Errorf("Expected output to contain 'Bearer ${value}', got: %s", output)
 		}
@@ -181,6 +184,9 @@ func TestServiceListCmd_E2E(t *testing.T) {
 		for _, svc := range response.Items {
 			if svc.Name == "github" {
 				found = true
+				if svc.Description == "" {
+					t.Error("Expected non-empty Description for github service")
+				}
 				if len(svc.HostsPatterns) == 0 || svc.HostsPatterns[0] != "api.github.com" {
 					t.Errorf("Expected HostsPatterns %v, got %v", []string{"api.github.com"}, svc.HostsPatterns)
 				}

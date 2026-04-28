@@ -4499,6 +4499,7 @@ func TestManager_Add_Secrets(t *testing.T) {
 // fakeSecretServiceImpl is a test implementation of the SecretService interface
 type fakeSecretServiceImpl struct {
 	name           string
+	description    string
 	hostsPatterns  []string
 	path           string
 	envVars        []string
@@ -4507,6 +4508,7 @@ type fakeSecretServiceImpl struct {
 }
 
 func (f *fakeSecretServiceImpl) Name() string            { return f.name }
+func (f *fakeSecretServiceImpl) Description() string     { return f.description }
 func (f *fakeSecretServiceImpl) HostsPatterns() []string { return f.hostsPatterns }
 func (f *fakeSecretServiceImpl) Path() string            { return f.path }
 func (f *fakeSecretServiceImpl) EnvVars() []string       { return f.envVars }

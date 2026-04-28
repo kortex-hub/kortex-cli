@@ -26,6 +26,7 @@ import (
 // fakeSecretService is a test implementation of the SecretService interface
 type fakeSecretService struct {
 	name           string
+	description    string
 	hostsPatterns  []string
 	path           string
 	envVars        []string
@@ -34,6 +35,7 @@ type fakeSecretService struct {
 }
 
 func (f *fakeSecretService) Name() string            { return f.name }
+func (f *fakeSecretService) Description() string     { return f.description }
 func (f *fakeSecretService) HostsPatterns() []string { return f.hostsPatterns }
 func (f *fakeSecretService) Path() string            { return f.path }
 func (f *fakeSecretService) EnvVars() []string       { return f.envVars }

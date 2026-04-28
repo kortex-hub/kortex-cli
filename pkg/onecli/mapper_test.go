@@ -35,6 +35,7 @@ func registryWithGitHub(t *testing.T) secretservice.Registry {
 		[]string{"GH_TOKEN", "GITHUB_TOKEN"},
 		"Authorization",
 		"Bearer ${value}",
+		"",
 	)
 	if err := reg.Register(svc); err != nil {
 		t.Fatal(err)
@@ -93,6 +94,7 @@ func TestMapper_KnownType_MultiplePatterns(t *testing.T) {
 		nil,
 		"Authorization",
 		"Bearer ${value}",
+		"",
 	)
 	if err := reg.Register(svc); err != nil {
 		t.Fatal(err)
@@ -126,7 +128,7 @@ func TestMapper_KnownType_EmptyPatterns(t *testing.T) {
 	t.Parallel()
 
 	reg := secretservice.NewRegistry()
-	svc := secretservice.NewSecretService("empty", nil, "", nil, "X-Token", "${value}")
+	svc := secretservice.NewSecretService("empty", nil, "", nil, "X-Token", "${value}", "")
 	if err := reg.Register(svc); err != nil {
 		t.Fatal(err)
 	}
