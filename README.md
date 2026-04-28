@@ -1791,10 +1791,11 @@ Control network access for the workspace. By default, network access is denied (
 **Fields:**
 - `mode` (optional) - Network access mode
   - `"allow"` - Permits all network access (no restrictions)
-  - `"deny"` - Blocks all network access except the specified hosts (default)
+  - `"deny"` - Blocks all outbound network access from the workspace agent, except for the hosts listed in `hosts` and the hosts associated with configured secrets
 - `hosts` (optional) - List of hostnames to allow when in deny mode
   - Only meaningful when mode is `"deny"`
   - Each entry must be a non-empty string
+  - Omitting `hosts` (or leaving it empty) is valid: the workspace is fully isolated, with no outbound access permitted unless secrets contribute hosts
 
 **Automatic secret host injection:** When `mode` is `"deny"` and secrets are configured, kdn automatically adds the hosts associated with those secrets to the allowed list. You do not need to list them explicitly under `hosts`. For example, a `github` secret automatically allows `api.github.com` without any `hosts` entry.
 
@@ -1983,6 +1984,15 @@ mount at index 0 is missing host
   "network": {
     "mode": "deny",
     "hosts": ["api.github.com", "registry.npmjs.org"]
+  }
+}
+```
+
+**Network access - fully isolated (deny, no hosts):**
+```json
+{
+  "network": {
+    "mode": "deny"
   }
 }
 ```
