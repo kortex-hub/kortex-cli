@@ -26,6 +26,8 @@ import (
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/config"
 	"github.com/openkaiden/kdn/pkg/onecli"
+	"github.com/openkaiden/kdn/pkg/secret"
+	"github.com/openkaiden/kdn/pkg/secretservice"
 )
 
 // loadNetworkConfig reads the merged workspace configuration for a project by
@@ -55,6 +57,78 @@ func loadNetworkConfig(sourcePath, storageDir, projectID string) (*workspace.Wor
 	}
 
 	return merged, nil
+}
+
+// collectSecretHosts returns the host patterns contributed by the secrets
+// listed in wsCfg. For known secret types, patterns come from the secret
+// service registry; for "other" secrets, they come from the stored metadata.
+// Returns nil when any required input is nil or when no secrets are configured.
+func collectSecretHosts(wsCfg *workspace.WorkspaceConfiguration, store secret.Store, registry secretservice.Registry) []string {
+	if wsCfg == nil || wsCfg.Secrets == nil || len(*wsCfg.Secrets) == 0 {
+		return nil
+	}
+	if store == nil || registry == nil {
+		return nil
+	}
+
+	items, err := store.List()
+	if err != nil {
+		return nil
+	}
+
+	byName := make(map[string]secret.ListItem, len(items))
+	for _, item := range items {
+		byName[item.Name] = item
+	}
+
+	seen := make(map[string]bool)
+	var hosts []string
+	for _, name := range *wsCfg.Secrets {
+		item, ok := byName[name]
+		if !ok {
+			continue
+		}
+		var itemHosts []string
+		if item.Type == secret.TypeOther {
+			itemHosts = item.Hosts
+		} else {
+			svc, svcErr := registry.Get(item.Type)
+			if svcErr != nil {
+				continue
+			}
+			itemHosts = svc.HostsPatterns()
+		}
+		for _, h := range itemHosts {
+			if !seen[h] {
+				seen[h] = true
+				hosts = append(hosts, h)
+			}
+		}
+	}
+	return hosts
+}
+
+// mergeHosts returns a deduplicated list of all hosts from a and b,
+// preserving order (a first, then new entries from b).
+func mergeHosts(a, b []string) []string {
+	if len(b) == 0 {
+		return a
+	}
+	seen := make(map[string]bool, len(a)+len(b))
+	result := make([]string, 0, len(a)+len(b))
+	for _, h := range a {
+		if !seen[h] {
+			seen[h] = true
+			result = append(result, h)
+		}
+	}
+	for _, h := range b {
+		if !seen[h] {
+			seen[h] = true
+			result = append(result, h)
+		}
+	}
+	return result
 }
 
 // approvalHandlerConfig is serialized to config.json in the approval-handler

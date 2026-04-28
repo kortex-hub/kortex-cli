@@ -17,6 +17,7 @@ package podman
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -25,8 +26,11 @@ import (
 	"strings"
 	"testing"
 
+	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/onecli"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/exec"
+	"github.com/openkaiden/kdn/pkg/secret"
+	"github.com/openkaiden/kdn/pkg/secretservice"
 )
 
 func assertAuth(t *testing.T, r *http.Request) {
@@ -518,6 +522,205 @@ func TestClearFirewallRules(t *testing.T) {
 		err := rt.clearFirewallRules(context.Background(), "my-pod")
 		if err == nil {
 			t.Fatal("expected error, got nil")
+		}
+	})
+}
+
+// fakeSecretStore implements secret.Store using a pre-populated list.
+type fakeSecretStore struct {
+	items []secret.ListItem
+	err   error
+}
+
+var _ secret.Store = (*fakeSecretStore)(nil)
+
+func (f *fakeSecretStore) List() ([]secret.ListItem, error) { return f.items, f.err }
+func (f *fakeSecretStore) Get(string) (secret.ListItem, string, error) {
+	return secret.ListItem{}, "", nil
+}
+func (f *fakeSecretStore) Create(secret.CreateParams) error { return nil }
+func (f *fakeSecretStore) Remove(string) error              { return nil }
+
+func makeSecretService(name string, patterns []string) secretservice.SecretService {
+	return secretservice.NewSecretService(name, patterns, "", nil, "", "")
+}
+
+func makeRegistry(services ...secretservice.SecretService) secretservice.Registry {
+	reg := secretservice.NewRegistry()
+	for _, svc := range services {
+		_ = reg.Register(svc)
+	}
+	return reg
+}
+
+func denyConfig(secrets []string) *workspace.WorkspaceConfiguration {
+	mode := workspace.Deny
+	cfg := &workspace.WorkspaceConfiguration{
+		Network: &workspace.NetworkConfiguration{Mode: &mode},
+	}
+	if len(secrets) > 0 {
+		cfg.Secrets = &secrets
+	}
+	return cfg
+}
+
+func TestCollectSecretHosts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil config returns nil", func(t *testing.T) {
+		t.Parallel()
+		if got := collectSecretHosts(nil, &fakeSecretStore{}, makeRegistry()); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("nil secrets field returns nil", func(t *testing.T) {
+		t.Parallel()
+		cfg := &workspace.WorkspaceConfiguration{}
+		if got := collectSecretHosts(cfg, &fakeSecretStore{}, makeRegistry()); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("empty secrets list returns nil", func(t *testing.T) {
+		t.Parallel()
+		cfg := denyConfig([]string{})
+		if got := collectSecretHosts(cfg, &fakeSecretStore{}, makeRegistry()); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("nil store returns nil", func(t *testing.T) {
+		t.Parallel()
+		cfg := denyConfig([]string{"mysecret"})
+		if got := collectSecretHosts(cfg, nil, makeRegistry()); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("nil registry returns nil", func(t *testing.T) {
+		t.Parallel()
+		cfg := denyConfig([]string{"mysecret"})
+		if got := collectSecretHosts(cfg, &fakeSecretStore{}, nil); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("known type secret returns service host patterns", func(t *testing.T) {
+		t.Parallel()
+		store := &fakeSecretStore{items: []secret.ListItem{{Name: "mygithub", Type: "github"}}}
+		reg := makeRegistry(makeSecretService("github", []string{"api.github.com"}))
+		got := collectSecretHosts(denyConfig([]string{"mygithub"}), store, reg)
+		if len(got) != 1 || got[0] != "api.github.com" {
+			t.Errorf("got %v, want [api.github.com]", got)
+		}
+	})
+
+	t.Run("other type secret returns item hosts", func(t *testing.T) {
+		t.Parallel()
+		store := &fakeSecretStore{
+			items: []secret.ListItem{
+				{Name: "mykey", Type: secret.TypeOther, Hosts: []string{"api.example.com", "api2.example.com"}},
+			},
+		}
+		got := collectSecretHosts(denyConfig([]string{"mykey"}), store, makeRegistry())
+		if len(got) != 2 || got[0] != "api.example.com" || got[1] != "api2.example.com" {
+			t.Errorf("got %v, want [api.example.com api2.example.com]", got)
+		}
+	})
+
+	t.Run("deduplicates hosts across multiple secrets of the same type", func(t *testing.T) {
+		t.Parallel()
+		store := &fakeSecretStore{
+			items: []secret.ListItem{
+				{Name: "gh1", Type: "github"},
+				{Name: "gh2", Type: "github"},
+			},
+		}
+		reg := makeRegistry(makeSecretService("github", []string{"api.github.com"}))
+		got := collectSecretHosts(denyConfig([]string{"gh1", "gh2"}), store, reg)
+		if len(got) != 1 || got[0] != "api.github.com" {
+			t.Errorf("got %v, want [api.github.com] (deduplicated)", got)
+		}
+	})
+
+	t.Run("mixes known and other type secrets", func(t *testing.T) {
+		t.Parallel()
+		store := &fakeSecretStore{
+			items: []secret.ListItem{
+				{Name: "mygithub", Type: "github"},
+				{Name: "myother", Type: secret.TypeOther, Hosts: []string{"custom.example.com"}},
+			},
+		}
+		reg := makeRegistry(makeSecretService("github", []string{"api.github.com"}))
+		got := collectSecretHosts(denyConfig([]string{"mygithub", "myother"}), store, reg)
+		want := []string{"api.github.com", "custom.example.com"}
+		if len(got) != len(want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+		for i, h := range want {
+			if got[i] != h {
+				t.Errorf("got[%d] = %q, want %q", i, got[i], h)
+			}
+		}
+	})
+
+	t.Run("skips secrets not found in store", func(t *testing.T) {
+		t.Parallel()
+		store := &fakeSecretStore{items: []secret.ListItem{}}
+		if got := collectSecretHosts(denyConfig([]string{"missing"}), store, makeRegistry()); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("skips secrets with type not in registry", func(t *testing.T) {
+		t.Parallel()
+		store := &fakeSecretStore{items: []secret.ListItem{{Name: "mykey", Type: "unknown-type"}}}
+		if got := collectSecretHosts(denyConfig([]string{"mykey"}), store, makeRegistry()); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("store list error returns nil", func(t *testing.T) {
+		t.Parallel()
+		store := &fakeSecretStore{err: errors.New("disk error")}
+		if got := collectSecretHosts(denyConfig([]string{"mykey"}), store, makeRegistry()); got != nil {
+			t.Errorf("got %v, want nil on store error", got)
+		}
+	})
+}
+
+func TestMergeHosts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns a when b is empty", func(t *testing.T) {
+		t.Parallel()
+		a := []string{"a.com", "b.com"}
+		got := mergeHosts(a, nil)
+		if len(got) != 2 || got[0] != "a.com" || got[1] != "b.com" {
+			t.Errorf("got %v, want %v", got, a)
+		}
+	})
+
+	t.Run("deduplicates overlapping entries", func(t *testing.T) {
+		t.Parallel()
+		got := mergeHosts([]string{"a.com", "b.com"}, []string{"b.com", "c.com"})
+		want := []string{"a.com", "b.com", "c.com"}
+		if len(got) != len(want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+		for i, h := range want {
+			if got[i] != h {
+				t.Errorf("got[%d] = %q, want %q", i, got[i], h)
+			}
+		}
+	})
+
+	t.Run("preserves order a first then new entries from b", func(t *testing.T) {
+		t.Parallel()
+		got := mergeHosts([]string{"x.com"}, []string{"y.com"})
+		if len(got) != 2 || got[0] != "x.com" || got[1] != "y.com" {
+			t.Errorf("got %v, want [x.com y.com]", got)
 		}
 	})
 }

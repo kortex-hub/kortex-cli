@@ -26,17 +26,21 @@ import (
 	"github.com/openkaiden/kdn/pkg/runtime/podman/config"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/exec"
 	podmanSystem "github.com/openkaiden/kdn/pkg/runtime/podman/system"
+	"github.com/openkaiden/kdn/pkg/secret"
+	"github.com/openkaiden/kdn/pkg/secretservice"
 	"github.com/openkaiden/kdn/pkg/system"
 )
 
 // podmanRuntime implements the runtime.Runtime interface for Podman.
 type podmanRuntime struct {
-	system           system.System
-	executor         exec.Executor
-	storageDir       string                // Runtime-specific storage: <globalStorageDir>/runtimes/podman
-	globalStorageDir string                // Top-level kdn storage dir: where config/projects.json lives
-	config           config.Config         // Configuration manager for runtime settings
-	onecliBaseURLFn  func(port int) string // overridable in tests; nil uses default http://localhost:<port>
+	system                system.System
+	executor              exec.Executor
+	storageDir            string                // Runtime-specific storage: <globalStorageDir>/runtimes/podman
+	globalStorageDir      string                // Top-level kdn storage dir: where config/projects.json lives
+	config                config.Config         // Configuration manager for runtime settings
+	onecliBaseURLFn       func(port int) string // overridable in tests; nil uses default http://localhost:<port>
+	secretStore           secret.Store
+	secretServiceRegistry secretservice.Registry
 }
 
 // onecliURL returns the base URL for the OneCLI service on the given port.
@@ -75,6 +79,12 @@ func (p *podmanRuntime) Available() bool {
 	return p.system.CommandExists("podman")
 }
 
+// SetSecretServiceRegistry injects the secret service registry so that Start()
+// can resolve host patterns for secrets when configuring deny-mode networking.
+func (p *podmanRuntime) SetSecretServiceRegistry(reg secretservice.Registry) {
+	p.secretServiceRegistry = reg
+}
+
 // Initialize implements runtime.StorageAware.
 // It sets up the storage directory for persisting runtime-specific data.
 func (p *podmanRuntime) Initialize(storageDir string) error {
@@ -84,6 +94,7 @@ func (p *podmanRuntime) Initialize(storageDir string) error {
 	p.storageDir = storageDir
 	// storageDir is <globalStorageDir>/runtimes/podman; the global dir is two levels up.
 	p.globalStorageDir = filepath.Dir(filepath.Dir(storageDir))
+	p.secretStore = secret.NewStore(p.globalStorageDir)
 
 	// Create config directory
 	configDir := filepath.Join(storageDir, "config")

@@ -94,16 +94,26 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to load network config: %w", loadErr)
 	}
 
+	// Collect explicit allowed hosts from the workspace network config.
+	var explicitHosts []string
+	if wsCfg != nil && wsCfg.Network != nil && wsCfg.Network.Hosts != nil {
+		explicitHosts = *wsCfg.Network.Hosts
+	}
+
+	// Automatically add host patterns from secrets so users do not need to
+	// list them explicitly under network.hosts.
+	secretHosts := collectSecretHosts(wsCfg, p.secretStore, p.secretServiceRegistry)
+	allHosts := mergeHosts(explicitHosts, secretHosts)
+
 	// Networking rules are only configured when mode is explicitly deny AND at
-	// least one allowed host is specified. All other cases (allow, no config,
-	// deny without hosts) clear any stale rules so that mode switches take
-	// effect without recreating the workspace.
+	// least one allowed host is available (from explicit config or secrets).
+	// All other cases (allow, no config, deny without any hosts) clear any
+	// stale rules so that mode switches take effect without recreating the workspace.
 	shouldConfigureNetworking := wsCfg != nil &&
 		wsCfg.Network != nil &&
 		wsCfg.Network.Mode != nil &&
 		*wsCfg.Network.Mode == workspace.Deny &&
-		wsCfg.Network.Hosts != nil &&
-		len(*wsCfg.Network.Hosts) > 0
+		len(allHosts) > 0
 
 	// Start the network-guard container so we can exec nftables commands into it.
 	networkGuardContainer := podName + "-network-guard"
@@ -124,10 +134,8 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 	}
 
 	if shouldConfigureNetworking {
-		hosts := *wsCfg.Network.Hosts
-
 		stepLogger.Start("Configuring network rules", "Network rules configured")
-		if err := p.configureNetworking(ctx, onecliBaseURL, hosts, tmplData.ApprovalHandlerDir); err != nil {
+		if err := p.configureNetworking(ctx, onecliBaseURL, allHosts, tmplData.ApprovalHandlerDir); err != nil {
 			stepLogger.Fail(err)
 			return runtime.RuntimeInfo{}, fmt.Errorf("failed to configure networking: %w", err)
 		}
