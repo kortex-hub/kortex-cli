@@ -41,6 +41,9 @@ func (p *podmanRuntime) Remove(ctx context.Context, id string) error {
 	info, err := p.getContainerInfo(ctx, id)
 	if err != nil {
 		if isNotFoundError(err) {
+			if podName, readErr := p.readPodName(id); readErr == nil {
+				p.cleanupWorkspaceTempDirs(podName)
+			}
 			p.cleanupPodFiles(id)
 			return nil
 		}
@@ -70,18 +73,25 @@ func (p *podmanRuntime) Remove(ctx context.Context, id string) error {
 	}
 
 	p.cleanupPodFiles(id)
-	p.cleanupCerts(podName)
+	p.cleanupWorkspaceTempDirs(podName)
 
 	return nil
 }
 
-// cleanupCerts removes the CA certificate directory for a workspace.
-func (p *podmanRuntime) cleanupCerts(podName string) {
-	certsDir := filepath.Join(p.storageDir, "certs", podName)
-	if !strings.HasPrefix(filepath.Clean(certsDir), filepath.Join(p.storageDir, "certs")+string(filepath.Separator)) {
-		return
+// workspaceTempDirs lists the subdirectories under storageDir that hold
+// per-workspace temporary files and must be cleaned up on removal.
+var workspaceTempDirs = []string{"approval-handler", "certs"}
+
+// cleanupWorkspaceTempDirs removes per-workspace subdirectories from every
+// directory listed in workspaceTempDirs.
+func (p *podmanRuntime) cleanupWorkspaceTempDirs(podName string) {
+	for _, dir := range workspaceTempDirs {
+		dirPath := filepath.Join(p.storageDir, dir, podName)
+		if !strings.HasPrefix(filepath.Clean(dirPath), filepath.Join(p.storageDir, dir)+string(filepath.Separator)) {
+			continue
+		}
+		os.RemoveAll(dirPath)
 	}
-	os.RemoveAll(certsDir)
 }
 
 // isNotFoundError checks if an error indicates that a container was not found.

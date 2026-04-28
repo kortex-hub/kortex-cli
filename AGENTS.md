@@ -191,6 +191,8 @@ When a workspace has `network.mode = deny` with at least one host in `network.ho
 - `pkg/runtime/podman/pods/onecli-pod.yaml` — pod manifest with the approval-handler, network-guard, and OneCLI containers
 - `pkg/runtime/podman/system/path.go` / `path_windows.go` — `HostPathToMachinePath` / `MachinePathToHostPath` for translating host paths to Podman Machine (WSL2) paths on Windows; no-ops on Linux/macOS
 
+**Per-workspace temporary directories:** The Podman runtime writes files into subdirectories of `<storage-dir>/<dir>/<workspace-name>/` for each workspace it creates. These directories are cleaned up when the workspace is removed. The authoritative list is the `workspaceTempDirs` variable in `pkg/runtime/podman/remove.go`. **If you add a new per-workspace directory under `storageDir`, add its name to that slice** so `Remove()` cleans it up automatically.
+
 **For the full design, use:** `/working-with-onecli`
 
 ### Secret Service System

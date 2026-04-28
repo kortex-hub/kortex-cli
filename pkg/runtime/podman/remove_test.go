@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/openkaiden/kdn/pkg/runtime"
@@ -61,6 +62,12 @@ func TestRemove_Success(t *testing.T) {
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
 	podName := setupPodFiles(t, p, containerID, "my-project")
 
+	// Also create a certs directory to verify it is cleaned up
+	certsDir := filepath.Join(p.storageDir, "certs", podName)
+	if err := os.MkdirAll(certsDir, 0755); err != nil {
+		t.Fatalf("failed to create certs dir: %v", err)
+	}
+
 	err := p.Remove(context.Background(), containerID)
 	if err != nil {
 		t.Fatalf("Remove() failed: %v", err)
@@ -76,6 +83,14 @@ func TestRemove_Success(t *testing.T) {
 	// Verify pod files were cleaned up
 	if _, err := os.Stat(p.podDir(containerID)); !os.IsNotExist(err) {
 		t.Error("Expected pod directory to be cleaned up after Remove")
+	}
+
+	// Verify workspace temp dirs were cleaned up
+	for _, dir := range workspaceTempDirs {
+		path := filepath.Join(p.storageDir, dir, podName)
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Errorf("Expected %s to be cleaned up after Remove", path)
+		}
 	}
 }
 
@@ -105,6 +120,41 @@ func TestRemove_IdempotentWhenContainerNotFound(t *testing.T) {
 
 	if len(fakeExec.RunCalls) > 0 {
 		t.Error("Run should not be called for non-existent container")
+	}
+}
+
+func TestRemove_IdempotentCleansUpTempDirsWhenContainerNotFound(t *testing.T) {
+	t.Parallel()
+
+	containerID := "abc123"
+	fakeExec := exec.NewFake()
+
+	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		if len(args) >= 1 && args[0] == "inspect" {
+			return nil, fmt.Errorf("failed to inspect container: no such container")
+		}
+		return nil, fmt.Errorf("unexpected command: %v", args)
+	}
+
+	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+	podName := setupPodFiles(t, p, containerID, "leftover-ws")
+
+	// Create certs dir to verify it is also cleaned up
+	certsDir := filepath.Join(p.storageDir, "certs", podName)
+	if err := os.MkdirAll(certsDir, 0755); err != nil {
+		t.Fatalf("failed to create certs dir: %v", err)
+	}
+
+	err := p.Remove(context.Background(), containerID)
+	if err != nil {
+		t.Fatalf("Remove() should be idempotent for non-existent containers, got error: %v", err)
+	}
+
+	for _, dir := range workspaceTempDirs {
+		path := filepath.Join(p.storageDir, dir, podName)
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Errorf("Expected %s to be cleaned up after Remove (container not found path)", path)
+		}
 	}
 }
 
