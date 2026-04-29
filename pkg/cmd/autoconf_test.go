@@ -238,6 +238,11 @@ func TestDetectProjectID_GitRepo_WithRemote(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
+	// Resolve symlinks: git rev-parse --show-toplevel returns the real path, so
+	// the dir we pass must also be canonical (on macOS /var → /private/var).
+	if real, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = real
+	}
 	cmds := [][]string{
 		{"git", "-C", dir, "init"},
 		{"git", "-C", dir, "remote", "add", "origin", "https://github.com/example/repo"},
@@ -262,6 +267,11 @@ func TestDetectProjectID_GitRepo_WithRemote_Subdir(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
+	// Resolve symlinks: git rev-parse --show-toplevel returns the real path, so
+	// the root we pass must also be canonical (on macOS /var → /private/var).
+	if real, err := filepath.EvalSymlinks(root); err == nil {
+		root = real
+	}
 	subdir := filepath.Join(root, "sub", "dir")
 	cmds := [][]string{
 		{"git", "-C", root, "init"},
