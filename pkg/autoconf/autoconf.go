@@ -62,12 +62,9 @@ type Options struct {
 	// ProjectUpdater writes to ~/.kdn/config/projects.json.
 	ProjectUpdater config.ProjectConfigUpdater
 	// WorkspaceUpdater writes to .kaiden/workspace.json in the current directory.
-	// When nil the local target is not offered to the user.
+	// When nil the local target is not offered to the user. When non-nil the file
+	// is created automatically if the user selects the local target.
 	WorkspaceUpdater config.WorkspaceConfigUpdater
-	// WorkspaceFileExists reports whether .kaiden/workspace.json already exists.
-	// When false and WorkspaceUpdater is non-nil, Run asks the user whether to
-	// initialize the file before proceeding.
-	WorkspaceFileExists bool
 	// ProjectID is the project identifier for the current working directory,
 	// used when the user selects ConfigTargetProject.
 	ProjectID string
@@ -92,15 +89,14 @@ type Autoconf interface {
 }
 
 type autoconfRunner struct {
-	detector            SecretDetector
-	store               secret.Store
-	projectUpdater      config.ProjectConfigUpdater
-	workspaceUpdater    config.WorkspaceConfigUpdater
-	workspaceFileExists bool
-	projectID           string
-	yes                 bool
-	confirm             func(string) (bool, error)
-	selectTarget        func(string, []ConfigTargetOption) (ConfigTarget, error)
+	detector         SecretDetector
+	store            secret.Store
+	projectUpdater   config.ProjectConfigUpdater
+	workspaceUpdater config.WorkspaceConfigUpdater
+	projectID        string
+	yes              bool
+	confirm          func(string) (bool, error)
+	selectTarget     func(string, []ConfigTargetOption) (ConfigTarget, error)
 }
 
 var _ Autoconf = (*autoconfRunner)(nil)
@@ -111,23 +107,18 @@ var greyDash = color.New(color.FgHiBlack).Sprint("–")
 // New returns an Autoconf configured by opts.
 func New(opts Options) Autoconf {
 	return &autoconfRunner{
-		detector:            opts.Detector,
-		store:               opts.Store,
-		projectUpdater:      opts.ProjectUpdater,
-		workspaceUpdater:    opts.WorkspaceUpdater,
-		workspaceFileExists: opts.WorkspaceFileExists,
-		projectID:           opts.ProjectID,
-		yes:                 opts.Yes,
-		confirm:             opts.Confirm,
-		selectTarget:        opts.SelectTarget,
+		detector:         opts.Detector,
+		store:            opts.Store,
+		projectUpdater:   opts.ProjectUpdater,
+		workspaceUpdater: opts.WorkspaceUpdater,
+		projectID:        opts.ProjectID,
+		yes:              opts.Yes,
+		confirm:          opts.Confirm,
+		selectTarget:     opts.SelectTarget,
 	}
 }
 
 func (a *autoconfRunner) Run(out io.Writer) error {
-	if err := a.initWorkspace(out); err != nil {
-		return err
-	}
-
 	result, err := a.detector.Detect()
 	if err != nil {
 		return err
@@ -165,31 +156,6 @@ func formatLocations(locs []ConfigTarget) string {
 		}
 	}
 	return strings.Join(names, ", ")
-}
-
-// initWorkspace offers to create .kaiden/workspace.json when it does not yet
-// exist. If the user declines, the workspace updater is cleared so the local
-// target is not offered during secret configuration.
-func (a *autoconfRunner) initWorkspace(out io.Writer) error {
-	if a.yes || a.workspaceUpdater == nil || a.workspaceFileExists {
-		return nil
-	}
-
-	ok, err := a.confirm("Initialize .kaiden/workspace.json for this directory?")
-	if err != nil {
-		return fmt.Errorf("confirmation failed: %w", err)
-	}
-	if !ok {
-		fmt.Fprintf(out, "%s creation of workspace configuration .kaiden/workspace.json skipped\n", greyDash)
-		a.workspaceUpdater = nil
-		return nil
-	}
-
-	if err := a.workspaceUpdater.Create(); err != nil {
-		return fmt.Errorf("failed to create workspace config: %w", err)
-	}
-	fmt.Fprintf(out, "%s workspace configuration .kaiden/workspace.json created\n", greenCheck)
-	return nil
 }
 
 func (a *autoconfRunner) processSecret(out io.Writer, d DetectedSecret) error {

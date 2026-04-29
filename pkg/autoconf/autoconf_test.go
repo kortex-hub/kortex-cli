@@ -66,13 +66,7 @@ func (f *fakeAutoconfUpdater) AddSecret(projectID, secretName string) error {
 
 // fakeWorkspaceUpdater records calls for the workspace updater.
 type fakeWorkspaceUpdater struct {
-	added   []string
-	created bool
-}
-
-func (f *fakeWorkspaceUpdater) Create() error {
-	f.created = true
-	return nil
+	added []string
 }
 
 func (f *fakeWorkspaceUpdater) AddSecret(name string) error {
@@ -377,12 +371,11 @@ func TestAutoconf_SelectLocalTarget(t *testing.T) {
 		Detector: &fakeAutoconfDetector{detected: []DetectedSecret{
 			{ServiceName: "github", EnvVarName: "GH_TOKEN", Value: "ghp_xyz"},
 		}},
-		Store:               store,
-		ProjectUpdater:      projectUpdater,
-		WorkspaceUpdater:    workspaceUpdater,
-		WorkspaceFileExists: true,
-		ProjectID:           "test-project",
-		Confirm:             func(string) (bool, error) { return true, nil },
+		Store:            store,
+		ProjectUpdater:   projectUpdater,
+		WorkspaceUpdater: workspaceUpdater,
+		ProjectID:        "test-project",
+		Confirm:          func(string) (bool, error) { return true, nil },
 		SelectTarget: func(_ string, _ []ConfigTargetOption) (ConfigTarget, error) {
 			return ConfigTargetLocal, nil
 		},
@@ -435,118 +428,6 @@ func TestAutoconf_SkipAddToConfig(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "Skipped adding") {
 		t.Errorf("expected 'Skipped adding' in output, got: %s", buf.String())
-	}
-}
-
-func TestAutoconf_WorkspaceNotExist_CreateConfirmed(t *testing.T) {
-	t.Parallel()
-
-	workspaceUpdater := &fakeWorkspaceUpdater{}
-	confirmCalls := 0
-	runner := New(Options{
-		Detector: &fakeAutoconfDetector{detected: []DetectedSecret{
-			{ServiceName: "github", EnvVarName: "GH_TOKEN", Value: "ghp_xyz"},
-		}},
-		Store:               &fakeAutoconfStore{},
-		ProjectUpdater:      &fakeAutoconfUpdater{},
-		WorkspaceUpdater:    workspaceUpdater,
-		WorkspaceFileExists: false, // file does not exist yet
-		ProjectID:           "test-project",
-		Confirm: func(string) (bool, error) {
-			confirmCalls++
-			return true, nil // confirm everything
-		},
-		SelectTarget: alwaysGlobal,
-	})
-
-	buf := &bytes.Buffer{}
-	if err := runner.Run(buf); err != nil {
-		t.Fatalf("Run returned error: %v", err)
-	}
-
-	if !workspaceUpdater.created {
-		t.Error("expected workspace.json to be created")
-	}
-	if !strings.Contains(buf.String(), "workspace configuration .kaiden/workspace.json created") {
-		t.Errorf("expected creation message in output, got: %s", buf.String())
-	}
-	// First confirm is for workspace init, second is for the secret.
-	if confirmCalls != 2 {
-		t.Errorf("expected 2 confirm calls (workspace init + secret), got %d", confirmCalls)
-	}
-}
-
-func TestAutoconf_WorkspaceNotExist_CreateDeclined(t *testing.T) {
-	t.Parallel()
-
-	workspaceUpdater := &fakeWorkspaceUpdater{}
-	confirmCall := 0
-	var capturedOptions []ConfigTargetOption
-	runner := New(Options{
-		Detector: &fakeAutoconfDetector{detected: []DetectedSecret{
-			{ServiceName: "github", EnvVarName: "GH_TOKEN", Value: "ghp_xyz"},
-		}},
-		Store:               &fakeAutoconfStore{},
-		ProjectUpdater:      &fakeAutoconfUpdater{},
-		WorkspaceUpdater:    workspaceUpdater,
-		WorkspaceFileExists: false,
-		ProjectID:           "test-project",
-		Confirm: func(string) (bool, error) {
-			confirmCall++
-			if confirmCall == 1 {
-				return false, nil // decline workspace init
-			}
-			return true, nil // confirm secret creation
-		},
-		SelectTarget: func(_ string, opts []ConfigTargetOption) (ConfigTarget, error) {
-			capturedOptions = opts
-			return ConfigTargetGlobal, nil
-		},
-	})
-
-	buf := &bytes.Buffer{}
-	if err := runner.Run(buf); err != nil {
-		t.Fatalf("Run returned error: %v", err)
-	}
-
-	if workspaceUpdater.created {
-		t.Error("expected workspace.json NOT to be created after decline")
-	}
-	for _, opt := range capturedOptions {
-		if opt.Target == ConfigTargetLocal {
-			t.Error("local target must not be offered after workspace init was declined")
-		}
-	}
-}
-
-func TestAutoconf_WorkspaceNotExist_YesFlagSkipsInitCheck(t *testing.T) {
-	t.Parallel()
-
-	workspaceUpdater := &fakeWorkspaceUpdater{}
-	confirmCalled := false
-	runner := New(Options{
-		Detector: &fakeAutoconfDetector{detected: []DetectedSecret{
-			{ServiceName: "github", EnvVarName: "GH_TOKEN", Value: "ghp_xyz"},
-		}},
-		Store:               &fakeAutoconfStore{},
-		ProjectUpdater:      &fakeAutoconfUpdater{},
-		WorkspaceUpdater:    workspaceUpdater,
-		WorkspaceFileExists: false,
-		ProjectID:           "test-project",
-		Yes:                 true,
-		Confirm:             func(string) (bool, error) { confirmCalled = true; return true, nil },
-		SelectTarget:        alwaysGlobal,
-	})
-
-	if err := runner.Run(&bytes.Buffer{}); err != nil {
-		t.Fatalf("Run returned error: %v", err)
-	}
-
-	if confirmCalled {
-		t.Error("expected confirm not called when yes=true")
-	}
-	if workspaceUpdater.created {
-		t.Error("expected workspace.json not created when yes=true (global is used)")
 	}
 }
 

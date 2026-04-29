@@ -113,40 +113,6 @@ func TestWorkspaceUpdater_ExistingFile_Preserved(t *testing.T) {
 	}
 }
 
-func TestWorkspaceUpdater_Create_WritesEmptyFile(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-
-	u, _ := NewWorkspaceConfigUpdater(dir)
-	if err := u.Create(); err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	if _, err := os.Stat(filepath.Join(dir, WorkspaceConfigFile)); err != nil {
-		t.Fatalf("expected workspace.json to exist: %v", err)
-	}
-	secrets := readWorkspaceSecrets(t, dir)
-	if len(secrets) != 0 {
-		t.Errorf("expected no secrets in fresh file, got %v", secrets)
-	}
-}
-
-func TestWorkspaceUpdater_Create_IdempotentWhenFileExists(t *testing.T) {
-	t.Parallel()
-	dir := t.TempDir()
-
-	u, _ := NewWorkspaceConfigUpdater(dir)
-	_ = u.AddSecret("github") // creates the file with content
-	if err := u.Create(); err != nil {
-		t.Fatalf("Create on existing file: %v", err)
-	}
-
-	secrets := readWorkspaceSecrets(t, dir)
-	if len(secrets) != 1 || secrets[0] != "github" {
-		t.Errorf("expected existing content preserved, got %v", secrets)
-	}
-}
-
 func TestWorkspaceUpdater_EmptyConfigDir_ReturnsError(t *testing.T) {
 	t.Parallel()
 	_, err := NewWorkspaceConfigUpdater("")

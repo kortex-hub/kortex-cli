@@ -29,10 +29,8 @@ import (
 
 // WorkspaceConfigUpdater manages the local workspace configuration file.
 type WorkspaceConfigUpdater interface {
-	// Create writes an empty workspace.json, creating the directory if needed.
-	// It is a no-op if the file already exists.
-	Create() error
-	// AddSecret appends secretName to the Secrets list of the workspace config.
+	// AddSecret appends secretName to the Secrets list of the workspace config,
+	// creating the file and directory if they do not yet exist.
 	// The call is idempotent: if the secret is already present it is not duplicated.
 	AddSecret(secretName string) error
 }
@@ -54,14 +52,6 @@ func NewWorkspaceConfigUpdater(configDir string) (WorkspaceConfigUpdater, error)
 		return nil, fmt.Errorf("failed to resolve config directory path: %w", err)
 	}
 	return &workspaceConfigUpdater{configDir: absPath}, nil
-}
-
-func (w *workspaceConfigUpdater) Create() error {
-	configPath := filepath.Join(w.configDir, WorkspaceConfigFile)
-	if _, err := os.Stat(configPath); err == nil {
-		return nil // already exists
-	}
-	return w.writeConfig(configPath, &workspace.WorkspaceConfiguration{})
 }
 
 func (w *workspaceConfigUpdater) AddSecret(secretName string) error {
