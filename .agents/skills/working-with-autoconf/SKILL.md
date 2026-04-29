@@ -20,8 +20,6 @@ pkg/autoconf/
 The data flow inside `autoconfRunner.Run()`:
 
 ```text
-initWorkspace()               (offer to create .kaiden/workspace.json if absent)
-  ↓
 detector.Detect()             → FilterResult
   ├── FilterResult.Configured → print "already configured (location)" per entry
   └── FilterResult.NeedsAction
@@ -29,6 +27,7 @@ detector.Detect()             → FilterResult
         confirm creation?
         createSecret()
         addToConfig() → selectTarget() → applyTarget()
+                                          (local target creates workspace.json if absent)
 ```
 
 ## Key Types
@@ -114,8 +113,7 @@ Important `Options` fields:
 | `Detector` | `SecretDetector` |
 | `Store` | `secret.Store` for `Get`/`Create` |
 | `ProjectUpdater` | `config.ProjectConfigUpdater` — writes `projects.json` |
-| `WorkspaceUpdater` | `config.WorkspaceConfigUpdater` — writes `.kaiden/workspace.json` |
-| `WorkspaceFileExists` | `bool` — whether `.kaiden/workspace.json` already exists |
+| `WorkspaceUpdater` | `config.WorkspaceConfigUpdater` — writes `.kaiden/workspace.json` (creates it if absent) |
 | `ProjectID` | computed project identifier for the current directory |
 | `Yes` | skip all confirmations, default to global target |
 | `Confirm` | `func(prompt string) (bool, error)` — injectable |
@@ -263,13 +261,13 @@ Inject all fakes via `Options`; use a `*bytes.Buffer` for `out`:
 
 ```go
 runner := autoconf.New(autoconf.Options{
-    Detector:       &fakeDetector{detected: []autoconf.DetectedSecret{{...}}},
-    Store:          &fakeStore{},
-    ProjectUpdater: &fakeProjectUpdater{},
-    WorkspaceFileExists: true,
-    ProjectID:      "test-project",
-    Confirm:        func(string) (bool, error) { return true, nil },
-    SelectTarget:   func(_ string, _ []autoconf.ConfigTargetOption) (autoconf.ConfigTarget, error) {
+    Detector:         &fakeDetector{detected: []autoconf.DetectedSecret{{...}}},
+    Store:            &fakeStore{},
+    ProjectUpdater:   &fakeProjectUpdater{},
+    WorkspaceUpdater: &fakeWorkspaceUpdater{}, // omit to hide the local target
+    ProjectID:        "test-project",
+    Confirm:          func(string) (bool, error) { return true, nil },
+    SelectTarget: func(_ string, _ []autoconf.ConfigTargetOption) (autoconf.ConfigTarget, error) {
         return autoconf.ConfigTargetGlobal, nil
     },
 })

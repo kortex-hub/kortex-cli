@@ -36,15 +36,14 @@ import (
 )
 
 type autoconfCmd struct {
-	yes                 bool
-	store               secret.Store
-	projectUpdater      config.ProjectConfigUpdater
-	workspaceUpdater    config.WorkspaceConfigUpdater
-	workspaceFileExists bool
-	projectID           string
-	detector            autoconf.SecretDetector
-	confirm             func(prompt string) (bool, error)
-	selectTarget        func(secretName string, options []autoconf.ConfigTargetOption) (autoconf.ConfigTarget, error)
+	yes              bool
+	store            secret.Store
+	projectUpdater   config.ProjectConfigUpdater
+	workspaceUpdater config.WorkspaceConfigUpdater
+	projectID        string
+	detector         autoconf.SecretDetector
+	confirm          func(prompt string) (bool, error)
+	selectTarget     func(secretName string, options []autoconf.ConfigTargetOption) (autoconf.ConfigTarget, error)
 }
 
 func (a *autoconfCmd) preRun(cmd *cobra.Command, args []string) error {
@@ -72,8 +71,6 @@ func (a *autoconfCmd) preRun(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to create project config loader: %w", err)
 	}
 
-	// Compute project ID and probe .kaiden/ before creating the detector so the
-	// filter can check all config sources (global, project-specific, local).
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
@@ -81,10 +78,6 @@ func (a *autoconfCmd) preRun(cmd *cobra.Command, args []string) error {
 	a.projectID = detectProjectID(cmd.Context(), cwd)
 
 	kaidenDir := filepath.Join(cwd, ".kaiden")
-	workspaceJSON := filepath.Join(kaidenDir, config.WorkspaceConfigFile)
-	if _, statErr := os.Stat(workspaceJSON); statErr == nil {
-		a.workspaceFileExists = true
-	}
 
 	// workspaceConfig is always wired (Load returns ErrConfigNotFound when the
 	// file is absent, which the filter handles gracefully).
@@ -97,8 +90,6 @@ func (a *autoconfCmd) preRun(cmd *cobra.Command, args []string) error {
 		a.detector = autoconf.NewFilteredSecretDetector(services, a.store, loader, a.projectID, workspaceCfg)
 	}
 
-	// Always wire a workspace updater so the user can be offered the local
-	// target even when .kaiden/workspace.json does not yet exist.
 	wu, wuErr := config.NewWorkspaceConfigUpdater(kaidenDir)
 	if wuErr != nil {
 		return fmt.Errorf("failed to create workspace config updater: %w", wuErr)
@@ -172,15 +163,14 @@ func detectProjectID(ctx context.Context, dir string) string {
 
 func (a *autoconfCmd) run(cmd *cobra.Command, args []string) error {
 	runner := autoconf.New(autoconf.Options{
-		Detector:            a.detector,
-		Store:               a.store,
-		ProjectUpdater:      a.projectUpdater,
-		WorkspaceUpdater:    a.workspaceUpdater,
-		WorkspaceFileExists: a.workspaceFileExists,
-		ProjectID:           a.projectID,
-		Yes:                 a.yes,
-		Confirm:             a.confirm,
-		SelectTarget:        a.selectTarget,
+		Detector:         a.detector,
+		Store:            a.store,
+		ProjectUpdater:   a.projectUpdater,
+		WorkspaceUpdater: a.workspaceUpdater,
+		ProjectID:        a.projectID,
+		Yes:              a.yes,
+		Confirm:          a.confirm,
+		SelectTarget:     a.selectTarget,
 	})
 	return runner.Run(cmd.OutOrStdout())
 }
