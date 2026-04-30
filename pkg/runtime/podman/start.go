@@ -180,6 +180,15 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to start pod: %w", err)
 	}
 
+	// On WSL2, host.containers.internal does not resolve because the WSL2
+	// provider does not update /etc/hosts like macOS/Hyper-V VMs do. Inject
+	// an entry mapping it to the Windows host IP.
+	if p.isPodmanWSL(ctx) {
+		if err := p.injectWSLHostEntry(ctx, id); err != nil {
+			return runtime.RuntimeInfo{}, fmt.Errorf("failed to inject WSL host entry: %w", err)
+		}
+	}
+
 	// Install OneCLI CA certificate into system trust store if present
 	if caPath := p.readCAContainerPath(id); caPath != "" {
 		stepLogger.Start("Installing CA certificate", "CA certificate installed")
