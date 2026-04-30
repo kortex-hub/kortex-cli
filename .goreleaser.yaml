@@ -73,3 +73,14 @@ release:
   github:
     owner: openkaiden
     name: kdn
+  footer: |
+
+    ---
+
+    ## Install
+
+    ```sh
+    curl -sSfL https://github.com/openkaiden/kdn/releases/download/{{ .Tag }}/install.sh | sh
+    ```
+
+    Released by [GoReleaser](https://github.com/goreleaser/goreleaser).
