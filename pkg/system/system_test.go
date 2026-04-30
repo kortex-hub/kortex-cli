@@ -70,3 +70,12 @@ func TestGetgid(t *testing.T) {
 		t.Errorf("Expected non-negative GID, got %d", gid)
 	}
 }
+
+func TestIsWSL(t *testing.T) {
+	t.Parallel()
+
+	sys := New()
+	// IsWSL should return a boolean without panicking.
+	// In CI (non-WSL), it returns false.
+	_ = sys.IsWSL()
+}

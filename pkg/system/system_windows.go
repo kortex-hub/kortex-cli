@@ -51,3 +51,9 @@ func (s *systemImpl) Getgid() int {
 	// Fallback to 1000 (common Linux container default)
 	return 1000
 }
+
+// IsWSL returns false on native Windows. Podman on Windows manages
+// host.containers.internal via its VM layer (Hyper-V or WSL2 backend).
+func (s *systemImpl) IsWSL() bool {
+	return false
+}

@@ -16,7 +16,11 @@
 
 package system
 
-import "os"
+import (
+	"os"
+	"strings"
+	"sync"
+)
 
 // Getuid returns the numeric user ID of the caller.
 func (s *systemImpl) Getuid() int {
@@ -26,4 +30,25 @@ func (s *systemImpl) Getuid() int {
 // Getgid returns the numeric group ID of the caller.
 func (s *systemImpl) Getgid() int {
 	return os.Getgid()
+}
+
+var (
+	wslOnce   sync.Once
+	wslResult bool
+)
+
+// IsWSL reports whether the process is running inside WSL2.
+func (s *systemImpl) IsWSL() bool {
+	wslOnce.Do(func() {
+		if os.Getenv("WSL_DISTRO_NAME") != "" {
+			wslResult = true
+			return
+		}
+		data, err := os.ReadFile("/proc/version")
+		if err != nil {
+			return
+		}
+		wslResult = strings.Contains(strings.ToLower(string(data)), "microsoft")
+	})
+	return wslResult
 }

@@ -417,7 +417,7 @@ func TestSetupFirewallRules(t *testing.T) {
 			return []byte{}, nil
 		}
 
-		rt := &podmanRuntime{executor: fakeExec}
+		rt := &podmanRuntime{executor: fakeExec, system: &fakeSystem{}}
 
 		err := rt.setupFirewallRules(context.Background(), "my-pod", 1000)
 		if err != nil {
@@ -439,7 +439,7 @@ func TestSetupFirewallRules(t *testing.T) {
 		}
 	})
 
-	t.Run("skips host-gateway rule when resolution fails", func(t *testing.T) {
+	t.Run("skips host-gateway rule when resolution fails on non-WSL", func(t *testing.T) {
 		t.Parallel()
 
 		fakeExec := exec.NewFake()
@@ -447,7 +447,7 @@ func TestSetupFirewallRules(t *testing.T) {
 			return nil, fmt.Errorf("getent failed")
 		}
 
-		rt := &podmanRuntime{executor: fakeExec}
+		rt := &podmanRuntime{executor: fakeExec, system: &fakeSystem{}}
 
 		err := rt.setupFirewallRules(context.Background(), "my-pod", 1000)
 		if err != nil {
@@ -457,9 +457,81 @@ func TestSetupFirewallRules(t *testing.T) {
 		for _, call := range fakeExec.RunCalls {
 			if len(call) >= 5 && call[0] == "exec" && call[2] == "sh" {
 				if strings.Contains(call[4], "ip daddr") {
-					t.Error("expected no host-gateway rule when resolution fails")
+					t.Error("expected no host-gateway rule when resolution fails on non-WSL")
 				}
 			}
+		}
+	})
+
+	t.Run("uses default gateway fallback on WSL2 when getent fails", func(t *testing.T) {
+		t.Parallel()
+
+		fakeExec := exec.NewFake()
+		outputCallCount := 0
+		fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+			outputCallCount++
+			if len(args) >= 5 && strings.Contains(args[4], "getent hosts") {
+				return nil, fmt.Errorf("getent failed")
+			}
+			if len(args) >= 5 && strings.Contains(args[4], "ip route show default") {
+				return []byte("192.168.1.1\n"), nil
+			}
+			return []byte{}, nil
+		}
+
+		rt := &podmanRuntime{executor: fakeExec, system: &fakeSystem{wsl: true}}
+
+		err := rt.setupFirewallRules(context.Background(), "my-pod", 1000)
+		if err != nil {
+			t.Fatalf("setupFirewallRules() error: %v", err)
+		}
+
+		found := false
+		for _, call := range fakeExec.RunCalls {
+			if len(call) >= 5 && call[0] == "exec" && call[2] == "sh" && call[3] == "-c" {
+				if strings.Contains(call[4], "ip daddr 192.168.1.1 accept") {
+					found = true
+					break
+				}
+			}
+		}
+		if !found {
+			t.Error("expected host-gateway rule with default gateway IP on WSL2")
+		}
+	})
+
+	t.Run("uses default gateway fallback on WSL2 when getent returns 127.0.0.1", func(t *testing.T) {
+		t.Parallel()
+
+		fakeExec := exec.NewFake()
+		fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+			if len(args) >= 5 && strings.Contains(args[4], "getent hosts") {
+				return []byte("127.0.0.1\n"), nil
+			}
+			if len(args) >= 5 && strings.Contains(args[4], "ip route show default") {
+				return []byte("172.20.0.1\n"), nil
+			}
+			return []byte{}, nil
+		}
+
+		rt := &podmanRuntime{executor: fakeExec, system: &fakeSystem{wsl: true}}
+
+		err := rt.setupFirewallRules(context.Background(), "my-pod", 1000)
+		if err != nil {
+			t.Fatalf("setupFirewallRules() error: %v", err)
+		}
+
+		found := false
+		for _, call := range fakeExec.RunCalls {
+			if len(call) >= 5 && call[0] == "exec" && call[2] == "sh" && call[3] == "-c" {
+				if strings.Contains(call[4], "ip daddr 172.20.0.1 accept") {
+					found = true
+					break
+				}
+			}
+		}
+		if !found {
+			t.Error("expected host-gateway rule with default gateway IP when getent returns 127.0.0.1")
 		}
 	})
 
@@ -471,7 +543,7 @@ func TestSetupFirewallRules(t *testing.T) {
 			return fmt.Errorf("exec failed")
 		}
 
-		rt := &podmanRuntime{executor: fakeExec}
+		rt := &podmanRuntime{executor: fakeExec, system: &fakeSystem{}}
 
 		err := rt.setupFirewallRules(context.Background(), "my-pod", 1000)
 		if err == nil {
@@ -728,6 +800,63 @@ func TestCollectSecretHosts(t *testing.T) {
 		_, err := collectSecretHosts(denyConfig([]string{"mykey"}), store, makeRegistry(t))
 		if err == nil {
 			t.Error("expected error from store.List(), got nil")
+		}
+	})
+}
+
+func TestInjectWSLHostEntry(t *testing.T) {
+	t.Parallel()
+
+	t.Run("adds /etc/hosts entry with default gateway IP", func(t *testing.T) {
+		t.Parallel()
+
+		fakeExec := exec.NewFake()
+		fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+			if len(args) >= 5 && strings.Contains(args[4], "ip route show default") {
+				return []byte("10.255.0.1\n"), nil
+			}
+			return []byte{}, nil
+		}
+
+		rt := &podmanRuntime{executor: fakeExec, system: &fakeSystem{wsl: true}}
+
+		err := rt.injectWSLHostEntry(context.Background(), "test-container")
+		if err != nil {
+			t.Fatalf("injectWSLHostEntry() error: %v", err)
+		}
+
+		found := false
+		for _, call := range fakeExec.RunCalls {
+			if len(call) >= 7 && call[0] == "exec" && call[1] == "--user" && call[2] == "root" && call[3] == "test-container" && call[4] == "sh" && call[5] == "-c" {
+				script := call[6]
+				if strings.Contains(script, "sed -i") && strings.Contains(script, "10.255.0.1 host.containers.internal") {
+					found = true
+					break
+				}
+			}
+		}
+		if !found {
+			t.Error("expected exec call with sed + echo writing host.containers.internal to /etc/hosts")
+		}
+	})
+
+	t.Run("skips when default gateway cannot be resolved", func(t *testing.T) {
+		t.Parallel()
+
+		fakeExec := exec.NewFake()
+		fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+			return nil, fmt.Errorf("ip route failed")
+		}
+
+		rt := &podmanRuntime{executor: fakeExec, system: &fakeSystem{wsl: true}}
+
+		err := rt.injectWSLHostEntry(context.Background(), "test-container")
+		if err != nil {
+			t.Fatalf("injectWSLHostEntry() error: %v", err)
+		}
+
+		if len(fakeExec.RunCalls) != 0 {
+			t.Error("expected no exec calls when gateway resolution fails")
 		}
 	})
 }

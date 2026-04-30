@@ -272,14 +272,58 @@ func (p *podmanRuntime) clearFirewallRules(ctx context.Context, podName string) 
 
 // resolveHostGateway attempts to resolve host.containers.internal inside the
 // given container. Returns the IP string on success or empty string on failure.
+// On WSL2, host.containers.internal may not resolve because WSL2 does not
+// update /etc/hosts like podman machine does on macOS/Hyper-V. In that case,
+// the default gateway IP is used as a fallback.
 func (p *podmanRuntime) resolveHostGateway(ctx context.Context, container string) string {
 	out, err := p.executor.Output(ctx, io.Discard,
 		"exec", container, "sh", "-c", "getent hosts host.containers.internal | awk '{print $1}'",
+	)
+	if err == nil {
+		ip := strings.TrimSpace(string(out))
+		if ip != "" && ip != "127.0.0.1" {
+			return ip
+		}
+	}
+
+	if p.system.IsWSL() {
+		return p.resolveDefaultGateway(ctx, container)
+	}
+	return ""
+}
+
+// resolveDefaultGateway returns the default gateway IP from inside the given
+// container. On WSL2 this is the Windows host IP.
+func (p *podmanRuntime) resolveDefaultGateway(ctx context.Context, container string) string {
+	out, err := p.executor.Output(ctx, io.Discard,
+		"exec", container, "sh", "-c", "ip route show default | awk '{print $3}'",
 	)
 	if err != nil {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// injectWSLHostEntry adds or updates a host.containers.internal entry in
+// /etc/hosts inside the workspace container, mapping it to the default
+// gateway IP. Uses sed to replace an existing entry so repeated Start()
+// calls don't accumulate stale lines.
+func (p *podmanRuntime) injectWSLHostEntry(ctx context.Context, containerID string) error {
+	hostIP := p.resolveDefaultGateway(ctx, containerID)
+	if hostIP == "" {
+		return nil
+	}
+
+	cmd := fmt.Sprintf(
+		"sed -i '/host\\.containers\\.internal/d' /etc/hosts && echo '%s host.containers.internal' >> /etc/hosts",
+		hostIP,
+	)
+	if err := p.executor.Run(ctx, io.Discard, io.Discard,
+		"exec", "--user", "root", containerID, "sh", "-c", cmd,
+	); err != nil {
+		return fmt.Errorf("failed to update /etc/hosts entry: %w", err)
+	}
+	return nil
 }
 
 // buildNftScript generates the shell script that sets up nftables OUTPUT rules.
