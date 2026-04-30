@@ -155,6 +155,9 @@ func (r *openshellRuntime) ensureGatewayRunning(ctx context.Context) error {
 func (r *openshellRuntime) buildGatewayCommand(sshSecret string) (*exec.Cmd, error) {
 	switch r.config.Driver {
 	case DriverVM:
+		if _, err := platformAsset("openshell-driver-vm"); err != nil {
+			return nil, fmt.Errorf("the vm driver is not supported on this platform")
+		}
 		return r.buildVMGatewayCommand(sshSecret), nil
 	case DriverPodman, "":
 		return r.buildPodmanGatewayCommand(sshSecret), nil

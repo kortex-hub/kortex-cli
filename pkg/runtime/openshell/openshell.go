@@ -92,12 +92,16 @@ func (r *openshellRuntime) Initialize(storageDir string) error {
 	}
 	r.executor = exec.New(openshellPath)
 
-	vmDriverPath, err := ensureBinary(binDir, "openshell-driver-vm", openshellDriverVMRelease)
-	if err != nil {
-		return fmt.Errorf("failed to ensure openshell-driver-vm binary: %w", err)
-	}
-	if err := codesignBinary(vmDriverPath); err != nil {
-		return fmt.Errorf("failed to codesign openshell-driver-vm: %w", err)
+	// Download the VM driver binary only if the platform supports it.
+	// This is optional — the binary is only needed when --openshell-driver vm is used.
+	if _, assetErr := platformAsset("openshell-driver-vm"); assetErr == nil {
+		vmDriverPath, dlErr := ensureBinary(binDir, "openshell-driver-vm", openshellDriverVMRelease)
+		if dlErr != nil {
+			return fmt.Errorf("failed to ensure openshell-driver-vm binary: %w", dlErr)
+		}
+		if err := codesignBinary(vmDriverPath); err != nil {
+			return fmt.Errorf("failed to codesign openshell-driver-vm: %w", err)
+		}
 	}
 
 	r.states = newStateOverrides(storageDir)

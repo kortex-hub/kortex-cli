@@ -126,6 +126,10 @@ func TestBuildGatewayCommand_Podman(t *testing.T) {
 func TestBuildGatewayCommand_VM(t *testing.T) {
 	t.Parallel()
 
+	if _, err := platformAsset("openshell-driver-vm"); err != nil {
+		t.Skipf("VM driver not supported on this platform: %v", err)
+	}
+
 	storageDir := t.TempDir()
 	rt := newWithDeps(exec.NewFake(), "/fake/openshell-gateway", storageDir)
 	rt.config.Driver = DriverVM
