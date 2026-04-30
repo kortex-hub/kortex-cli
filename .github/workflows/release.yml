@@ -52,6 +52,19 @@ jobs:
           MACOS_NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
           MACOS_NOTARY_ISSUER_ID: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
 
+      - name: Install binst
+        run: go install github.com/binary-install/binstaller/cmd/binst@e53d3e79dc475ac4049887dc30ff8df09fd1ea25
+
+      - name: Generate install.sh
+        run: |
+          binst embed-checksums --config .config/binstaller.yml --mode calculate
+          binst gen --config=.config/binstaller.yml -o install.sh
+
+      - name: Upload install.sh to release
+        run: gh release upload ${{ github.ref_name }} install.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   bump-next-version:
     name: Bump Next Version
     runs-on: ubuntu-24.04

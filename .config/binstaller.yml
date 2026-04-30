@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/binary-install/binstaller/main/schema/InstallSpec.json
+schema: v1
+repo: openkaiden/kdn
+asset:
+  template: kdn_${VERSION}_${OS}_${ARCH}${EXT}
+  default_extension: .tar.gz
+  rules:
+  - when:
+      os: windows
+    ext: .zip
+checksums:

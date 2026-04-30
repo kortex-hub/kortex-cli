@@ -25,3 +25,5 @@ dist/
 # MkDocs build output
 website/site/
 website/docs/*.md
+
+install.sh
