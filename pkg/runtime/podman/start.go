@@ -126,6 +126,16 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to start network-guard container: %w", err)
 	}
 
+	// On WSL2, host.containers.internal does not resolve because the WSL2
+	// provider does not update /etc/hosts like macOS/Hyper-V VMs do. Patch
+	// the network-guard container so resolveHostGateway's getent succeeds.
+	isWSL := p.isPodmanWSL(ctx)
+	if isWSL {
+		if err := p.injectWSLHostEntry(ctx, networkGuardContainer); err != nil {
+			return runtime.RuntimeInfo{}, fmt.Errorf("failed to inject WSL host entry into network-guard: %w", err)
+		}
+	}
+
 	// Always connect to OneCLI so networking state is kept consistent across
 	// mode switches without recreating the workspace.
 	onecliBaseURL := p.onecliURL(tmplData.OnecliWebPort)
@@ -180,10 +190,8 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to start pod: %w", err)
 	}
 
-	// On WSL2, host.containers.internal does not resolve because the WSL2
-	// provider does not update /etc/hosts like macOS/Hyper-V VMs do. Inject
-	// an entry mapping it to the Windows host IP.
-	if p.isPodmanWSL(ctx) {
+	// Patch the workspace container's /etc/hosts on WSL2 as well.
+	if isWSL {
 		if err := p.injectWSLHostEntry(ctx, id); err != nil {
 			return runtime.RuntimeInfo{}, fmt.Errorf("failed to inject WSL host entry: %w", err)
 		}
