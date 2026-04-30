@@ -17,6 +17,7 @@ package openshell
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -192,7 +193,7 @@ func TestBuildGatewayCommand_VM(t *testing.T) {
 	}
 
 	// Should have OPENSHELL_VM_DRIVER_STATE_DIR env var pointing to storage
-	expectedStateDir := fmt.Sprintf("OPENSHELL_VM_DRIVER_STATE_DIR=%s/vm-driver", storageDir)
+	expectedStateDir := fmt.Sprintf("OPENSHELL_VM_DRIVER_STATE_DIR=%s", filepath.Join(storageDir, "vm-driver"))
 	hasStateDir := false
 	for _, env := range cmd.Env {
 		if env == expectedStateDir {

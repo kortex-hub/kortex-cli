@@ -63,9 +63,10 @@ func newWithDeps(executor exec.Executor, gatewayBinaryPath, storageDir string) *
 	}
 }
 
-// Available reports that OpenShell Gateway is always available since binaries are auto-downloaded.
+// Available reports whether the OpenShell Gateway runtime is supported on the current platform.
 func (r *openshellRuntime) Available() bool {
-	return true
+	_, err := platformAsset("openshell-gateway")
+	return err == nil
 }
 
 // Initialize implements runtime.StorageAware.

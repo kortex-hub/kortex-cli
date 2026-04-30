@@ -44,8 +44,10 @@ func TestOpenshellRuntime_Available(t *testing.T) {
 		t.Fatal("Expected runtime to implement Available interface")
 	}
 
-	if !avail.Available() {
-		t.Error("Expected Available() to return true (binaries are auto-downloaded)")
+	_, err := platformAsset("openshell-gateway")
+	expected := err == nil
+	if avail.Available() != expected {
+		t.Errorf("Expected Available() to return %v on this platform, got %v", expected, avail.Available())
 	}
 }
 
