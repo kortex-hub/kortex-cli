@@ -27,6 +27,9 @@ type System interface {
 	Getuid() int
 	// Getgid returns the numeric group ID of the caller.
 	Getgid() int
+	// IsWSL reports whether the process is running inside Windows Subsystem
+	// for Linux (WSL2).
+	IsWSL() bool
 }
 
 // systemImpl is the default implementation of System.

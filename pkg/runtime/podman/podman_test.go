@@ -514,6 +514,7 @@ type fakeSystem struct {
 	checkedCommand string
 	uid            int
 	gid            int
+	wsl            bool
 }
 
 // Ensure fakeSystem implements system.System at compile time.
@@ -536,4 +537,8 @@ func (f *fakeSystem) Getgid() int {
 		return 1000 // Default GID for tests
 	}
 	return f.gid
+}
+
+func (f *fakeSystem) IsWSL() bool {
+	return f.wsl
 }
