@@ -221,7 +221,7 @@ type containerConfigArgs struct {
 
 // buildContainerArgs builds the arguments for creating the workspace container inside the pod.
 func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageName string, ccArgs *containerConfigArgs) ([]string, error) {
-	args := []string{"create", "--pod", params.Name, "--name", params.Name}
+	args := []string{"create", "--pod", params.Name, "--name", params.Name, "--device", "/dev/fuse"}
 
 	// Collect workspace env var names for collision detection
 	workspaceEnvNames := make(map[string]bool)

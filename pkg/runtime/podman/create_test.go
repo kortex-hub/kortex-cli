@@ -423,6 +423,7 @@ func TestBuildContainerArgs(t *testing.T) {
 			"create",
 			"--pod", "test-workspace",
 			"--name", "test-workspace",
+			"--device", "/dev/fuse",
 			"-v", fmt.Sprintf("%s:/workspace/sources:Z", sourcePath),
 			"-w", "/workspace/sources",
 			"kdn-test-workspace",
