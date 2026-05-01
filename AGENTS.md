@@ -406,6 +406,29 @@ manager.Terminal(ctx, id, []string{"bash"})
 
 **For detailed manager API and project detection, use:** `/working-with-instances-manager`
 
+### Project Identifier Detection
+
+The `pkg/project` package provides a single shared implementation for computing stable project identifiers from a source directory. Both the instances manager and the `autoconf` command use it so the identifier is always derived the same way.
+
+**Key Components:**
+- **`Detector` interface** (`pkg/project/project.go`): Single method `DetectProject(ctx, dir) string`
+- **`NewDetector(git.Detector) Detector`**: Factory — wraps a `git.Detector` to resolve repository info
+
+**Detection rules (in priority order):**
+1. Git repo with remote URL → `<remoteURL>/` or `<remoteURL>/<relPath>`
+2. Git repo without remote → `filepath.Join(rootDir, relPath)` (or just `rootDir`)
+3. Not a git repo → `dir` as-is
+
+**Usage:**
+```go
+detector := project.NewDetector(git.NewDetector())
+projectID := detector.DetectProject(ctx, sourceDir)
+```
+
+**Integration points:**
+- `instances.NewManager` wraps `project.NewDetector(git.NewDetector())` internally; `newManagerWithFactory` accepts a `project.Detector` for test injection
+- `autoconfCmd` stores a `project.Detector` field with a nil guard in `preRun`; inject a fake in tests
+
 ### Cross-Platform Path Handling
 
 ⚠️ **CRITICAL**: All path operations and tests MUST be cross-platform compatible (Linux, macOS, Windows).

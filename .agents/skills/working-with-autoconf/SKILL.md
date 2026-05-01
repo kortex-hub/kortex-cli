@@ -282,7 +282,8 @@ err := runner.Run(&buf)
 | `pkg/autoconf/detect.go` | `SecretDetector` interface + `envSecretDetector` |
 | `pkg/autoconf/filter.go` | `SecretFilter` + `alreadyConfiguredFilter` + `FilterResult` |
 | `pkg/autoconf/autoconf.go` | `Autoconf` interface + `autoconfRunner` + `ConfigTarget` |
-| `pkg/cmd/autoconf.go` | Thin CLI wiring: flag parsing, dependency construction, `detectProjectID` |
+| `pkg/cmd/autoconf.go` | Thin CLI wiring: flag parsing, dependency construction, `project.Detector` injection |
+| `pkg/project/project.go` | `Detector` interface + shared project-ID detection logic (git remote → URL, no remote → path) |
 | `pkg/config/projectsupdater.go` | `ProjectConfigUpdater` — reads/writes `~/.kdn/config/projects.json` |
 | `pkg/config/workspaceupdater.go` | `WorkspaceConfigUpdater` — reads/writes `.kaiden/workspace.json` |
 | `pkg/secretservicesetup/register.go` | `ListServices()` — returns fully-constructed service instances |

@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
@@ -139,6 +140,117 @@ func TestAddSecret_GlobalAndProjectIndependent(t *testing.T) {
 	}
 	if s := *cfg["proj-a"].Secrets; len(s) != 1 || s[0] != "github" {
 		t.Errorf("project secrets unexpected: %v", s)
+	}
+}
+
+// TestAddSecret_ReadError covers the error propagation path in AddSecret when
+// readProjectsFile fails with a non-NotExist error (projects.json is a directory).
+func TestAddSecret_ReadError(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	// Make projects.json a directory so ReadFile returns "is a directory".
+	configPath := filepath.Join(dir, "config", ProjectsConfigFile)
+	if err := os.MkdirAll(configPath, 0700); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	updater, err := NewProjectConfigUpdater(dir)
+	if err != nil {
+		t.Fatalf("NewProjectConfigUpdater: %v", err)
+	}
+	if err := updater.AddSecret("", "anthropic"); err == nil {
+		t.Error("expected error when projects.json is a directory, got nil")
+	}
+}
+
+// TestReadProjectsFile_NonExistError covers the non-NotExist error branch
+// in readProjectsFile (projects.json exists but is unreadable as a file).
+func TestReadProjectsFile_NonExistError(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	// Create a directory at the file path — ReadFile returns "is a directory".
+	configPath := filepath.Join(dir, "config", ProjectsConfigFile)
+	if err := os.MkdirAll(configPath, 0700); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	p := &projectConfigUpdater{storageDir: dir}
+	_, err := p.readProjectsFile(configPath)
+	if err == nil {
+		t.Error("expected error for directory-as-file, got nil")
+	}
+}
+
+// TestReadProjectsFile_InvalidJSON covers the JSON unmarshal error branch.
+func TestReadProjectsFile_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	configDir := filepath.Join(dir, "config")
+	if err := os.MkdirAll(configDir, 0700); err != nil {
+		t.Fatalf("setup mkdir: %v", err)
+	}
+	configPath := filepath.Join(configDir, ProjectsConfigFile)
+	if err := os.WriteFile(configPath, []byte("not valid json"), 0600); err != nil {
+		t.Fatalf("setup write: %v", err)
+	}
+
+	p := &projectConfigUpdater{storageDir: dir}
+	_, err := p.readProjectsFile(configPath)
+	if err == nil {
+		t.Error("expected error for invalid JSON, got nil")
+	}
+}
+
+// TestWriteProjectsFile_MkdirAllFails covers the MkdirAll error branch by
+// placing a regular file where the config directory is expected.
+func TestWriteProjectsFile_MkdirAllFails(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	// Create a regular file at the path where the config directory would go.
+	if err := os.WriteFile(filepath.Join(dir, "config"), []byte("file"), 0600); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	p := &projectConfigUpdater{storageDir: dir}
+	configPath := filepath.Join(dir, "config", ProjectsConfigFile)
+	err := p.writeProjectsFile(configPath, map[string]workspace.WorkspaceConfiguration{})
+	if err == nil {
+		t.Error("expected error when config path is a file, got nil")
+	}
+}
+
+// TestWriteProjectsFile_WriteFileFails covers the WriteFile error branch by
+// making the config directory read-only.
+func TestWriteProjectsFile_WriteFileFails(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("chmod-based permission tests do not apply on Windows")
+	}
+	if os.Getuid() == 0 {
+		t.Skip("chmod restrictions do not apply to root")
+	}
+
+	dir := t.TempDir()
+	configDir := filepath.Join(dir, "config")
+	if err := os.MkdirAll(configDir, 0700); err != nil {
+		t.Fatalf("setup mkdir: %v", err)
+	}
+	// Remove write permission so WriteFile fails.
+	if err := os.Chmod(configDir, 0500); err != nil {
+		t.Fatalf("setup chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(configDir, 0700) })
+
+	p := &projectConfigUpdater{storageDir: dir}
+	configPath := filepath.Join(configDir, ProjectsConfigFile)
+	err := p.writeProjectsFile(configPath, map[string]workspace.WorkspaceConfiguration{})
+	if err == nil {
+		t.Error("expected error writing to read-only directory, got nil")
 	}
 }
 

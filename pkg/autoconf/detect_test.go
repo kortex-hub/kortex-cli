@@ -144,3 +144,51 @@ func TestDetect_NoServices(t *testing.T) {
 		t.Errorf("expected no detections for empty services, got %v", got.NeedsAction)
 	}
 }
+
+// TestNewSecretDetector covers the NewSecretDetector constructor. It uses an env
+// var name that is guaranteed to be unset so Detect returns an empty result.
+func TestNewSecretDetector(t *testing.T) {
+	t.Parallel()
+	services := []secretservice.SecretService{
+		makeService("svc", []string{"__KDN_UNSET_TEST_VAR_XYZ__"}),
+	}
+	d := NewSecretDetector(services)
+	if d == nil {
+		t.Fatal("NewSecretDetector returned nil")
+	}
+	got, err := d.Detect()
+	if err != nil {
+		t.Fatalf("Detect returned error: %v", err)
+	}
+	if len(got.NeedsAction) != 0 {
+		t.Errorf("expected empty result for unset env var, got %v", got.NeedsAction)
+	}
+}
+
+// TestNewFilteredSecretDetector covers the NewFilteredSecretDetector constructor
+// and the d.filter != nil branch in Detect. The lookupEnv field is replaced via
+// a type assertion (same package) so the test stays deterministic.
+func TestNewFilteredSecretDetector(t *testing.T) {
+	t.Parallel()
+	services := []secretservice.SecretService{
+		makeService("anthropic", []string{"ANTHROPIC_API_KEY"}),
+	}
+	d := NewFilteredSecretDetector(services, &fakeFilterStore{}, &fakeFilterLoader{}, "", nil)
+	if d == nil {
+		t.Fatal("NewFilteredSecretDetector returned nil")
+	}
+
+	// Inject a controlled env lookup so the test is not affected by the real environment.
+	d.(*envSecretDetector).lookupEnv = envLookup(map[string]string{
+		"ANTHROPIC_API_KEY": "sk-ant-test",
+	})
+
+	got, err := d.Detect()
+	if err != nil {
+		t.Fatalf("Detect returned error: %v", err)
+	}
+	// Secret is not in the store → NeedsAction.
+	if len(got.NeedsAction) != 1 || got.NeedsAction[0].ServiceName != "anthropic" {
+		t.Errorf("expected anthropic in NeedsAction, got %v", got.NeedsAction)
+	}
+}

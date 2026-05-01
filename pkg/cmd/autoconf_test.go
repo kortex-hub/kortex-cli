@@ -20,13 +20,12 @@ package cmd
 
 import (
 	"context"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/openkaiden/kdn/pkg/autoconf"
 	"github.com/openkaiden/kdn/pkg/cmd/testutil"
+	"github.com/openkaiden/kdn/pkg/project"
 	"github.com/openkaiden/kdn/pkg/secret"
 	"github.com/spf13/cobra"
 )
@@ -39,6 +38,15 @@ type fakeAutoconfCmdDetector struct {
 func (f *fakeAutoconfCmdDetector) Detect() (autoconf.FilterResult, error) {
 	return f.result, nil
 }
+
+// fakeProjectDetector is a minimal project.Detector for cmd-level tests.
+type fakeProjectDetector struct{}
+
+func (f *fakeProjectDetector) DetectProject(_ context.Context, dir string) string {
+	return dir
+}
+
+var _ project.Detector = (*fakeProjectDetector)(nil)
 
 func TestAutoconfCmd(t *testing.T) {
 	t.Parallel()
@@ -80,8 +88,7 @@ func TestAutoconfCmd_Examples(t *testing.T) {
 }
 
 // TestAutoconfCmd_PreRun verifies that preRun wires all dependencies from the
-// --storage flag and leaves injectable fields (confirm, selectTarget, detector)
-// set to non-nil defaults.
+// --storage flag and leaves injectable fields set to non-nil defaults.
 func TestAutoconfCmd_PreRun(t *testing.T) {
 	t.Parallel()
 
@@ -104,6 +111,9 @@ func TestAutoconfCmd_PreRun(t *testing.T) {
 	}
 	if c.workspaceUpdater == nil {
 		t.Error("workspaceUpdater not set by preRun")
+	}
+	if c.projectDetector == nil {
+		t.Error("projectDetector not set by preRun")
 	}
 	if c.detector == nil {
 		t.Error("detector not set by preRun")
@@ -138,6 +148,44 @@ func TestAutoconfCmd_PreRun_PreservesInjectedDetector(t *testing.T) {
 
 	if c.detector != injected {
 		t.Error("preRun overwrote the pre-injected detector")
+	}
+}
+
+// TestAutoconfCmd_PreRun_PreservesInjectedProjectDetector verifies the nil-guard:
+// a pre-populated projectDetector must not be overwritten by preRun.
+func TestAutoconfCmd_PreRun_PreservesInjectedProjectDetector(t *testing.T) {
+	t.Parallel()
+
+	storageDir := t.TempDir()
+	injected := &fakeProjectDetector{}
+	c := &autoconfCmd{projectDetector: injected}
+
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	cmd.Flags().String("storage", storageDir, "")
+
+	if err := c.preRun(cmd, []string{}); err != nil {
+		t.Fatalf("preRun returned error: %v", err)
+	}
+
+	if c.projectDetector != injected {
+		t.Error("preRun overwrote the pre-injected projectDetector")
+	}
+}
+
+// TestAutoconfCmd_PreRun_MissingStorageFlag verifies that preRun returns an
+// error when the --storage flag has not been registered on the command.
+func TestAutoconfCmd_PreRun_MissingStorageFlag(t *testing.T) {
+	t.Parallel()
+
+	c := &autoconfCmd{}
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	// Intentionally do not register --storage; GetString must fail.
+
+	err := c.preRun(cmd, []string{})
+	if err == nil {
+		t.Fatal("expected error when --storage flag is missing, got nil")
 	}
 }
 
@@ -200,94 +248,6 @@ func TestAutoconfCmd_Run_YesFlag(t *testing.T) {
 	}
 	if confirmCalled {
 		t.Error("confirm must not be called when yes=true")
-	}
-}
-
-// TestDetectProjectID_NonGitDir verifies that a directory that is not a git
-// repository is returned as-is as the project identifier.
-func TestDetectProjectID_NonGitDir(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	got := detectProjectID(context.Background(), dir)
-	if got != dir {
-		t.Errorf("expected %q for non-git dir, got %q", dir, got)
-	}
-}
-
-// TestDetectProjectID_GitRepo_NoRemote verifies that a git repository without
-// a remote uses its root directory as the project identifier.
-func TestDetectProjectID_GitRepo_NoRemote(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	if err := exec.Command("git", "-C", dir, "init").Run(); err != nil {
-		t.Skipf("git not available: %v", err)
-	}
-
-	got := detectProjectID(context.Background(), dir)
-	if got != dir {
-		t.Errorf("expected root dir %q, got %q", dir, got)
-	}
-}
-
-// TestDetectProjectID_GitRepo_WithRemote verifies that a git repository with a
-// configured remote returns the remote URL (with trailing slash) as the
-// project identifier.
-func TestDetectProjectID_GitRepo_WithRemote(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	// Resolve symlinks: git rev-parse --show-toplevel returns the real path, so
-	// the dir we pass must also be canonical (on macOS /var → /private/var).
-	if real, err := filepath.EvalSymlinks(dir); err == nil {
-		dir = real
-	}
-	cmds := [][]string{
-		{"git", "-C", dir, "init"},
-		{"git", "-C", dir, "remote", "add", "origin", "https://github.com/example/repo"},
-	}
-	for _, c := range cmds {
-		if err := exec.Command(c[0], c[1:]...).Run(); err != nil {
-			t.Skipf("git setup failed: %v", err)
-		}
-	}
-
-	got := detectProjectID(context.Background(), dir)
-	want := "https://github.com/example/repo/"
-	if got != want {
-		t.Errorf("expected %q, got %q", want, got)
-	}
-}
-
-// TestDetectProjectID_GitRepo_WithRemote_Subdir verifies that when the working
-// directory is a subdirectory of the git root, the relative path is appended to
-// the remote URL.
-func TestDetectProjectID_GitRepo_WithRemote_Subdir(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	// Resolve symlinks: git rev-parse --show-toplevel returns the real path, so
-	// the root we pass must also be canonical (on macOS /var → /private/var).
-	if real, err := filepath.EvalSymlinks(root); err == nil {
-		root = real
-	}
-	subdir := filepath.Join(root, "sub", "dir")
-	cmds := [][]string{
-		{"git", "-C", root, "init"},
-		{"git", "-C", root, "remote", "add", "origin", "https://github.com/example/repo"},
-		{"mkdir", "-p", subdir},
-	}
-	for _, c := range cmds {
-		if err := exec.Command(c[0], c[1:]...).Run(); err != nil {
-			t.Skipf("git setup failed: %v", err)
-		}
-	}
-
-	got := detectProjectID(context.Background(), subdir)
-	want := "https://github.com/example/repo/sub/dir"
-	if got != want {
-		t.Errorf("expected %q, got %q", want, got)
 	}
 }
 

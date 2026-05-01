@@ -19,17 +19,16 @@
 package cmd
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/charmbracelet/huh"
 	"github.com/openkaiden/kdn/pkg/autoconf"
 	"github.com/openkaiden/kdn/pkg/config"
 	"github.com/openkaiden/kdn/pkg/git"
+	"github.com/openkaiden/kdn/pkg/project"
 	"github.com/openkaiden/kdn/pkg/secret"
 	"github.com/openkaiden/kdn/pkg/secretservicesetup"
 	"github.com/spf13/cobra"
@@ -41,6 +40,7 @@ type autoconfCmd struct {
 	projectUpdater   config.ProjectConfigUpdater
 	workspaceUpdater config.WorkspaceConfigUpdater
 	projectID        string
+	projectDetector  project.Detector
 	detector         autoconf.SecretDetector
 	confirm          func(prompt string) (bool, error)
 	selectTarget     func(secretName string, options []autoconf.ConfigTargetOption) (autoconf.ConfigTarget, error)
@@ -75,7 +75,11 @@ func (a *autoconfCmd) preRun(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
-	a.projectID = detectProjectID(cmd.Context(), cwd)
+
+	if a.projectDetector == nil {
+		a.projectDetector = project.NewDetector(git.NewDetector())
+	}
+	a.projectID = a.projectDetector.DetectProject(cmd.Context(), cwd)
 
 	kaidenDir := filepath.Join(cwd, ".kaiden")
 
@@ -136,29 +140,6 @@ func huhSelectTarget(secretName string, options []autoconf.ConfigTargetOption) (
 		return 0, autoconf.ErrSkipped
 	}
 	return selected, err
-}
-
-// detectProjectID mirrors manager.detectProject: git repo with remote → remote URL,
-// git repo without remote → root path, non-git → source directory.
-func detectProjectID(ctx context.Context, dir string) string {
-	repoInfo, err := git.NewDetector().DetectRepository(ctx, dir)
-	if err != nil {
-		return dir
-	}
-	if repoInfo.RemoteURL != "" {
-		base := repoInfo.RemoteURL
-		if !strings.HasSuffix(base, "/") {
-			base += "/"
-		}
-		if repoInfo.RelativePath != "" {
-			return base + filepath.ToSlash(repoInfo.RelativePath)
-		}
-		return base
-	}
-	if repoInfo.RelativePath != "" {
-		return filepath.Join(repoInfo.RootDir, repoInfo.RelativePath)
-	}
-	return repoInfo.RootDir
 }
 
 func (a *autoconfCmd) run(cmd *cobra.Command, args []string) error {

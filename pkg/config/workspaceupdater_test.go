@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
@@ -118,5 +119,102 @@ func TestWorkspaceUpdater_EmptyConfigDir_ReturnsError(t *testing.T) {
 	_, err := NewWorkspaceConfigUpdater("")
 	if err == nil {
 		t.Error("expected error for empty configDir")
+	}
+}
+
+// TestWorkspaceUpdater_ReadError covers the error propagation path in AddSecret
+// when readConfig fails with a non-NotExist error (workspace.json is a directory).
+func TestWorkspaceUpdater_ReadError(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	// Place a directory at the workspace.json path so ReadFile returns "is a directory".
+	if err := os.MkdirAll(filepath.Join(dir, WorkspaceConfigFile), 0700); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	u, err := NewWorkspaceConfigUpdater(dir)
+	if err != nil {
+		t.Fatalf("NewWorkspaceConfigUpdater: %v", err)
+	}
+	if err := u.AddSecret("github"); err == nil {
+		t.Error("expected error when workspace.json is a directory, got nil")
+	}
+}
+
+// TestWorkspaceUpdater_ReadConfig_NonExistError covers the non-NotExist branch
+// in readConfig when the file path is occupied by a directory.
+func TestWorkspaceUpdater_ReadConfig_NonExistError(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, WorkspaceConfigFile)
+	if err := os.MkdirAll(configPath, 0700); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	w := &workspaceConfigUpdater{configDir: dir}
+	if _, err := w.readConfig(configPath); err == nil {
+		t.Error("expected error for directory-as-file, got nil")
+	}
+}
+
+// TestWorkspaceUpdater_ReadConfig_InvalidJSON covers the JSON unmarshal error
+// branch in readConfig.
+func TestWorkspaceUpdater_ReadConfig_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, WorkspaceConfigFile)
+	if err := os.WriteFile(configPath, []byte("not valid json"), 0600); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	w := &workspaceConfigUpdater{configDir: dir}
+	if _, err := w.readConfig(configPath); err == nil {
+		t.Error("expected error for invalid JSON, got nil")
+	}
+}
+
+// TestWorkspaceUpdater_WriteConfig_MkdirAllFails covers the MkdirAll error
+// branch in writeConfig by placing a regular file where the config dir is expected.
+func TestWorkspaceUpdater_WriteConfig_MkdirAllFails(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	// Create a regular file at the path where the configDir would go.
+	if err := os.WriteFile(filepath.Join(dir, "kaiden"), []byte("file"), 0600); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+
+	w := &workspaceConfigUpdater{configDir: filepath.Join(dir, "kaiden")}
+	configPath := filepath.Join(dir, "kaiden", WorkspaceConfigFile)
+	if err := w.writeConfig(configPath, &workspace.WorkspaceConfiguration{}); err == nil {
+		t.Error("expected error when config path is a file, got nil")
+	}
+}
+
+// TestWorkspaceUpdater_WriteConfig_WriteFileFails covers the WriteFile error
+// branch in writeConfig by making the config directory read-only.
+func TestWorkspaceUpdater_WriteConfig_WriteFileFails(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("chmod-based permission tests do not apply on Windows")
+	}
+	if os.Getuid() == 0 {
+		t.Skip("chmod restrictions do not apply to root")
+	}
+
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0500); err != nil {
+		t.Fatalf("setup chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0700) })
+
+	w := &workspaceConfigUpdater{configDir: dir}
+	configPath := filepath.Join(dir, WorkspaceConfigFile)
+	if err := w.writeConfig(configPath, &workspace.WorkspaceConfiguration{}); err == nil {
+		t.Error("expected error writing to read-only directory, got nil")
 	}
 }
