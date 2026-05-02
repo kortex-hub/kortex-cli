@@ -78,7 +78,10 @@ func isEnvVarAssignment(token string) bool {
 		return false
 	}
 	for _, ch := range key {
-		if !((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '_') {
+		isUpper := ch >= 'A' && ch <= 'Z'
+		isLower := ch >= 'a' && ch <= 'z'
+		isDigit := ch >= '0' && ch <= '9'
+		if !(isUpper || isLower || isDigit || ch == '_') {
 			return false
 		}
 	}

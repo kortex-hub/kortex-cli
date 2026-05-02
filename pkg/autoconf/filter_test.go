@@ -399,7 +399,15 @@ func TestFilter_ProjectScopedLocation_WithLocal(t *testing.T) {
 	}
 	locs := got.Configured[0].Locations
 	if len(locs) != 2 {
-		t.Errorf("expected [ConfigTargetProject ConfigTargetLocal], got %v", locs)
+		t.Fatalf("expected [ConfigTargetProject ConfigTargetLocal], got %v", locs)
+	}
+	hasProject, hasLocal := false, false
+	for _, loc := range locs {
+		hasProject = hasProject || loc == ConfigTargetProject
+		hasLocal = hasLocal || loc == ConfigTargetLocal
+	}
+	if !hasProject || !hasLocal {
+		t.Errorf("expected locations to include project and local, got %v", locs)
 	}
 }
 

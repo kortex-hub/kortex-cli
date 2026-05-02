@@ -67,9 +67,16 @@ func TestWorkspaceUpdater_Idempotent(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 
-	u, _ := NewWorkspaceConfigUpdater(dir)
-	_ = u.AddSecret("github")
-	_ = u.AddSecret("github")
+	u, err := NewWorkspaceConfigUpdater(dir)
+	if err != nil {
+		t.Fatalf("NewWorkspaceConfigUpdater: %v", err)
+	}
+	if err := u.AddSecret("github"); err != nil {
+		t.Fatalf("AddSecret: %v", err)
+	}
+	if err := u.AddSecret("github"); err != nil {
+		t.Fatalf("AddSecret (duplicate): %v", err)
+	}
 
 	secrets := readWorkspaceSecrets(t, dir)
 	if len(secrets) != 1 {
@@ -81,9 +88,16 @@ func TestWorkspaceUpdater_MultipleCalls_Accumulate(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 
-	u, _ := NewWorkspaceConfigUpdater(dir)
-	_ = u.AddSecret("github")
-	_ = u.AddSecret("anthropic")
+	u, err := NewWorkspaceConfigUpdater(dir)
+	if err != nil {
+		t.Fatalf("NewWorkspaceConfigUpdater: %v", err)
+	}
+	if err := u.AddSecret("github"); err != nil {
+		t.Fatalf("AddSecret: %v", err)
+	}
+	if err := u.AddSecret("anthropic"); err != nil {
+		t.Fatalf("AddSecret: %v", err)
+	}
 
 	secrets := readWorkspaceSecrets(t, dir)
 	if len(secrets) != 2 {

@@ -225,7 +225,12 @@ func (a *autoconfRunner) addToConfig(out io.Writer, secretName string) error {
 func (a *autoconfRunner) buildTargetOptions() []ConfigTargetOption {
 	opts := []ConfigTargetOption{
 		{Target: ConfigTargetGlobal, Label: "Global (all projects)"},
-		{Target: ConfigTargetProject, Label: fmt.Sprintf("Project (%s)", a.projectID)},
+	}
+	if a.projectID != "" {
+		opts = append(opts, ConfigTargetOption{
+			Target: ConfigTargetProject,
+			Label:  fmt.Sprintf("Project (%s)", a.projectID),
+		})
 	}
 	if a.workspaceUpdater != nil {
 		opts = append(opts, ConfigTargetOption{
@@ -245,6 +250,9 @@ func (a *autoconfRunner) applyTarget(out io.Writer, secretName string, target Co
 		fmt.Fprintf(out, "%s Added secret %q to global project config.\n", greenCheck, secretName)
 
 	case ConfigTargetProject:
+		if a.projectID == "" {
+			return fmt.Errorf("project config target selected but no project was detected")
+		}
 		if err := a.projectUpdater.AddSecret(a.projectID, secretName); err != nil {
 			return fmt.Errorf("failed to update project config for secret %q: %w", secretName, err)
 		}

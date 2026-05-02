@@ -502,6 +502,63 @@ func TestAutoconf_LocalOptionOnlyOfferedWhenWorkspaceUpdaterSet(t *testing.T) {
 	}
 }
 
+// TestAutoconf_ProjectOptionHiddenWhenNoProjectID verifies that the project target
+// is not offered when no project ID was detected.
+func TestAutoconf_ProjectOptionHiddenWhenNoProjectID(t *testing.T) {
+	t.Parallel()
+
+	var capturedOptions []ConfigTargetOption
+	runner := New(Options{
+		Detector: &fakeAutoconfDetector{detected: []DetectedSecret{
+			{ServiceName: "github", EnvVarName: "GH_TOKEN", Value: "ghp_xyz"},
+		}},
+		Store:          &fakeAutoconfStore{},
+		ProjectUpdater: &fakeAutoconfUpdater{},
+		ProjectID:      "", // no project detected
+		Confirm:        func(string) (bool, error) { return true, nil },
+		SelectTarget: func(_ string, opts []ConfigTargetOption) (ConfigTarget, error) {
+			capturedOptions = opts
+			return ConfigTargetGlobal, nil
+		},
+	})
+
+	if err := runner.Run(&bytes.Buffer{}); err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	for _, opt := range capturedOptions {
+		if opt.Target == ConfigTargetProject {
+			t.Error("project target should not be offered when projectID is empty")
+		}
+	}
+	if len(capturedOptions) != 1 {
+		t.Errorf("expected 1 option (global only), got %d", len(capturedOptions))
+	}
+}
+
+// TestAutoconf_ProjectTarget_EmptyProjectID verifies that injecting ConfigTargetProject
+// when projectID is empty returns an error instead of writing to global scope silently.
+func TestAutoconf_ProjectTarget_EmptyProjectID(t *testing.T) {
+	t.Parallel()
+
+	runner := New(Options{
+		Detector: &fakeAutoconfDetector{detected: []DetectedSecret{
+			{ServiceName: "github", EnvVarName: "GH_TOKEN", Value: "ghp_xyz"},
+		}},
+		Store:          &fakeAutoconfStore{},
+		ProjectUpdater: &fakeAutoconfUpdater{},
+		ProjectID:      "",
+		Confirm:        func(string) (bool, error) { return true, nil },
+		SelectTarget: func(_ string, _ []ConfigTargetOption) (ConfigTarget, error) {
+			return ConfigTargetProject, nil
+		},
+	})
+
+	if err := runner.Run(&bytes.Buffer{}); err == nil {
+		t.Error("expected error when ConfigTargetProject selected with empty projectID, got nil")
+	}
+}
+
 // TestAutoconf_LocalTarget_NilWorkspaceUpdater verifies that selecting the local
 // target when no WorkspaceUpdater is set returns an error rather than panicking.
 func TestAutoconf_LocalTarget_NilWorkspaceUpdater(t *testing.T) {
