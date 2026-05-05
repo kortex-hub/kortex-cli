@@ -18,6 +18,7 @@ package runtimesetup
 import (
 	"sort"
 
+	api "github.com/openkaiden/kdn-api/cli/go"
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/runtime/fake"
 	"github.com/openkaiden/kdn/pkg/runtime/openshell"
@@ -211,6 +212,37 @@ func registerAllWithAvailable(registrar Registrar, factories []runtimeFactory) e
 	}
 
 	return nil
+}
+
+// ListRuntimes returns structured information about all available runtimes,
+// excluding internal runtimes like "fake" (used only for testing).
+func ListRuntimes() []api.RuntimeInfo {
+	return listRuntimesWithFactories(availableRuntimes)
+}
+
+// listRuntimesWithFactories returns runtime info from the given factories.
+func listRuntimesWithFactories(factories []runtimeFactory) []api.RuntimeInfo {
+	var runtimes []api.RuntimeInfo
+
+	for _, factory := range factories {
+		rt := factory()
+
+		if avail, ok := rt.(Available); ok && !avail.Available() {
+			continue
+		}
+
+		if rt.Type() == "fake" {
+			continue
+		}
+
+		runtimes = append(runtimes, api.RuntimeInfo{
+			Name:        rt.Type(),
+			Description: rt.Description(),
+			Local:       rt.Local(),
+		})
+	}
+
+	return runtimes
 }
 
 // ListFlags returns the CLI flag definitions declared by all available runtimes

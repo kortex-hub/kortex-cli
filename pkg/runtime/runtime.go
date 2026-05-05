@@ -32,6 +32,13 @@ type Runtime interface {
 	// Type returns the runtime type identifier (e.g., "podman", "docker", "process", "fake").
 	Type() string
 
+	// Description returns a human-readable description of the runtime.
+	Description() string
+
+	// Local reports whether the runtime executes workspaces on the local machine.
+	// Returns true for local runtimes (e.g., Podman), false for remote ones (e.g., Kubernetes).
+	Local() bool
+
 	// WorkspaceSourcesPath returns the path where sources will be mounted inside the workspace.
 	// This is a constant for each runtime type and doesn't require an instance to exist.
 	WorkspaceSourcesPath() string

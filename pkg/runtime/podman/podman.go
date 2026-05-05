@@ -251,6 +251,16 @@ func (p *podmanRuntime) Type() string {
 	return "podman"
 }
 
+// Description returns a human-readable description of the Podman runtime.
+func (p *podmanRuntime) Description() string {
+	return "Container-based workspaces using Podman"
+}
+
+// Local reports whether the runtime executes workspaces locally.
+func (p *podmanRuntime) Local() bool {
+	return true
+}
+
 // WorkspaceSourcesPath returns the path where sources are mounted inside the workspace.
 func (p *podmanRuntime) WorkspaceSourcesPath() string {
 	return containerWorkspaceSources

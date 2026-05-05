@@ -40,10 +40,16 @@ func (f *fakeRegistrar) RegisterRuntime(rt runtime.Runtime) error {
 // testRuntime is a simple test runtime implementation
 type testRuntime struct {
 	runtimeType string
+	description string
+	local       bool
 	available   bool
 }
 
 func (t *testRuntime) Type() string { return t.runtimeType }
+
+func (t *testRuntime) Description() string { return t.description }
+
+func (t *testRuntime) Local() bool { return t.local }
 
 func (t *testRuntime) WorkspaceSourcesPath() string { return "/workspace/sources" }
 
@@ -512,6 +518,114 @@ func TestListFlags(t *testing.T) {
 		t.Errorf("expected openshell flags to be either both present or both absent, got driver=%v allow-hosts=%v",
 			flagNames["openshell-driver"], flagNames["openshell-allow-hosts"])
 	}
+}
+
+func TestListRuntimesWithFactories(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns info for available runtimes", func(t *testing.T) {
+		t.Parallel()
+
+		factories := []runtimeFactory{
+			func() runtime.Runtime {
+				return &testRuntime{runtimeType: "container-rt", description: "Containers", local: true, available: true}
+			},
+			func() runtime.Runtime {
+				return &testRuntime{runtimeType: "remote-rt", description: "Remote clusters", local: false, available: true}
+			},
+		}
+
+		runtimes := listRuntimesWithFactories(factories)
+
+		if len(runtimes) != 2 {
+			t.Fatalf("expected 2 runtimes, got %d", len(runtimes))
+		}
+		if runtimes[0].Name != "container-rt" {
+			t.Errorf("expected name 'container-rt', got %q", runtimes[0].Name)
+		}
+		if runtimes[0].Description != "Containers" {
+			t.Errorf("expected description 'Containers', got %q", runtimes[0].Description)
+		}
+		if !runtimes[0].Local {
+			t.Error("expected container-rt to be local")
+		}
+		if runtimes[1].Name != "remote-rt" {
+			t.Errorf("expected name 'remote-rt', got %q", runtimes[1].Name)
+		}
+		if runtimes[1].Local {
+			t.Error("expected remote-rt to not be local")
+		}
+	})
+
+	t.Run("skips unavailable runtimes", func(t *testing.T) {
+		t.Parallel()
+
+		factories := []runtimeFactory{
+			func() runtime.Runtime {
+				return &testRuntime{runtimeType: "avail-rt", description: "Available", local: true, available: true}
+			},
+			func() runtime.Runtime {
+				return &testRuntime{runtimeType: "unavail-rt", description: "Unavailable", local: true, available: false}
+			},
+		}
+
+		runtimes := listRuntimesWithFactories(factories)
+
+		if len(runtimes) != 1 {
+			t.Fatalf("expected 1 runtime, got %d", len(runtimes))
+		}
+		if runtimes[0].Name != "avail-rt" {
+			t.Errorf("expected name 'avail-rt', got %q", runtimes[0].Name)
+		}
+	})
+
+	t.Run("skips fake runtime", func(t *testing.T) {
+		t.Parallel()
+
+		factories := []runtimeFactory{
+			func() runtime.Runtime {
+				return &testRuntime{runtimeType: "fake", description: "Fake", local: true, available: true}
+			},
+			func() runtime.Runtime {
+				return &testRuntime{runtimeType: "real-rt", description: "Real", local: true, available: true}
+			},
+		}
+
+		runtimes := listRuntimesWithFactories(factories)
+
+		if len(runtimes) != 1 {
+			t.Fatalf("expected 1 runtime, got %d", len(runtimes))
+		}
+		if runtimes[0].Name != "real-rt" {
+			t.Errorf("expected name 'real-rt', got %q", runtimes[0].Name)
+		}
+	})
+
+	t.Run("returns empty when no runtimes available", func(t *testing.T) {
+		t.Parallel()
+
+		factories := []runtimeFactory{
+			func() runtime.Runtime {
+				return &testRuntime{runtimeType: "unavail-rt", description: "Unavailable", local: true, available: false}
+			},
+		}
+
+		runtimes := listRuntimesWithFactories(factories)
+
+		if len(runtimes) != 0 {
+			t.Errorf("expected 0 runtimes, got %d", len(runtimes))
+		}
+	})
+
+	t.Run("returns nil when factory list is empty", func(t *testing.T) {
+		t.Parallel()
+
+		runtimes := listRuntimesWithFactories(nil)
+
+		if runtimes != nil {
+			t.Errorf("expected nil, got %v", runtimes)
+		}
+	})
 }
 
 func TestListFlagsWithFactories(t *testing.T) {

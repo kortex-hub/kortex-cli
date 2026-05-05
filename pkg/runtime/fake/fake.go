@@ -166,6 +166,16 @@ func (f *fakeRuntime) Type() string {
 	return "fake"
 }
 
+// Description returns a human-readable description of the fake runtime.
+func (f *fakeRuntime) Description() string {
+	return "In-memory runtime for testing"
+}
+
+// Local reports whether the runtime executes workspaces locally.
+func (f *fakeRuntime) Local() bool {
+	return true
+}
+
 // WorkspaceSourcesPath returns the path where sources are mounted inside the workspace.
 func (f *fakeRuntime) WorkspaceSourcesPath() string {
 	return "/project/sources"

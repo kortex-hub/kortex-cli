@@ -166,6 +166,16 @@ func (r *openshellRuntime) Type() string {
 	return "openshell"
 }
 
+// Description returns a human-readable description of the OpenShell runtime.
+func (r *openshellRuntime) Description() string {
+	return "Sandbox-based workspaces using OpenShell Gateway"
+}
+
+// Local reports whether the runtime executes workspaces locally.
+func (r *openshellRuntime) Local() bool {
+	return false
+}
+
 // WorkspaceSourcesPath returns the path where sources are mounted inside the sandbox.
 func (r *openshellRuntime) WorkspaceSourcesPath() string {
 	return containerWorkspaceSources
