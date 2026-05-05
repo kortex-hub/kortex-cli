@@ -1886,3 +1886,99 @@ func TestBuildForwards(t *testing.T) {
 		}
 	})
 }
+
+func TestCreate_ForwardsInRuntimeInfo(t *testing.T) {
+	t.Parallel()
+
+	newRuntime := func(t *testing.T) (*podmanRuntime, context.Context) {
+		t.Helper()
+		storageDir := t.TempDir()
+		sourcePath := t.TempDir()
+		onecliServer := newOnecliTestServer(t)
+
+		fakeExec := exec.NewFake()
+		fakeExec.RunFunc = func(ctx context.Context, args ...string) error { return nil }
+		fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+			return []byte("container-id-123"), nil
+		}
+
+		p := &podmanRuntime{
+			system:          &fakeSystem{},
+			executor:        fakeExec,
+			storageDir:      storageDir,
+			config:          &fakeConfig{},
+			onecliBaseURLFn: func(_ int) string { return onecliServer.URL },
+		}
+		ctx := steplogger.WithLogger(context.Background(), &fakeStepLogger{})
+		_ = sourcePath
+		return p, ctx
+	}
+
+	t.Run("forwards written to RuntimeInfo when ports configured", func(t *testing.T) {
+		t.Parallel()
+
+		p, ctx := newRuntime(t)
+		ports := []int{8080, 3000}
+		params := runtime.CreateParams{
+			Name:       "fwd-workspace",
+			SourcePath: t.TempDir(),
+			Agent:      "test_agent",
+			WorkspaceConfig: &workspace.WorkspaceConfiguration{
+				Ports: &ports,
+			},
+		}
+
+		info, err := p.Create(ctx, params)
+		if err != nil {
+			t.Fatalf("Create() failed: %v", err)
+		}
+
+		forwardsJSON, ok := info.Info["forwards"]
+		if !ok {
+			t.Fatal("Expected 'forwards' key in RuntimeInfo.Info")
+		}
+
+		var forwards []api.WorkspaceForward
+		if err := json.Unmarshal([]byte(forwardsJSON), &forwards); err != nil {
+			t.Fatalf("Failed to unmarshal forwards JSON: %v", err)
+		}
+		if len(forwards) != 2 {
+			t.Fatalf("Expected 2 forwards, got %d", len(forwards))
+		}
+		targets := map[int]bool{}
+		for _, fwd := range forwards {
+			targets[fwd.Target] = true
+			if fwd.Bind != "127.0.0.1" {
+				t.Errorf("Expected Bind '127.0.0.1', got '%s'", fwd.Bind)
+			}
+			if fwd.Port <= 0 || fwd.Port > 65535 {
+				t.Errorf("Port %d out of valid range", fwd.Port)
+			}
+		}
+		for _, want := range ports {
+			if !targets[want] {
+				t.Errorf("Expected target port %d in forwards, got %v", want, forwards)
+			}
+		}
+	})
+
+	t.Run("forwards absent from RuntimeInfo when no ports configured", func(t *testing.T) {
+		t.Parallel()
+
+		p, ctx := newRuntime(t)
+		params := runtime.CreateParams{
+			Name:       "no-fwd-workspace",
+			SourcePath: t.TempDir(),
+			Agent:      "test_agent",
+		}
+
+		info, err := p.Create(ctx, params)
+		if err != nil {
+			t.Fatalf("Create() failed: %v", err)
+		}
+
+		if _, ok := info.Info["forwards"]; ok {
+			t.Errorf("Expected no 'forwards' key in RuntimeInfo.Info when no ports configured")
+		}
+	})
+}
