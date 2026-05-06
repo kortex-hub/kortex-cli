@@ -19,13 +19,47 @@
 package gcloud
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	"github.com/openkaiden/kdn/pkg/onecli"
 )
+
+// fakeOnecliClient is a test double for onecli.Client that records ConnectApp calls.
+type fakeOnecliClient struct {
+	connectAppErr      error
+	connectAppProvider string
+	connectAppFields   map[string]string
+}
+
+var _ onecli.Client = (*fakeOnecliClient)(nil)
+
+func (f *fakeOnecliClient) CreateSecret(_ context.Context, _ onecli.CreateSecretInput) (*onecli.Secret, error) {
+	return nil, nil
+}
+func (f *fakeOnecliClient) UpdateSecret(_ context.Context, _ string, _ onecli.UpdateSecretInput) error {
+	return nil
+}
+func (f *fakeOnecliClient) ListSecrets(_ context.Context) ([]onecli.Secret, error) { return nil, nil }
+func (f *fakeOnecliClient) DeleteSecret(_ context.Context, _ string) error         { return nil }
+func (f *fakeOnecliClient) GetContainerConfig(_ context.Context) (*onecli.ContainerConfig, error) {
+	return nil, nil
+}
+func (f *fakeOnecliClient) CreateRule(_ context.Context, _ onecli.CreateRuleInput) (*onecli.Rule, error) {
+	return nil, nil
+}
+func (f *fakeOnecliClient) ListRules(_ context.Context) ([]onecli.Rule, error) { return nil, nil }
+func (f *fakeOnecliClient) DeleteRule(_ context.Context, _ string) error       { return nil }
+func (f *fakeOnecliClient) ConnectApp(_ context.Context, provider string, fields map[string]string) error {
+	f.connectAppProvider = provider
+	f.connectAppFields = fields
+	return f.connectAppErr
+}
 
 func TestGcloudCredential_Name(t *testing.T) {
 	t.Parallel()
@@ -249,6 +283,239 @@ func TestLoadADC(t *testing.T) {
 		_, err := loadADC(adcPath)
 		if err == nil {
 			t.Fatal("loadADC() error = nil, want error for invalid JSON")
+		}
+	})
+
+	t.Run("returns error for unreadable file", func(t *testing.T) {
+		t.Parallel()
+
+		if os.Getuid() == 0 {
+			t.Skip("running as root: permission checks do not apply")
+		}
+
+		adcPath := filepath.Join(t.TempDir(), "adc.json")
+		if err := os.WriteFile(adcPath, []byte(`{}`), 0000); err != nil {
+			t.Fatalf("failed to write test file: %v", err)
+		}
+
+		_, err := loadADC(adcPath)
+		if err == nil {
+			t.Fatal("loadADC() error = nil, want error for unreadable file")
+		}
+		if errors.Is(err, os.ErrNotExist) {
+			t.Errorf("loadADC() returned ErrNotExist, want a permission error")
+		}
+	})
+}
+
+func TestVertexAIFields(t *testing.T) {
+	t.Run("uses quota_project_id from ADC when present", func(t *testing.T) {
+		t.Parallel()
+
+		creds := &adcCredentials{
+			RefreshToken:   "tok",
+			ClientID:       "id",
+			ClientSecret:   "sec",
+			QuotaProjectID: "adc-project",
+		}
+		fields := creds.vertexAIFields()
+		if fields["quotaProjectId"] != "adc-project" {
+			t.Errorf("quotaProjectId = %q, want %q", fields["quotaProjectId"], "adc-project")
+		}
+		if fields["refreshToken"] != "tok" {
+			t.Errorf("refreshToken = %q, want %q", fields["refreshToken"], "tok")
+		}
+	})
+
+	t.Run("falls back to ANTHROPIC_VERTEX_PROJECT_ID when quota_project_id empty", func(t *testing.T) {
+		t.Setenv("ANTHROPIC_VERTEX_PROJECT_ID", "env-vertex-project")
+		t.Setenv("GOOGLE_CLOUD_PROJECT", "should-not-be-used")
+
+		creds := &adcCredentials{RefreshToken: "tok"}
+		fields := creds.vertexAIFields()
+		if fields["quotaProjectId"] != "env-vertex-project" {
+			t.Errorf("quotaProjectId = %q, want %q", fields["quotaProjectId"], "env-vertex-project")
+		}
+	})
+
+	t.Run("falls back to GOOGLE_CLOUD_PROJECT when ANTHROPIC_VERTEX_PROJECT_ID unset", func(t *testing.T) {
+		t.Setenv("ANTHROPIC_VERTEX_PROJECT_ID", "")
+		t.Setenv("GOOGLE_CLOUD_PROJECT", "gcp-project")
+
+		creds := &adcCredentials{RefreshToken: "tok"}
+		fields := creds.vertexAIFields()
+		if fields["quotaProjectId"] != "gcp-project" {
+			t.Errorf("quotaProjectId = %q, want %q", fields["quotaProjectId"], "gcp-project")
+		}
+	})
+
+	t.Run("empty quotaProjectId when no env vars set", func(t *testing.T) {
+		t.Setenv("ANTHROPIC_VERTEX_PROJECT_ID", "")
+		t.Setenv("GOOGLE_CLOUD_PROJECT", "")
+
+		creds := &adcCredentials{RefreshToken: "tok"}
+		fields := creds.vertexAIFields()
+		if fields["quotaProjectId"] != "" {
+			t.Errorf("quotaProjectId = %q, want empty string", fields["quotaProjectId"])
+		}
+	})
+}
+
+func TestGcloudCredential_Configure(t *testing.T) {
+	t.Parallel()
+
+	writeADC := func(t *testing.T, content string) string {
+		t.Helper()
+		p := filepath.Join(t.TempDir(), "adc.json")
+		if err := os.WriteFile(p, []byte(content), 0644); err != nil {
+			t.Fatalf("failed to write ADC file: %v", err)
+		}
+		return p
+	}
+
+	validADC := `{
+		"refresh_token": "real-token",
+		"client_id": "real-client-id",
+		"client_secret": "real-secret",
+		"quota_project_id": "real-project"
+	}`
+
+	t.Run("success: calls ConnectApp with parsed fields", func(t *testing.T) {
+		t.Parallel()
+
+		adcPath := writeADC(t, validADC)
+		client := &fakeOnecliClient{}
+		cred := New()
+
+		if err := cred.Configure(context.Background(), client, adcPath); err != nil {
+			t.Fatalf("Configure() error = %v", err)
+		}
+		if client.connectAppProvider != "vertex-ai" {
+			t.Errorf("ConnectApp provider = %q, want %q", client.connectAppProvider, "vertex-ai")
+		}
+		if client.connectAppFields["refreshToken"] != "real-token" {
+			t.Errorf("refreshToken = %q, want %q", client.connectAppFields["refreshToken"], "real-token")
+		}
+		if client.connectAppFields["quotaProjectId"] != "real-project" {
+			t.Errorf("quotaProjectId = %q, want %q", client.connectAppFields["quotaProjectId"], "real-project")
+		}
+	})
+
+	t.Run("error: ADC file not found", func(t *testing.T) {
+		t.Parallel()
+
+		client := &fakeOnecliClient{}
+		cred := New()
+
+		err := cred.Configure(context.Background(), client, "/nonexistent/adc.json")
+		if err == nil {
+			t.Fatal("Configure() error = nil, want error for missing file")
+		}
+		if !strings.Contains(err.Error(), "ADC file not found") {
+			t.Errorf("error %q does not mention 'ADC file not found'", err.Error())
+		}
+	})
+
+	t.Run("error: invalid JSON in ADC file", func(t *testing.T) {
+		t.Parallel()
+
+		adcPath := writeADC(t, "not valid json")
+		client := &fakeOnecliClient{}
+		cred := New()
+
+		err := cred.Configure(context.Background(), client, adcPath)
+		if err == nil {
+			t.Fatal("Configure() error = nil, want error for invalid JSON")
+		}
+	})
+
+	t.Run("error: ConnectApp returns error", func(t *testing.T) {
+		t.Parallel()
+
+		adcPath := writeADC(t, validADC)
+		client := &fakeOnecliClient{connectAppErr: errors.New("vertex-ai unavailable")}
+		cred := New()
+
+		err := cred.Configure(context.Background(), client, adcPath)
+		if err == nil {
+			t.Fatal("Configure() error = nil, want error from ConnectApp")
+		}
+		if !strings.Contains(err.Error(), "vertex-ai unavailable") {
+			t.Errorf("error %q does not mention 'vertex-ai unavailable'", err.Error())
+		}
+	})
+}
+
+func TestGcloudCredential_EnvVars(t *testing.T) {
+	t.Run("empty map when no env vars set", func(t *testing.T) {
+		t.Setenv("CLOUD_ML_REGION", "")
+		t.Setenv("ANTHROPIC_VERTEX_PROJECT_ID", "")
+		t.Setenv("GOOGLE_CLOUD_PROJECT", "")
+
+		vars := New().EnvVars("")
+		if len(vars) != 0 {
+			t.Errorf("EnvVars() = %v, want empty map", vars)
+		}
+	})
+
+	t.Run("CLOUD_ML_REGION propagates to CLOUD_ML_REGION and VERTEX_LOCATION", func(t *testing.T) {
+		t.Setenv("CLOUD_ML_REGION", "us-central1")
+		t.Setenv("ANTHROPIC_VERTEX_PROJECT_ID", "")
+		t.Setenv("GOOGLE_CLOUD_PROJECT", "")
+
+		vars := New().EnvVars("")
+		if vars["CLOUD_ML_REGION"] != "us-central1" {
+			t.Errorf("CLOUD_ML_REGION = %q, want %q", vars["CLOUD_ML_REGION"], "us-central1")
+		}
+		if vars["VERTEX_LOCATION"] != "us-central1" {
+			t.Errorf("VERTEX_LOCATION = %q, want %q", vars["VERTEX_LOCATION"], "us-central1")
+		}
+	})
+
+	t.Run("ANTHROPIC_VERTEX_PROJECT_ID propagates to both project vars", func(t *testing.T) {
+		t.Setenv("CLOUD_ML_REGION", "")
+		t.Setenv("ANTHROPIC_VERTEX_PROJECT_ID", "my-vertex-project")
+		t.Setenv("GOOGLE_CLOUD_PROJECT", "")
+
+		vars := New().EnvVars("")
+		if vars["ANTHROPIC_VERTEX_PROJECT_ID"] != "my-vertex-project" {
+			t.Errorf("ANTHROPIC_VERTEX_PROJECT_ID = %q, want %q", vars["ANTHROPIC_VERTEX_PROJECT_ID"], "my-vertex-project")
+		}
+		if vars["GOOGLE_CLOUD_PROJECT"] != "my-vertex-project" {
+			t.Errorf("GOOGLE_CLOUD_PROJECT = %q, want %q", vars["GOOGLE_CLOUD_PROJECT"], "my-vertex-project")
+		}
+	})
+
+	t.Run("GOOGLE_CLOUD_PROJECT used when ANTHROPIC_VERTEX_PROJECT_ID unset", func(t *testing.T) {
+		t.Setenv("CLOUD_ML_REGION", "")
+		t.Setenv("ANTHROPIC_VERTEX_PROJECT_ID", "")
+		t.Setenv("GOOGLE_CLOUD_PROJECT", "gcp-fallback")
+
+		vars := New().EnvVars("")
+		if vars["ANTHROPIC_VERTEX_PROJECT_ID"] != "gcp-fallback" {
+			t.Errorf("ANTHROPIC_VERTEX_PROJECT_ID = %q, want %q", vars["ANTHROPIC_VERTEX_PROJECT_ID"], "gcp-fallback")
+		}
+		if vars["GOOGLE_CLOUD_PROJECT"] != "gcp-fallback" {
+			t.Errorf("GOOGLE_CLOUD_PROJECT = %q, want %q", vars["GOOGLE_CLOUD_PROJECT"], "gcp-fallback")
+		}
+	})
+
+	t.Run("all env vars set produces all four output vars", func(t *testing.T) {
+		t.Setenv("CLOUD_ML_REGION", "europe-west4")
+		t.Setenv("ANTHROPIC_VERTEX_PROJECT_ID", "full-project")
+		t.Setenv("GOOGLE_CLOUD_PROJECT", "")
+
+		vars := New().EnvVars("")
+		for _, key := range []string{"CLOUD_ML_REGION", "VERTEX_LOCATION", "ANTHROPIC_VERTEX_PROJECT_ID", "GOOGLE_CLOUD_PROJECT"} {
+			if vars[key] == "" {
+				t.Errorf("EnvVars() missing or empty key %q", key)
+			}
+		}
+		if vars["CLOUD_ML_REGION"] != "europe-west4" {
+			t.Errorf("CLOUD_ML_REGION = %q, want %q", vars["CLOUD_ML_REGION"], "europe-west4")
+		}
+		if vars["GOOGLE_CLOUD_PROJECT"] != "full-project" {
+			t.Errorf("GOOGLE_CLOUD_PROJECT = %q, want %q", vars["GOOGLE_CLOUD_PROJECT"], "full-project")
 		}
 	})
 }
