@@ -19,12 +19,15 @@
 package openshift
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	"github.com/openkaiden/kdn/pkg/onecli"
 )
 
 const tokenKubeconfig = `apiVersion: v1
@@ -374,6 +377,120 @@ func TestLoadKubeConfig(t *testing.T) {
 	})
 }
 
+// noContextKubeconfig has a current-context that references no entry in contexts.
+const noContextKubeconfig = `apiVersion: v1
+kind: Config
+current-context: nonexistent
+clusters:
+- name: my-cluster
+  cluster:
+    server: https://api.cluster.example.com:6443
+contexts: []
+users: []
+`
+
+// noUserKubeconfig has a context that references a user absent from the users list.
+const noUserKubeconfig = `apiVersion: v1
+kind: Config
+current-context: my-context
+clusters:
+- name: my-cluster
+  cluster:
+    server: https://api.cluster.example.com:6443
+contexts:
+- name: my-context
+  context:
+    cluster: my-cluster
+    user: nonexistent-user
+users: []
+`
+
+// noClusterKubeconfig has a context that references a cluster absent from the clusters list.
+const noClusterKubeconfig = `apiVersion: v1
+kind: Config
+current-context: my-context
+clusters: []
+contexts:
+- name: my-context
+  context:
+    cluster: nonexistent-cluster
+    user: my-user
+users:
+- name: my-user
+  user:
+    token: sha256~real-token-value
+`
+
+// emptyServerKubeconfig has a cluster whose server URL has an empty hostname.
+const emptyServerKubeconfig = `apiVersion: v1
+kind: Config
+current-context: my-context
+clusters:
+- name: my-cluster
+  cluster:
+    server: ""
+contexts:
+- name: my-context
+  context:
+    cluster: my-cluster
+    user: my-user
+users:
+- name: my-user
+  user:
+    token: sha256~real-token-value
+`
+
+// invalidServerKubeconfig has a cluster whose server URL is syntactically invalid.
+const invalidServerKubeconfig = `apiVersion: v1
+kind: Config
+current-context: my-context
+clusters:
+- name: my-cluster
+  cluster:
+    server: "http://[invalid"
+contexts:
+- name: my-context
+  context:
+    cluster: my-cluster
+    user: my-user
+users:
+- name: my-user
+  user:
+    token: sha256~real-token-value
+`
+
+// fakeOnecliClient is a test double for onecli.Client.
+type fakeOnecliClient struct {
+	createSecretErr error
+	createdSecrets  []onecli.CreateSecretInput
+}
+
+var _ onecli.Client = (*fakeOnecliClient)(nil)
+
+func (f *fakeOnecliClient) CreateSecret(_ context.Context, input onecli.CreateSecretInput) (*onecli.Secret, error) {
+	if f.createSecretErr != nil {
+		return nil, f.createSecretErr
+	}
+	f.createdSecrets = append(f.createdSecrets, input)
+	return &onecli.Secret{Name: input.Name}, nil
+}
+func (f *fakeOnecliClient) UpdateSecret(_ context.Context, _ string, _ onecli.UpdateSecretInput) error {
+	return nil
+}
+func (f *fakeOnecliClient) ListSecrets(_ context.Context) ([]onecli.Secret, error) { return nil, nil }
+func (f *fakeOnecliClient) DeleteSecret(_ context.Context, _ string) error         { return nil }
+func (f *fakeOnecliClient) GetContainerConfig(_ context.Context) (*onecli.ContainerConfig, error) {
+	return nil, nil
+}
+func (f *fakeOnecliClient) CreateRule(_ context.Context, _ onecli.CreateRuleInput) (*onecli.Rule, error) {
+	return nil, nil
+}
+func (f *fakeOnecliClient) ListRules(_ context.Context) ([]onecli.Rule, error) { return nil, nil }
+func (f *fakeOnecliClient) DeleteRule(_ context.Context, _ string) error       { return nil }
+func (f *fakeOnecliClient) ConnectApp(_ context.Context, _ string, _ map[string]string) error {
+	return nil
+}
+
 func TestIsTokenBased(t *testing.T) {
 	t.Parallel()
 
@@ -396,6 +513,322 @@ func TestIsTokenBased(t *testing.T) {
 		cfg, _ := loadKubeConfig(path)
 		if isTokenBased(cfg) {
 			t.Error("isTokenBased() = true, want false for cert-based kubeconfig")
+		}
+	})
+
+	t.Run("context not found returns false", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		path := writeFile(t, dir, "config", noContextKubeconfig)
+		cfg, _ := loadKubeConfig(path)
+		if isTokenBased(cfg) {
+			t.Error("isTokenBased() = true, want false when context not found")
+		}
+	})
+
+	t.Run("user not found returns false", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		path := writeFile(t, dir, "config", noUserKubeconfig)
+		cfg, _ := loadKubeConfig(path)
+		if isTokenBased(cfg) {
+			t.Error("isTokenBased() = true, want false when user not found")
+		}
+	})
+}
+
+func TestBuildFakeKubeConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("context not found returns error", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		path := writeFile(t, dir, "config", noContextKubeconfig)
+		cfg, _ := loadKubeConfig(path)
+		_, err := buildFakeKubeConfig(cfg)
+		if err == nil {
+			t.Fatal("buildFakeKubeConfig() error = nil, want error when context not found")
+		}
+	})
+
+	t.Run("cluster not found returns error", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		path := writeFile(t, dir, "config", noClusterKubeconfig)
+		cfg, _ := loadKubeConfig(path)
+		_, err := buildFakeKubeConfig(cfg)
+		if err == nil {
+			t.Fatal("buildFakeKubeConfig() error = nil, want error when cluster not found")
+		}
+	})
+}
+
+func TestOpenshiftCredential_FakeFile_InvalidYAML(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	kubeconfigPath := writeFile(t, dir, "config", "}{invalid yaml")
+
+	cred := New()
+	_, err := cred.FakeFile(kubeconfigPath)
+	if err == nil {
+		t.Fatal("FakeFile() error = nil, want error for invalid YAML")
+	}
+}
+
+func TestOpenshiftCredential_FakeFile_NoContext(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	kubeconfigPath := writeFile(t, dir, "config", noContextKubeconfig)
+
+	cred := New()
+	_, err := cred.FakeFile(kubeconfigPath)
+	if err == nil {
+		t.Fatal("FakeFile() error = nil, want error when current context not found")
+	}
+}
+
+func TestOpenshiftCredential_FakeFile_NoCluster(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	kubeconfigPath := writeFile(t, dir, "config", noClusterKubeconfig)
+
+	cred := New()
+	_, err := cred.FakeFile(kubeconfigPath)
+	if err == nil {
+		t.Fatal("FakeFile() error = nil, want error when cluster not found")
+	}
+}
+
+func TestOpenshiftCredential_HostPatterns_NoContext(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	kubeconfigPath := writeFile(t, dir, "config", noContextKubeconfig)
+
+	cred := New()
+	if patterns := cred.HostPatterns(kubeconfigPath); len(patterns) != 0 {
+		t.Errorf("HostPatterns() = %v, want empty when context not found", patterns)
+	}
+}
+
+func TestOpenshiftCredential_HostPatterns_NoCluster(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	kubeconfigPath := writeFile(t, dir, "config", noClusterKubeconfig)
+
+	cred := New()
+	if patterns := cred.HostPatterns(kubeconfigPath); len(patterns) != 0 {
+		t.Errorf("HostPatterns() = %v, want empty when cluster not found", patterns)
+	}
+}
+
+func TestOpenshiftCredential_HostPatterns_EmptyHostname(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	kubeconfigPath := writeFile(t, dir, "config", emptyServerKubeconfig)
+
+	cred := New()
+	if patterns := cred.HostPatterns(kubeconfigPath); len(patterns) != 0 {
+		t.Errorf("HostPatterns() = %v, want empty when server hostname is empty", patterns)
+	}
+}
+
+func TestOpenshiftCredential_HostPatterns_InvalidURL(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	kubeconfigPath := writeFile(t, dir, "config", invalidServerKubeconfig)
+
+	cred := New()
+	if patterns := cred.HostPatterns(kubeconfigPath); len(patterns) != 0 {
+		t.Errorf("HostPatterns() = %v, want empty when server URL is invalid", patterns)
+	}
+}
+
+func TestHostFromURL(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid URL returns hostname", func(t *testing.T) {
+		t.Parallel()
+
+		host, err := hostFromURL("https://api.example.com:6443")
+		if err != nil {
+			t.Fatalf("hostFromURL() error = %v", err)
+		}
+		if host != "api.example.com" {
+			t.Errorf("hostFromURL() = %q, want %q", host, "api.example.com")
+		}
+	})
+
+	t.Run("invalid URL returns error", func(t *testing.T) {
+		t.Parallel()
+
+		if _, err := hostFromURL("http://[invalid"); err == nil {
+			t.Error("hostFromURL() error = nil, want error for invalid URL")
+		}
+	})
+}
+
+func TestSanitizeName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"my-context", "my-context"},
+		{"abc123", "abc123"},
+		{"my/context", "my-context"},
+		{"my context", "my-context"},
+		{"a@b:c/d", "a-b-c-d"},
+		{"--leading", "leading"},
+		{"trailing--", "trailing"},
+		{"multiple---dashes", "multiple-dashes"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			t.Parallel()
+
+			if got := sanitizeName(tt.input); got != tt.want {
+				t.Errorf("sanitizeName(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestOpenshiftCredential_Configure(t *testing.T) {
+	t.Parallel()
+
+	t.Run("success", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		kubeconfigPath := writeFile(t, dir, "config", tokenKubeconfig)
+
+		client := &fakeOnecliClient{}
+		cred := New()
+		if err := cred.Configure(context.Background(), client, kubeconfigPath); err != nil {
+			t.Fatalf("Configure() error = %v", err)
+		}
+		if len(client.createdSecrets) != 1 {
+			t.Fatalf("Configure() created %d secrets, want 1", len(client.createdSecrets))
+		}
+		secret := client.createdSecrets[0]
+		if secret.Value != "sha256~real-token-value" {
+			t.Errorf("Configure() secret value = %q, want real token", secret.Value)
+		}
+		if secret.HostPattern != "api.cluster.example.com" {
+			t.Errorf("Configure() hostPattern = %q, want cluster hostname", secret.HostPattern)
+		}
+		if secret.InjectionConfig == nil || secret.InjectionConfig.HeaderName != "Authorization" {
+			t.Errorf("Configure() injection header = %v, want Authorization", secret.InjectionConfig)
+		}
+		if !strings.HasSuffix(secret.Name, "my-context") {
+			t.Errorf("Configure() secret name = %q, want suffix %q", secret.Name, "my-context")
+		}
+	})
+
+	t.Run("missing kubeconfig", func(t *testing.T) {
+		t.Parallel()
+
+		cred := New()
+		if err := cred.Configure(context.Background(), &fakeOnecliClient{}, "/nonexistent/config"); err == nil {
+			t.Fatal("Configure() error = nil, want error for missing kubeconfig")
+		}
+	})
+
+	t.Run("invalid yaml", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		kubeconfigPath := writeFile(t, dir, "config", "}{invalid yaml")
+
+		cred := New()
+		if err := cred.Configure(context.Background(), &fakeOnecliClient{}, kubeconfigPath); err == nil {
+			t.Fatal("Configure() error = nil, want error for invalid YAML")
+		}
+	})
+
+	t.Run("context not found", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		kubeconfigPath := writeFile(t, dir, "config", noContextKubeconfig)
+
+		cred := New()
+		if err := cred.Configure(context.Background(), &fakeOnecliClient{}, kubeconfigPath); err == nil {
+			t.Fatal("Configure() error = nil, want error when context not found")
+		}
+	})
+
+	t.Run("user not found", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		kubeconfigPath := writeFile(t, dir, "config", noUserKubeconfig)
+
+		cred := New()
+		if err := cred.Configure(context.Background(), &fakeOnecliClient{}, kubeconfigPath); err == nil {
+			t.Fatal("Configure() error = nil, want error when user not found")
+		}
+	})
+
+	t.Run("cluster not found", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		kubeconfigPath := writeFile(t, dir, "config", noClusterKubeconfig)
+
+		cred := New()
+		if err := cred.Configure(context.Background(), &fakeOnecliClient{}, kubeconfigPath); err == nil {
+			t.Fatal("Configure() error = nil, want error when cluster not found")
+		}
+	})
+
+	t.Run("invalid server URL", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		kubeconfigPath := writeFile(t, dir, "config", invalidServerKubeconfig)
+
+		cred := New()
+		if err := cred.Configure(context.Background(), &fakeOnecliClient{}, kubeconfigPath); err == nil {
+			t.Fatal("Configure() error = nil, want error for invalid server URL")
+		}
+	})
+
+	t.Run("empty server hostname", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		kubeconfigPath := writeFile(t, dir, "config", emptyServerKubeconfig)
+
+		cred := New()
+		if err := cred.Configure(context.Background(), &fakeOnecliClient{}, kubeconfigPath); err == nil {
+			t.Fatal("Configure() error = nil, want error for empty server hostname")
+		}
+	})
+
+	t.Run("provision error", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		kubeconfigPath := writeFile(t, dir, "config", tokenKubeconfig)
+
+		client := &fakeOnecliClient{createSecretErr: errors.New("provision failed")}
+		cred := New()
+		if err := cred.Configure(context.Background(), client, kubeconfigPath); err == nil {
+			t.Fatal("Configure() error = nil, want error when provision fails")
 		}
 	})
 }
