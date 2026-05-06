@@ -197,8 +197,9 @@ To reuse your host Claude Code settings (preferences, custom instructions, etc.)
 **Notes:**
 
 - Run `gcloud auth application-default login` on your host machine before starting the workspace to ensure valid credentials are available
-- The `$HOME/.config/gcloud` mount is read-only to prevent the workspace from modifying your host credentials
+- kdn automatically intercepts the gcloud mount: a placeholder credential file is written into the container and OneCLI injects the real Application Default Credentials transparently at request time — the actual credential file never touches the container filesystem
 - No `ANTHROPIC_API_KEY` is needed when using Vertex AI — credentials are provided via the mounted gcloud configuration
+- When `network.mode` is `"deny"`, the Google OAuth and Vertex AI endpoints (`oauth2.googleapis.com`, `aiplatform.googleapis.com`) are automatically added to the allow-list — no explicit `hosts` entry is needed
 - To pin a specific Claude model, use `--model` flag during `init` (e.g., `--model claude-sonnet-4-20250514`), which takes precedence over any model in default settings, or add an `ANTHROPIC_MODEL` environment variable (e.g., `"claude-opus-4-5"`)
 
 ### Starting Claude with Default Settings
@@ -301,7 +302,7 @@ Create or edit `~/.kdn/config/agents.json`:
 }
 ```
 
-The `~/.config/gcloud` directory contains your Application Default Credentials and active account configuration. It is mounted read-only so that credentials are available inside the workspace while the host configuration remains unmodified.
+The `~/.config/gcloud` directory contains your Application Default Credentials and active account configuration. kdn automatically intercepts this mount: a placeholder credential file is written into the container and OneCLI injects the real Application Default Credentials transparently at request time — the actual credential file never touches the container filesystem.
 
 Then register and start the workspace:
 
@@ -1925,7 +1926,10 @@ Control network access for the workspace. By default, network access is denied (
   - Each entry must be a non-empty string
   - Omitting `hosts` (or leaving it empty) is valid: the workspace is fully isolated, with no outbound access permitted unless secrets contribute hosts
 
-**Automatic secret host injection:** When `mode` is `"deny"` and secrets are configured, kdn automatically adds the hosts associated with those secrets to the allowed list. You do not need to list them explicitly under `hosts`. For example, a `github` secret automatically allows `api.github.com` without any `hosts` entry.
+**Automatic host injection:** When `mode` is `"deny"`, kdn automatically adds the required hosts to the allowed list from two sources — no explicit `hosts` entry is needed for either:
+
+- **Secrets:** The hosts associated with each configured secret are added automatically. For example, a `github` secret automatically allows `api.github.com`.
+- **Credentials:** The hosts required by each intercepted credential mount are added automatically. For example, mounting `$HOME/.config/gcloud` automatically allows `oauth2.googleapis.com` and `aiplatform.googleapis.com`.
 
 **Validation Rules:**
 - If `mode` is set, it must be either `"allow"` or `"deny"`

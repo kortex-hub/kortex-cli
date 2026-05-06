@@ -22,6 +22,7 @@ import (
 
 	api "github.com/openkaiden/kdn-api/cli/go"
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	"github.com/openkaiden/kdn/pkg/credential"
 	"github.com/openkaiden/kdn/pkg/onecli"
 	"github.com/openkaiden/kdn/pkg/secretservice"
 )
@@ -196,6 +197,15 @@ type Terminal interface {
 // during registration, enabling them to look up host patterns for secret-derived hosts.
 type SecretServiceRegistryAware interface {
 	SetSecretServiceRegistry(secretservice.Registry)
+}
+
+// CredentialRegistryAware is an optional interface for runtimes that need the
+// credential registry to intercept file-based credential mounts and configure
+// OneCLI when those credentials are declared in workspace config.
+// Runtimes implementing this interface receive the registry via SetCredentialRegistry
+// during registration.
+type CredentialRegistryAware interface {
+	SetCredentialRegistry(credential.Registry)
 }
 
 // FlagDef describes a CLI flag that a runtime wants to expose on the init command.

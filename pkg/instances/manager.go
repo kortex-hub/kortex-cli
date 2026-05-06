@@ -33,6 +33,7 @@ import (
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/agent"
 	"github.com/openkaiden/kdn/pkg/config"
+	"github.com/openkaiden/kdn/pkg/credential"
 	"github.com/openkaiden/kdn/pkg/generator"
 	"github.com/openkaiden/kdn/pkg/git"
 	"github.com/openkaiden/kdn/pkg/onecli"
@@ -99,6 +100,8 @@ type Manager interface {
 	RegisterAgent(name string, agent agent.Agent) error
 	// RegisterSecretService registers a secret service with the manager's registry
 	RegisterSecretService(service secretservice.SecretService) error
+	// RegisterCredential registers a credential with the manager's registry
+	RegisterCredential(c credential.Credential) error
 }
 
 // manager is the internal implementation of Manager
@@ -111,6 +114,7 @@ type manager struct {
 	runtimeRegistry       runtime.Registry
 	agentRegistry         agent.Registry
 	secretServiceRegistry secretservice.Registry
+	credentialRegistry    credential.Registry
 	secretStore           secret.Store
 	projectDetector       project.Detector
 	now                   func() time.Time
@@ -128,13 +132,14 @@ func NewManager(storageDir string) (Manager, error) {
 	}
 	agentReg := agent.NewRegistry()
 	secretServiceReg := secretservice.NewRegistry()
+	credReg := credential.NewRegistry()
 	secretStore := secret.NewStore(storageDir)
-	return newManagerWithFactory(storageDir, NewInstanceFromData, generator.New(), reg, agentReg, secretServiceReg, secretStore, project.NewDetector(git.NewDetector()), time.Now)
+	return newManagerWithFactory(storageDir, NewInstanceFromData, generator.New(), reg, agentReg, secretServiceReg, credReg, secretStore, project.NewDetector(git.NewDetector()), time.Now)
 }
 
 // newManagerWithFactory creates a new instance manager with a custom instance factory, generator, registry, and project detector.
 // This is unexported and primarily useful for testing with fake instances, generators, runtimes, and project detectors.
-func newManagerWithFactory(storageDir string, factory InstanceFactory, gen generator.Generator, reg runtime.Registry, agentReg agent.Registry, secretServiceReg secretservice.Registry, secretStore secret.Store, detector project.Detector, clock func() time.Time) (Manager, error) {
+func newManagerWithFactory(storageDir string, factory InstanceFactory, gen generator.Generator, reg runtime.Registry, agentReg agent.Registry, secretServiceReg secretservice.Registry, credReg credential.Registry, secretStore secret.Store, detector project.Detector, clock func() time.Time) (Manager, error) {
 	if storageDir == "" {
 		return nil, errors.New("storage directory cannot be empty")
 	}
@@ -152,6 +157,9 @@ func newManagerWithFactory(storageDir string, factory InstanceFactory, gen gener
 	}
 	if secretServiceReg == nil {
 		return nil, errors.New("secret service registry cannot be nil")
+	}
+	if credReg == nil {
+		return nil, errors.New("credential registry cannot be nil")
 	}
 	if secretStore == nil {
 		return nil, errors.New("secret store cannot be nil")
@@ -177,6 +185,7 @@ func newManagerWithFactory(storageDir string, factory InstanceFactory, gen gener
 		runtimeRegistry:       reg,
 		agentRegistry:         agentReg,
 		secretServiceRegistry: secretServiceReg,
+		credentialRegistry:    credReg,
 		secretStore:           secretStore,
 		projectDetector:       detector,
 		now:                   clock,
@@ -791,6 +800,9 @@ func (m *manager) RegisterRuntime(rt runtime.Runtime) error {
 	if aware, ok := rt.(runtime.SecretServiceRegistryAware); ok {
 		aware.SetSecretServiceRegistry(m.secretServiceRegistry)
 	}
+	if aware, ok := rt.(runtime.CredentialRegistryAware); ok {
+		aware.SetCredentialRegistry(m.credentialRegistry)
+	}
 	return nil
 }
 
@@ -802,6 +814,11 @@ func (m *manager) RegisterAgent(name string, agent agent.Agent) error {
 // RegisterSecretService registers a secret service with the manager's registry.
 func (m *manager) RegisterSecretService(service secretservice.SecretService) error {
 	return m.secretServiceRegistry.Register(service)
+}
+
+// RegisterCredential registers a credential with the manager's registry.
+func (m *manager) RegisterCredential(c credential.Credential) error {
+	return m.credentialRegistry.Register(c)
 }
 
 var invalidNameChars = regexp.MustCompile(`[^a-z0-9._-]+`)

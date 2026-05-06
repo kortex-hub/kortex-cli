@@ -28,6 +28,7 @@ import (
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/agentsetup"
 	"github.com/openkaiden/kdn/pkg/config"
+	"github.com/openkaiden/kdn/pkg/credentialsetup"
 	"github.com/openkaiden/kdn/pkg/envvars"
 	"github.com/openkaiden/kdn/pkg/instances"
 	"github.com/openkaiden/kdn/pkg/logger"
@@ -106,6 +107,11 @@ func (i *initCmd) preRun(cmd *cobra.Command, args []string) error {
 	// Register all available secret services
 	if err := secretservicesetup.RegisterAll(manager); err != nil {
 		return outputErrorIfJSON(cmd, i.output, fmt.Errorf("failed to register secret services: %w", err))
+	}
+
+	// Register all available credentials
+	if err := credentialsetup.RegisterAll(manager); err != nil {
+		return outputErrorIfJSON(cmd, i.output, fmt.Errorf("failed to register credentials: %w", err))
 	}
 
 	i.manager = manager

@@ -26,6 +26,8 @@ import (
 	"text/template"
 
 	api "github.com/openkaiden/kdn-api/cli/go"
+	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	"github.com/openkaiden/kdn/pkg/credential"
 	"github.com/openkaiden/kdn/pkg/devcontainers/features"
 	"github.com/openkaiden/kdn/pkg/logger"
 	"github.com/openkaiden/kdn/pkg/onecli"
@@ -37,7 +39,7 @@ import (
 	"github.com/openkaiden/kdn/pkg/steplogger"
 )
 
-const defaultOnecliVersion = "1.17"
+const defaultOnecliVersion = "1.20.0"
 
 // podTemplateData holds the values used to render the pod YAML template
 // and is also persisted as per-pod metadata (pod-template-data.json) so
@@ -214,12 +216,34 @@ func (p *podmanRuntime) buildImage(ctx context.Context, imageName, instanceDir s
 	return nil
 }
 
+// credentialMount represents a fake credential file to mount into the workspace container
+// in place of the real credential file declared in the workspace config.
+type credentialMount struct {
+	// hostPath is the path to the fake credential file on the host.
+	hostPath string
+	// containerPath is the absolute path inside the container where the file must appear.
+	containerPath string
+}
+
+// activeCredential holds the detected state of a credential at Create time.
+type activeCredential struct {
+	cred        credential.Credential
+	hostPath    string           // path to the real credential on the host
+	intercepted *workspace.Mount // the mount entry to skip (replaced by the fake file)
+}
+
 // containerConfigArgs holds optional OneCLI container configuration to inject into the workspace.
 type containerConfigArgs struct {
-	envVars         map[string]string
-	caFilePath      string
-	caContainerPath string
+	envVars           map[string]string
+	caFilePath        string
+	caContainerPath   string
+	credMounts        []credentialMount // fake credential files to mount
+	credEnvVars       map[string]string // env vars contributed by active credentials
+	interceptedMounts map[mountKey]bool // original mounts replaced by credentials (must be skipped)
 }
+
+// mountKey uniquely identifies a workspace mount by its host+target pair.
+type mountKey struct{ host, target string }
 
 // buildContainerArgs builds the arguments for creating the workspace container inside the pod.
 func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageName string, ccArgs *containerConfigArgs) ([]string, error) {
@@ -262,6 +286,12 @@ func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageNam
 		if ccArgs.caFilePath != "" && ccArgs.caContainerPath != "" {
 			args = append(args, "-v", fmt.Sprintf("%s:%s:ro,Z", ccArgs.caFilePath, ccArgs.caContainerPath))
 		}
+		for _, cm := range ccArgs.credMounts {
+			args = append(args, "-v", fmt.Sprintf("%s:%s:ro,Z", cm.hostPath, cm.containerPath))
+		}
+		for k, v := range ccArgs.credEnvVars {
+			args = append(args, "-e", fmt.Sprintf("%s=%s", k, v))
+		}
 	}
 
 	// Add secret service env vars with placeholder values so CLI tools detect a configured credential.
@@ -274,13 +304,16 @@ func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageNam
 	// Mount the source directory at /workspace/sources
 	args = append(args, "-v", fmt.Sprintf("%s:/workspace/sources:Z", params.SourcePath))
 
-	// Mount additional directories if specified
+	// Mount additional directories if specified, skipping mounts intercepted by active credentials.
 	if params.WorkspaceConfig != nil && params.WorkspaceConfig.Mounts != nil {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get home directory: %w", err)
 		}
 		for _, m := range *params.WorkspaceConfig.Mounts {
+			if ccArgs != nil && ccArgs.interceptedMounts[mountKey{host: m.Host, target: m.Target}] {
+				continue // replaced by a fake credential file
+			}
 			args = append(args, "-v", mountVolumeArg(m, params.SourcePath, homeDir))
 		}
 	}
@@ -334,6 +367,57 @@ func renderPodYAML(data podTemplateData) ([]byte, error) {
 		return nil, fmt.Errorf("failed to render pod template: %w", err)
 	}
 	return buf.Bytes(), nil
+}
+
+// detectCredentials scans the workspace config mounts against each registered
+// credential. For each credential that is detected, a fake placeholder is written
+// to the durable credentials directory and an activeCredential entry is returned.
+// Credentials whose host file is missing or unreadable are skipped with a warning.
+func (p *podmanRuntime) detectCredentials(params runtime.CreateParams, homeDir string) []activeCredential {
+	if p.credentialRegistry == nil {
+		return nil
+	}
+	if params.WorkspaceConfig == nil || params.WorkspaceConfig.Mounts == nil {
+		return nil
+	}
+
+	var active []activeCredential
+	for _, cred := range p.credentialRegistry.List() {
+		hostPath, intercepted := cred.Detect(*params.WorkspaceConfig.Mounts, homeDir)
+		if hostPath == "" {
+			continue
+		}
+
+		if _, err := os.Stat(hostPath); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: credential %q: %s missing on host: %v; skipping\n", cred.Name(), hostPath, err)
+			continue
+		}
+
+		fakeContent, err := cred.FakeFile(hostPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "warning: credential %q: failed to generate placeholder file: %v; skipping\n", cred.Name(), err)
+			continue
+		}
+
+		credDir := filepath.Join(p.storageDir, "credentials", params.Name, cred.Name())
+		if err := os.MkdirAll(credDir, 0755); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: credential %q: failed to create directory %s: %v; skipping\n", cred.Name(), credDir, err)
+			continue
+		}
+
+		fakePath := filepath.Join(credDir, "credential")
+		if err := os.WriteFile(fakePath, fakeContent, 0600); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: credential %q: failed to write placeholder file: %v; skipping\n", cred.Name(), err)
+			continue
+		}
+
+		active = append(active, activeCredential{
+			cred:        cred,
+			hostPath:    hostPath,
+			intercepted: intercepted,
+		})
+	}
+	return active
 }
 
 // Create creates a new Podman runtime instance.
@@ -457,11 +541,21 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		}
 	}()
 
+	// Detect active credentials from the workspace config mounts. When a credential
+	// is detected, its real file is read for OneCLI configuration and a fake
+	// placeholder file is written to a durable directory under storageDir so it
+	// can be mounted into the container instead of the real file.
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to get home directory: %w", err)
+	}
+	activeCredentials := p.detectCredentials(params, homeDir)
+
 	// Always start OneCLI to inject proxy env vars and the CA cert into the workspace container.
 	// Without HTTP_PROXY/HTTPS_PROXY pointing at the OneCLI gateway, deny-mode networking rules
 	// have no effect because workspace traffic bypasses the proxy entirely.
-	// Secrets are provisioned if any were provided.
-	containerConfig, setupErr := p.setupOnecli(ctx, stepLogger, l, params.Name, tmplData, params.OnecliSecrets)
+	// Secrets are provisioned if any were provided; active credentials are configured.
+	containerConfig, setupErr := p.setupOnecli(ctx, stepLogger, l, params.Name, tmplData, params.OnecliSecrets, activeCredentials)
 	if setupErr != nil {
 		return runtime.RuntimeInfo{}, setupErr
 	}
@@ -484,6 +578,32 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 			ccArgs.caFilePath = caPath
 			ccArgs.caContainerPath = containerConfig.CACertificateContainerPath
 		}
+	}
+
+	// Populate credential mounts and env vars from active credentials.
+	if len(activeCredentials) > 0 {
+		if ccArgs == nil {
+			ccArgs = &containerConfigArgs{}
+		}
+		intercepted := make(map[mountKey]bool, len(activeCredentials))
+		for _, ac := range activeCredentials {
+			if ac.intercepted != nil {
+				intercepted[mountKey{host: ac.intercepted.Host, target: ac.intercepted.Target}] = true
+			}
+			credDir := filepath.Join(p.storageDir, "credentials", params.Name, ac.cred.Name())
+			fakePath := filepath.Join(credDir, "credential")
+			ccArgs.credMounts = append(ccArgs.credMounts, credentialMount{
+				hostPath:      fakePath,
+				containerPath: ac.cred.ContainerFilePath(),
+			})
+			for k, v := range ac.cred.EnvVars(ac.hostPath) {
+				if ccArgs.credEnvVars == nil {
+					ccArgs.credEnvVars = make(map[string]string)
+				}
+				ccArgs.credEnvVars[k] = v
+			}
+		}
+		ccArgs.interceptedMounts = intercepted
 	}
 
 	// Build workspace container args with proxy env vars and CA cert mount from OneCLI
@@ -560,8 +680,8 @@ func (p *podmanRuntime) buildForwards(params runtime.CreateParams) ([]api.Worksp
 }
 
 // setupOnecli starts postgres, waits for it, then starts onecli to avoid migration race conditions.
-// After provisioning secrets and retrieving container config, it stops the pod.
-func (p *podmanRuntime) setupOnecli(ctx context.Context, stepLogger steplogger.StepLogger, l logger.Logger, podName string, tmplData podTemplateData, secrets []onecli.CreateSecretInput) (*onecli.ContainerConfig, error) {
+// After provisioning secrets and configuring active credentials, it stops the pod.
+func (p *podmanRuntime) setupOnecli(ctx context.Context, stepLogger steplogger.StepLogger, l logger.Logger, podName string, tmplData podTemplateData, secrets []onecli.CreateSecretInput, activeCredentials []activeCredential) (*onecli.ContainerConfig, error) {
 	postgresContainer := podName + "-postgres"
 	onecliContainer := podName + "-onecli"
 
@@ -610,6 +730,18 @@ func (p *podmanRuntime) setupOnecli(ctx context.Context, stepLogger steplogger.S
 		if err := provisioner.ProvisionSecrets(ctx, secrets); err != nil {
 			stepLogger.Fail(err)
 			return nil, fmt.Errorf("failed to provision OneCLI secrets: %w", err)
+		}
+	}
+
+	// Configure each active credential (e.g. connect Vertex AI app, create secret).
+	for _, ac := range activeCredentials {
+		stepLogger.Start(
+			fmt.Sprintf("Configuring credential: %s", ac.cred.Name()),
+			fmt.Sprintf("Credential configured: %s", ac.cred.Name()),
+		)
+		if err := ac.cred.Configure(ctx, client, ac.hostPath); err != nil {
+			stepLogger.Fail(err)
+			return nil, fmt.Errorf("configuring credential %q: %w", ac.cred.Name(), err)
 		}
 	}
 

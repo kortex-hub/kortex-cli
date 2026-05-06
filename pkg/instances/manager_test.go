@@ -29,6 +29,7 @@ import (
 	api "github.com/openkaiden/kdn-api/cli/go"
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/agent"
+	"github.com/openkaiden/kdn/pkg/credential"
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/runtime/fake"
 	"github.com/openkaiden/kdn/pkg/secret"
@@ -432,7 +433,7 @@ func TestNewManager(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, err := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, err := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 		if err != nil {
 			t.Fatalf("newManagerWithFactory() unexpected error = %v", err)
 		}
@@ -464,7 +465,7 @@ func TestManager_Add(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -494,7 +495,7 @@ func TestManager_Add(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		_, err := manager.Add(context.Background(), AddOptions{Instance: nil, RuntimeType: "fake"})
 		if err == nil {
@@ -516,7 +517,7 @@ func TestManager_Add(t *testing.T) {
 			"duplicate-id-0000000000000000000000000000000000000000000000000000000a",
 			"unique-id-1-0000000000000000000000000000000000000000000000000000000b",
 		})
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, gen, newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, gen, newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		// Create instances without IDs (empty ID)
@@ -567,7 +568,7 @@ func TestManager_Add(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -593,7 +594,7 @@ func TestManager_Add(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst1 := newFakeInstance(newFakeInstanceParams{
@@ -630,7 +631,7 @@ func TestManager_List(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instances, err := manager.List()
 		if err != nil {
@@ -646,7 +647,7 @@ func TestManager_List(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst1 := newFakeInstance(newFakeInstanceParams{
@@ -676,7 +677,7 @@ func TestManager_List(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		// Create empty storage file
 		storageFile := filepath.Join(tmpDir, DefaultStorageFileName)
@@ -699,7 +700,7 @@ func TestManager_Get(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		expectedSource := filepath.Join(instanceTmpDir, "source")
@@ -732,7 +733,7 @@ func TestManager_Get(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		_, err := manager.Get("nonexistent-id")
 		if err != ErrInstanceNotFound {
@@ -744,7 +745,7 @@ func TestManager_Get(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		expectedSource := filepath.Join(instanceTmpDir, "source")
@@ -780,7 +781,7 @@ func TestManager_Get(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		_, err := manager.Get("nonexistent-name")
 		if err != ErrInstanceNotFound {
@@ -792,7 +793,7 @@ func TestManager_Get(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		// Create first instance
@@ -836,7 +837,7 @@ func TestManager_Delete(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		sourceDir := filepath.Join(instanceTmpDir, "source")
@@ -866,7 +867,7 @@ func TestManager_Delete(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		err := manager.Delete(context.Background(), "nonexistent-id")
 		if err != ErrInstanceNotFound {
@@ -879,7 +880,7 @@ func TestManager_Delete(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		source1 := filepath.Join(instanceTmpDir, "source1")
@@ -922,7 +923,7 @@ func TestManager_Delete(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager1, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager1, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		inst := newFakeInstance(newFakeInstanceParams{
 			SourceDir:  filepath.Join(string(filepath.Separator), "tmp", "source"),
@@ -936,7 +937,7 @@ func TestManager_Delete(t *testing.T) {
 		manager1.Delete(ctx, generatedID)
 
 		// Create new manager with same storage
-		manager2, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager2, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 		_, err := manager2.Get(generatedID)
 		if err != ErrInstanceNotFound {
 			t.Errorf("Get() from new manager error = %v, want %v", err, ErrInstanceNotFound)
@@ -948,7 +949,7 @@ func TestManager_Delete(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		sourceDir := filepath.Join(instanceTmpDir, "source")
@@ -990,7 +991,7 @@ func TestManager_Start(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -1022,7 +1023,7 @@ func TestManager_Start(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		err := manager.Start(context.Background(), "nonexistent-id")
 		if err != ErrInstanceNotFound {
@@ -1052,7 +1053,7 @@ func TestManager_Start(t *testing.T) {
 				runtime:    RuntimeData{}, // Empty runtime
 			}, nil
 		}
-		manager, _ := newManagerWithFactory(tmpDir, noRuntimeFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, noRuntimeFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		inst := newFakeInstance(newFakeInstanceParams{
 			SourceDir:  filepath.Join(string(filepath.Separator), "tmp", "source"),
@@ -1092,7 +1093,7 @@ func TestManager_Start(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager1, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager1, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		inst := newFakeInstance(newFakeInstanceParams{
 			SourceDir:  filepath.Join(string(filepath.Separator), "tmp", "source"),
@@ -1103,7 +1104,7 @@ func TestManager_Start(t *testing.T) {
 		manager1.Start(ctx, added.GetID())
 
 		// Create new manager with same storage
-		manager2, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager2, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 		retrieved, _ := manager2.Get(added.GetID())
 
 		if retrieved.GetRuntimeData().State != "running" {
@@ -1116,7 +1117,7 @@ func TestManager_Start(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -1141,7 +1142,7 @@ func TestManager_Start(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -1180,7 +1181,7 @@ func TestManager_Stop(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -1214,7 +1215,7 @@ func TestManager_Stop(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		err := manager.Stop(context.Background(), "nonexistent-id")
 		if err != ErrInstanceNotFound {
@@ -1227,7 +1228,7 @@ func TestManager_Stop(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		inst := newFakeInstance(newFakeInstanceParams{
 			SourceDir:  filepath.Join(string(filepath.Separator), "tmp", "source"),
@@ -1267,7 +1268,7 @@ func TestManager_Stop(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager1, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager1, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		inst := newFakeInstance(newFakeInstanceParams{
 			SourceDir:  filepath.Join(string(filepath.Separator), "tmp", "source"),
@@ -1279,7 +1280,7 @@ func TestManager_Stop(t *testing.T) {
 		manager1.Stop(ctx, added.GetID())
 
 		// Create new manager with same storage
-		manager2, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager2, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 		retrieved, _ := manager2.Get(added.GetID())
 
 		if retrieved.GetRuntimeData().State != "stopped" {
@@ -1292,7 +1293,7 @@ func TestManager_Stop(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -1316,7 +1317,7 @@ func TestManager_Stop(t *testing.T) {
 		tmpDir := t.TempDir()
 
 		projectDetector := &fakeProjectDetector{result: "https://github.com/openkaiden/kdn/"}
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), projectDetector, time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), projectDetector, time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -1353,7 +1354,7 @@ func TestManager_Stop(t *testing.T) {
 		tmpDir := t.TempDir()
 
 		projectDetector := &fakeProjectDetector{result: "https://github.com/openkaiden/kdn/"}
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), projectDetector, time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), projectDetector, time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -1390,7 +1391,7 @@ func TestManager_Stop(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -1418,7 +1419,7 @@ func TestManager_Stop(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -1476,7 +1477,7 @@ func TestManager_Reconcile(t *testing.T) {
 				accessible: false, // Always inaccessible for this test
 			}, nil
 		}
-		manager, _ := newManagerWithFactory(tmpDir, inaccessibleFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, inaccessibleFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		// Add instance that is inaccessible
 		instanceTmpDir := t.TempDir()
@@ -1520,7 +1521,7 @@ func TestManager_Reconcile(t *testing.T) {
 				accessible: false, // Always inaccessible for this test
 			}, nil
 		}
-		manager, _ := newManagerWithFactory(tmpDir, inaccessibleFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, inaccessibleFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		// Add instance that is inaccessible
 		instanceTmpDir := t.TempDir()
@@ -1564,7 +1565,7 @@ func TestManager_Reconcile(t *testing.T) {
 				accessible: false, // Always inaccessible for this test
 			}, nil
 		}
-		manager, _ := newManagerWithFactory(tmpDir, inaccessibleFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, inaccessibleFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inaccessibleSource := filepath.Join(instanceTmpDir, "nonexistent-source")
@@ -1613,7 +1614,7 @@ func TestManager_Reconcile(t *testing.T) {
 				accessible: accessible,
 			}, nil
 		}
-		manager, _ := newManagerWithFactory(tmpDir, mixedFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, mixedFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		accessibleConfig := filepath.Join(instanceTmpDir, "accessible-config")
 
@@ -1656,7 +1657,7 @@ func TestManager_Reconcile(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -1680,7 +1681,7 @@ func TestManager_Reconcile(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		removed, err := manager.Reconcile()
 		if err != nil {
@@ -1703,7 +1704,7 @@ func TestManager_Persistence(t *testing.T) {
 		instanceTmpDir := t.TempDir()
 
 		// Create first manager and add instance
-		manager1, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager1, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 		expectedSource := filepath.Join(instanceTmpDir, "source")
 		expectedConfig := filepath.Join(instanceTmpDir, "config")
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -1716,7 +1717,7 @@ func TestManager_Persistence(t *testing.T) {
 		generatedID := added.GetID()
 
 		// Create second manager with same storage
-		manager2, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager2, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 		instances, err := manager2.List()
 		if err != nil {
 			t.Fatalf("List() from second manager unexpected error = %v", err)
@@ -1737,7 +1738,7 @@ func TestManager_Persistence(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		expectedSource := filepath.Join(instanceTmpDir, "source")
@@ -1817,7 +1818,7 @@ func TestManager_MigrateTimestamps(t *testing.T) {
 		fixedClock := func() time.Time { return fixedNow }
 
 		// Creating the manager triggers migrateTimestamps
-		manager, err := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), fixedClock)
+		manager, err := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), fixedClock)
 		if err != nil {
 			t.Fatalf("newManagerWithFactory() error = %v", err)
 		}
@@ -1857,7 +1858,7 @@ func TestManager_MigrateTimestamps(t *testing.T) {
 
 		// Add an instance through the manager (it will have CreatedAt set)
 		existingNow := time.Date(2026, 1, 10, 8, 0, 0, 0, time.UTC)
-		manager1, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), func() time.Time { return existingNow })
+		manager1, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), func() time.Time { return existingNow })
 
 		inst := newFakeInstance(newFakeInstanceParams{
 			SourceDir:  t.TempDir(),
@@ -1870,7 +1871,7 @@ func TestManager_MigrateTimestamps(t *testing.T) {
 
 		// Reload with a different clock — migration must not overwrite the existing timestamp
 		laterNow := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
-		manager2, err := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), func() time.Time { return laterNow })
+		manager2, err := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), func() time.Time { return laterNow })
 		if err != nil {
 			t.Fatalf("newManagerWithFactory() error = %v", err)
 		}
@@ -1895,7 +1896,7 @@ func TestManager_ConcurrentAccess(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		var wg sync.WaitGroup
@@ -1928,7 +1929,7 @@ func TestManager_ConcurrentAccess(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		// Add some instances first
@@ -2009,7 +2010,7 @@ func TestManager_ensureUniqueName(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		// Cast to concrete type to access unexported methods
 		mgr := m.(*manager)
@@ -2042,7 +2043,7 @@ func TestManager_ensureUniqueName(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		mgr := m.(*manager)
 
@@ -2067,7 +2068,7 @@ func TestManager_ensureUniqueName(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		mgr := m.(*manager)
 
@@ -2106,7 +2107,7 @@ func TestManager_ensureUniqueName(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		mgr := m.(*manager)
 
@@ -2142,7 +2143,7 @@ func TestManager_ensureUniqueName(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		mgr := m.(*manager)
 
@@ -2163,7 +2164,7 @@ func TestManager_generateUniqueName(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		mgr := m.(*manager)
 
@@ -2180,7 +2181,7 @@ func TestManager_generateUniqueName(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		mgr := m.(*manager)
 
@@ -2205,7 +2206,7 @@ func TestManager_generateUniqueName(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		mgr := m.(*manager)
 
@@ -2223,7 +2224,7 @@ func TestManager_generateUniqueName(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		mgr := m.(*manager)
 
@@ -2244,7 +2245,7 @@ func TestManager_generateUniqueName(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		mgr := m.(*manager)
 
@@ -2262,7 +2263,7 @@ func TestManager_generateUniqueName(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		mgr := m.(*manager)
 
@@ -2284,7 +2285,7 @@ func TestManager_mergeConfigurations(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 		mgr := m.(*manager)
 
 		// Create workspace config
@@ -2334,7 +2335,7 @@ func TestManager_mergeConfigurations(t *testing.T) {
 			t.Fatalf("Failed to write projects.json: %v", err)
 		}
 
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 		mgr := m.(*manager)
 
 		// Create workspace config
@@ -2395,7 +2396,7 @@ func TestManager_mergeConfigurations(t *testing.T) {
 			t.Fatalf("Failed to write projects.json: %v", err)
 		}
 
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 		mgr := m.(*manager)
 
 		// Create workspace config
@@ -2471,7 +2472,7 @@ func TestManager_mergeConfigurations(t *testing.T) {
 			t.Fatalf("Failed to write agents.json: %v", err)
 		}
 
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 		mgr := m.(*manager)
 
 		// Create workspace config
@@ -2570,7 +2571,7 @@ func TestManager_mergeConfigurations(t *testing.T) {
 			t.Fatalf("Failed to write agents.json: %v", err)
 		}
 
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 		mgr := m.(*manager)
 
 		// Create workspace config
@@ -2624,7 +2625,7 @@ func TestManager_mergeConfigurations(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 		mgr := m.(*manager)
 
 		result, err := mgr.mergeConfigurations("github.com/user/repo", nil, "")
@@ -2652,7 +2653,7 @@ func TestManager_mergeConfigurations(t *testing.T) {
 			t.Fatalf("Failed to write projects.json: %v", err)
 		}
 
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 		mgr := m.(*manager)
 
 		workspaceValue := "workspace-value"
@@ -2682,7 +2683,7 @@ func TestManager_mergeConfigurations(t *testing.T) {
 			t.Fatalf("Failed to write agents.json: %v", err)
 		}
 
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 		mgr := m.(*manager)
 
 		workspaceValue := "workspace-value"
@@ -2722,7 +2723,7 @@ func TestManager_mergeConfigurations(t *testing.T) {
 			t.Fatalf("Failed to write projects.json: %v", err)
 		}
 
-		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		m, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 		mgr := m.(*manager)
 
 		workspaceValue := "workspace-value"
@@ -4262,6 +4263,7 @@ func TestManager_Add_Secrets(t *testing.T) {
 			newTestRegistry(tmpDir),
 			agent.NewRegistry(),
 			secretservice.NewRegistry(),
+			credential.NewRegistry(),
 			store,
 			newFakeProjectDetector(),
 			time.Now,
@@ -4306,6 +4308,7 @@ func TestManager_Add_Secrets(t *testing.T) {
 			newTestRegistry(tmpDir),
 			agent.NewRegistry(),
 			secretservice.NewRegistry(), // empty registry — mapper.Map will fail
+			credential.NewRegistry(),
 			store,
 			newFakeProjectDetector(),
 			time.Now,
@@ -4348,6 +4351,7 @@ func TestManager_Add_Secrets(t *testing.T) {
 			newTestRuntimeRegistry(t, tmpDir, spy),
 			agent.NewRegistry(),
 			secretservice.NewRegistry(),
+			credential.NewRegistry(),
 			store,
 			newFakeProjectDetector(),
 			time.Now,
@@ -4424,6 +4428,7 @@ func TestManager_Add_Secrets(t *testing.T) {
 			newTestRuntimeRegistry(t, tmpDir, spy),
 			agent.NewRegistry(),
 			secretservice.NewRegistry(),
+			credential.NewRegistry(),
 			store,
 			newFakeProjectDetector(),
 			time.Now,
@@ -4479,6 +4484,7 @@ func TestManager_Add_Secrets(t *testing.T) {
 			newTestRuntimeRegistry(t, tmpDir, spy),
 			agent.NewRegistry(),
 			secretservice.NewRegistry(),
+			credential.NewRegistry(),
 			newFakeSecretStore(),
 			newFakeProjectDetector(),
 			time.Now,
@@ -4516,6 +4522,7 @@ func TestManager_Add_Secrets(t *testing.T) {
 			newTestRuntimeRegistry(t, tmpDir, spy),
 			agent.NewRegistry(),
 			secretservice.NewRegistry(),
+			credential.NewRegistry(),
 			newFakeSecretStore(),
 			newFakeProjectDetector(),
 			time.Now,
@@ -4566,6 +4573,7 @@ func TestManager_Add_Secrets(t *testing.T) {
 			newTestRuntimeRegistry(t, tmpDir, spy),
 			agent.NewRegistry(),
 			secretservice.NewRegistry(),
+			credential.NewRegistry(),
 			store,
 			newFakeProjectDetector(),
 			time.Now,
@@ -4648,7 +4656,7 @@ func TestManager_GetDashboardURL(t *testing.T) {
 		if err := reg.Register(fake.NewWithDashboard(dashboardURL)); err != nil {
 			t.Fatalf("Register() error = %v", err)
 		}
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), reg, agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), reg, agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -4687,7 +4695,7 @@ func TestManager_GetDashboardURL(t *testing.T) {
 		if err := reg.Register(fake.NewWithDashboard(dashboardURL)); err != nil {
 			t.Fatalf("Register() error = %v", err)
 		}
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), reg, agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), reg, agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -4714,7 +4722,7 @@ func TestManager_GetDashboardURL(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -4741,7 +4749,7 @@ func TestManager_GetDashboardURL(t *testing.T) {
 
 		ctx := context.Background()
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		_, err := manager.GetDashboardURL(ctx, "nonexistent-id")
 		if !errors.Is(err, ErrInstanceNotFound) {
@@ -4763,7 +4771,7 @@ func TestManager_GetDashboardURL(t *testing.T) {
 		if err := reg.Register(fake.NewWithDashboard(dashboardURL)); err != nil {
 			t.Fatalf("Register() error = %v", err)
 		}
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), reg, agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), reg, agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		instanceTmpDir := t.TempDir()
 		inst := newFakeInstance(newFakeInstanceParams{
@@ -4797,7 +4805,7 @@ func TestManager_RegisterSecretService(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		svc := &fakeSecretServiceImpl{name: "github", hostsPatterns: []string{"github.com"}, headerName: "Authorization"}
 
@@ -4811,7 +4819,7 @@ func TestManager_RegisterSecretService(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+		manager, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
 
 		svc1 := &fakeSecretServiceImpl{name: "github", headerName: "Authorization"}
 		svc2 := &fakeSecretServiceImpl{name: "github", headerName: "X-Token"}
