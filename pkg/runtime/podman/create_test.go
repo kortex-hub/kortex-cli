@@ -1729,6 +1729,7 @@ type fakeCredentialForDetect struct {
 	intercepted *workspace.Mount
 	fakeContent []byte
 	fakeFileErr error
+	envVars     map[string]string
 }
 
 var _ credential.Credential = (*fakeCredentialForDetect)(nil)
@@ -1745,7 +1746,164 @@ func (f *fakeCredentialForDetect) Configure(_ context.Context, _ onecli.Client, 
 	return nil
 }
 func (f *fakeCredentialForDetect) HostPatterns(_ string) []string     { return nil }
-func (f *fakeCredentialForDetect) EnvVars(_ string) map[string]string { return nil }
+func (f *fakeCredentialForDetect) EnvVars(_ string) map[string]string { return f.envVars }
+
+func TestCreate_WithActiveCredentials(t *testing.T) {
+	t.Parallel()
+
+	t.Run("fake credential file mounted and intercepted mount suppressed", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcePath := t.TempDir()
+		onecliServer := newOnecliTestServer(t)
+
+		// Mount the gcloud directory; the credential will intercept it.
+		interceptedMount := workspace.Mount{
+			Host:   "$HOME/.config/gcloud",
+			Target: "$HOME/.config/gcloud",
+		}
+		mounts := []workspace.Mount{interceptedMount}
+
+		cred := &fakeCredentialForDetect{
+			name:        "mycred",
+			detectPath:  "/host/real/credential",
+			intercepted: &mounts[0],
+			fakeContent: []byte(`{"fake":true}`),
+			envVars:     map[string]string{"CRED_TOKEN": "placeholder"},
+		}
+		reg := credential.NewRegistry()
+		_ = reg.Register(cred)
+
+		fakeExec := exec.NewFake()
+		fakeExec.RunFunc = func(_ context.Context, args ...string) error { return nil }
+		fakeExec.OutputFunc = func(_ context.Context, args ...string) ([]byte, error) {
+			return []byte("container-id-123"), nil
+		}
+
+		p := &podmanRuntime{
+			system:             &fakeSystem{},
+			executor:           fakeExec,
+			storageDir:         storageDir,
+			config:             &fakeConfig{},
+			onecliBaseURLFn:    func(_ int) string { return onecliServer.URL },
+			credentialRegistry: reg,
+		}
+
+		params := runtime.CreateParams{
+			Name:       "test-workspace",
+			SourcePath: sourcePath,
+			Agent:      "test_agent",
+			WorkspaceConfig: &workspace.WorkspaceConfiguration{
+				Mounts: &mounts,
+			},
+		}
+
+		ctx := steplogger.WithLogger(context.Background(), &fakeStepLogger{})
+		_, err := p.Create(ctx, params)
+		if err != nil {
+			t.Fatalf("Create() failed: %v", err)
+		}
+
+		// Find the podman "create" call to inspect the container args.
+		var createArgs []string
+		for _, call := range fakeExec.OutputCalls {
+			if len(call) > 0 && call[0] == "create" {
+				createArgs = call
+				break
+			}
+		}
+		if createArgs == nil {
+			t.Fatal("Expected 'create' command to be called")
+		}
+		argsStr := strings.Join(createArgs, " ")
+
+		// Fake credential file must be mounted at the credential's container path.
+		fakePath := filepath.Join(storageDir, "credentials", "test-workspace", "mycred", "credential")
+		expectedCredMount := fmt.Sprintf("-v %s:/fake/mycred:ro,Z", fakePath)
+		if !strings.Contains(argsStr, expectedCredMount) {
+			t.Errorf("Expected credential mount %q in args:\n%s", expectedCredMount, argsStr)
+		}
+
+		// Credential env vars must be injected.
+		if !strings.Contains(argsStr, "-e CRED_TOKEN=placeholder") {
+			t.Errorf("Expected credential env var in args:\n%s", argsStr)
+		}
+
+		// The intercepted mount's container path must NOT appear (mount was suppressed).
+		if strings.Contains(argsStr, "/home/agent/.config/gcloud") {
+			t.Errorf("Intercepted mount container path should be absent from args:\n%s", argsStr)
+		}
+	})
+
+	t.Run("ccArgs initialised when OneCLI returns no container config", func(t *testing.T) {
+		t.Parallel()
+
+		// When the OneCLI server returns an empty container config (no env, no CA cert),
+		// containerConfig is non-nil but ccArgs starts with only envVars set (to an
+		// empty map). The credential block must still populate credMounts correctly.
+		storageDir := t.TempDir()
+		sourcePath := t.TempDir()
+		onecliServer := newOnecliTestServer(t)
+
+		mounts := []workspace.Mount{{Host: "/host/cred", Target: "/host/cred"}}
+		cred := &fakeCredentialForDetect{
+			name:        "cred2",
+			detectPath:  "/host/cred",
+			intercepted: &mounts[0],
+			fakeContent: []byte("placeholder"),
+		}
+		reg := credential.NewRegistry()
+		_ = reg.Register(cred)
+
+		fakeExec := exec.NewFake()
+		fakeExec.RunFunc = func(_ context.Context, args ...string) error { return nil }
+		fakeExec.OutputFunc = func(_ context.Context, args ...string) ([]byte, error) {
+			return []byte("container-id-456"), nil
+		}
+
+		p := &podmanRuntime{
+			system:             &fakeSystem{},
+			executor:           fakeExec,
+			storageDir:         storageDir,
+			config:             &fakeConfig{},
+			onecliBaseURLFn:    func(_ int) string { return onecliServer.URL },
+			credentialRegistry: reg,
+		}
+
+		params := runtime.CreateParams{
+			Name:       "ws2",
+			SourcePath: sourcePath,
+			Agent:      "test_agent",
+			WorkspaceConfig: &workspace.WorkspaceConfiguration{
+				Mounts: &mounts,
+			},
+		}
+
+		ctx := steplogger.WithLogger(context.Background(), &fakeStepLogger{})
+		_, err := p.Create(ctx, params)
+		if err != nil {
+			t.Fatalf("Create() failed: %v", err)
+		}
+
+		var createArgs []string
+		for _, call := range fakeExec.OutputCalls {
+			if len(call) > 0 && call[0] == "create" {
+				createArgs = call
+				break
+			}
+		}
+		if createArgs == nil {
+			t.Fatal("Expected 'create' command to be called")
+		}
+
+		fakePath := filepath.Join(storageDir, "credentials", "ws2", "cred2", "credential")
+		expectedMount := fmt.Sprintf("-v %s:/fake/cred2:ro,Z", fakePath)
+		if !strings.Contains(strings.Join(createArgs, " "), expectedMount) {
+			t.Errorf("Expected credential mount %q in args: %v", expectedMount, createArgs)
+		}
+	})
+}
 
 func TestDetectCredentials(t *testing.T) {
 	t.Parallel()
