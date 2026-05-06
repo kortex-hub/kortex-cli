@@ -25,6 +25,7 @@ import (
 
 	"github.com/openkaiden/kdn/pkg/credential"
 	"github.com/openkaiden/kdn/pkg/credential/gcloud"
+	"github.com/openkaiden/kdn/pkg/credential/openshift"
 )
 
 // CredentialRegistrar is an interface for types that can register credentials.
@@ -39,6 +40,7 @@ type credentialFactory func() credential.Credential
 // availableCredentials lists all credential implementations to register.
 var availableCredentials = []credentialFactory{
 	gcloud.New,
+	openshift.New,
 }
 
 // RegisterAll registers all available credential implementations to the given registrar.

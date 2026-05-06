@@ -836,66 +836,45 @@ kdn secret create my-github-token-private --type github --value ghp_private
 - The project identifier used as the key must match what kdn detected during `init` — run `kdn list -o json` to see the project field for each registered workspace
 - Configuration changes in `projects.json` take effect the next time you run `kdn init` for that workspace; already-registered workspaces need to be removed and re-registered
 
-### Protecting an OpenShift Token
+### Connecting to an OpenShift Cluster
 
-> **Note:** This is a temporary workaround. Native support for OpenShift token injection will be added to the `kdn init` command in a future release.
-
-This scenario demonstrates how to connect to an OpenShift cluster from inside a workspace without embedding your real token in the kubeconfig file. The token is stored securely with `kdn secret create` and injected by OneCLI as a `Bearer` Authorization header on every request to the OpenShift API server.
+This scenario demonstrates how to connect to an OpenShift cluster from inside a workspace. kdn automatically intercepts the kubeconfig mount: the real token is replaced with a placeholder inside the container and OneCLI injects it transparently as a `Bearer` Authorization header on requests to the cluster API server.
 
 **Prerequisites:**
 
 - The `oc` CLI installed on your host machine
-- An OpenShift cluster reachable from your host
+- An OpenShift cluster reachable from your host, with a valid login session (`oc login …`)
+- Token-based authentication in the current kubeconfig context (not client-certificate auth)
 
-**Step 1: Log in to the cluster with a dedicated kubeconfig**
-
-Use the `--kubeconfig` flag to write the credentials to a separate file that will be shared with the workspace, rather than modifying your default `~/.kube/config`:
-
-```bash
-oc login --kubeconfig=$HOME/kubeconfig-agent \
-  --token=sha256~<real-token> \
-  --server=https://my-openshift-server:6443
-```
-
-**Step 2: Replace the real token with a placeholder**
-
-Edit `$HOME/kubeconfig-agent` and replace `sha256~<real-token>` with `sha256-placeholder`. The file is now safe to mount read-only into workspaces because it contains no real credentials.
-
-**Step 3: Create the kdn secret**
-
-Store the real token once in the system keychain:
-
-```bash
-kdn secret create oc \
-  --type other \
-  --header Authorization \
-  --headerTemplate 'Bearer ${value}' \
-  --host my-openshift-server \
-  --value sha256~<real-token>
-```
-
-This tells kdn to instruct OneCLI to inject `Authorization: Bearer sha256~<real-token>` on every outbound request to `my-openshift-server`, replacing the placeholder in the kubeconfig.
-
-**Step 4: Declare the secret and mount the kubeconfig**
+**Step 1: Declare the kubeconfig mount**
 
 Add the following to your `.kaiden/workspace.json`:
 
 ```json
 {
-  "secrets": ["oc"],
   "mounts": [
     {
-      "host": "$HOME/kubeconfig-agent",
-      "target": "$HOME/.kube/config",
-      "ro": true
+      "host": "$HOME/.kube/config",
+      "target": "$HOME/.kube/config"
     }
   ]
 }
 ```
 
-The `secrets` entry tells kdn to provision the `oc` secret into OneCLI when the workspace starts. The mount makes the placeholder kubeconfig available at the standard `~/.kube/config` path inside the container.
+You can also mount the entire `.kube` directory if you prefer:
 
-**Step 5: Register and start the workspace**
+```json
+{
+  "mounts": [
+    {
+      "host": "$HOME/.kube",
+      "target": "$HOME/.kube"
+    }
+  ]
+}
+```
+
+**Step 2: Register and start the workspace**
 
 ```bash
 # Register a workspace
@@ -908,11 +887,20 @@ kdn start my-project
 kdn terminal my-project
 ```
 
+**How it works:**
+
+At workspace creation time, kdn reads the current context from your `~/.kube/config`, checks that it uses token-based auth, and:
+
+1. Writes a pruned kubeconfig inside the container — containing only the current context, its cluster (server URL and CA certificate), and the current user — with the real token replaced by a placeholder
+2. Registers an OneCLI secret that injects `Authorization: Bearer <real-token>` on every outbound HTTPS request to the cluster API server
+
+The real token never appears in the container filesystem. `oc` and `kubectl` work transparently because OneCLI intercepts their requests and injects the real header at the network level.
+
 **Notes:**
 
-- The real token never appears in `workspace.json` or any config file — only the secret name does
-- OneCLI intercepts outbound HTTPS requests to `my-openshift-server` and injects the real `Authorization` header, so `oc` and `kubectl` work transparently inside the container
-- The placeholder value (`sha256-placeholder`) in the kubeconfig must differ from the real token so that the kubeconfig file is safe to share or commit; OneCLI replaces it at the network level
+- Automatic interception only applies when the mount target is `$HOME/.kube/config` or `$HOME/.kube`, and the current context uses token-based auth. Client-certificate contexts are not intercepted.
+- When `network.mode` is `"deny"`, the cluster API server hostname is automatically added to the allow-list — no explicit `hosts` entry is needed.
+- If your token expires, re-run `oc login` on the host and recreate the workspace (`kdn remove` + `kdn init`) so kdn picks up the new token.
 
 ### Working with Git Worktrees
 
