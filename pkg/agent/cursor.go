@@ -50,7 +50,7 @@ func (c *cursorAgent) Name() string {
 // SkipOnboarding modifies Cursor settings to skip onboarding prompts.
 // It creates a .workspace-trusted file in the Cursor projects directory
 // for the given workspace sources path.
-func (c *cursorAgent) SkipOnboarding(settings map[string][]byte, workspaceSourcesPath string) (map[string][]byte, error) {
+func (c *cursorAgent) SkipOnboarding(settings map[string][]byte, workspaceSourcesPath string, _ []string) (map[string][]byte, error) {
 	if settings == nil {
 		settings = make(map[string][]byte)
 	}
@@ -80,12 +80,6 @@ func (c *cursorAgent) SkillsDir() string {
 // SetMCPServers returns the settings unchanged, as Cursor does not support MCP configuration
 // through agent settings files.
 func (c *cursorAgent) SetMCPServers(settings map[string][]byte, _ *workspace.McpConfiguration) (map[string][]byte, error) {
-	return settings, nil
-}
-
-// ApprovePresetKey returns the settings unchanged, as Cursor does not support preset key approval
-// through agent settings files.
-func (c *cursorAgent) ApprovePresetKey(settings map[string][]byte, _ []string) (map[string][]byte, error) {
 	return settings, nil
 }
 

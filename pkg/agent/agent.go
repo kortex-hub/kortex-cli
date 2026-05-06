@@ -27,11 +27,11 @@ type Agent interface {
 	// Name returns the agent name (e.g., "claude", "goose").
 	Name() string
 	// SkipOnboarding modifies agent settings to skip onboarding prompts.
-	// It takes the current agent settings map (path -> content) and the workspace
-	// sources path inside the container, and returns the modified settings with
-	// onboarding flags set appropriately.
+	// It takes the current agent settings map (path -> content), the workspace
+	// sources path inside the container, and an optional list of API key values
+	// to pre-approve so the agent does not prompt the user about them.
 	// Returns the modified settings map, or an error if modification fails.
-	SkipOnboarding(settings map[string][]byte, workspaceSourcesPath string) (map[string][]byte, error)
+	SkipOnboarding(settings map[string][]byte, workspaceSourcesPath string, approvedKeys []string) (map[string][]byte, error)
 	// SetModel configures the model ID in the agent settings.
 	// It takes the current agent settings map (path -> content) and the model ID,
 	// and returns the modified settings with the model configured.
@@ -49,11 +49,4 @@ type Agent interface {
 	// If mcp is nil, settings are returned unchanged.
 	// Returns the modified settings map, or an error if modification fails.
 	SetMCPServers(settings map[string][]byte, mcp *workspace.McpConfiguration) (map[string][]byte, error)
-	// ApprovePresetKey adds the given key values to the agent's approved preset API keys list.
-	// It takes the current agent settings map (path -> content) and a list of key values to approve,
-	// and returns the modified settings with the keys added to the approved list.
-	// If the agent does not support preset key approval, settings are returned unchanged.
-	// If approvedKeys is empty, settings are returned unchanged.
-	// Returns the modified settings map, or an error if modification fails.
-	ApprovePresetKey(settings map[string][]byte, approvedKeys []string) (map[string][]byte, error)
 }

@@ -274,6 +274,46 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 		}
 	}
 
+	// Map workspace secrets to OneCLI secret definitions and collect env vars
+	var onecliSecrets []onecli.CreateSecretInput
+	secretEnvVars := make(map[string]string)
+	if mergedConfig != nil && mergedConfig.Secrets != nil && len(*mergedConfig.Secrets) > 0 {
+		mapper := onecli.NewSecretMapper(m.secretServiceRegistry)
+		for i, name := range *mergedConfig.Secrets {
+			item, value, err := m.secretStore.Get(name)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get secret %q at index %d: %w", name, i, err)
+			}
+			inputs, err := mapper.Map(item, value)
+			if err != nil {
+				return nil, fmt.Errorf("failed to map secret %q at index %d: %w", name, i, err)
+			}
+			onecliSecrets = append(onecliSecrets, inputs...)
+
+			if item.Type != secret.TypeOther {
+				if svc, svcErr := m.secretServiceRegistry.Get(item.Type); svcErr == nil {
+					for _, envVar := range svc.EnvVars() {
+						secretEnvVars[envVar] = "placeholder"
+					}
+				}
+			} else {
+				for _, envVar := range item.Envs {
+					secretEnvVars[envVar] = "placeholder"
+				}
+			}
+		}
+	}
+
+	// Collect unique placeholder values for pre-approving injected API keys
+	seen := make(map[string]struct{})
+	var approvedKeys []string
+	for _, v := range secretEnvVars {
+		if _, ok := seen[v]; !ok {
+			seen[v] = struct{}{}
+			approvedKeys = append(approvedKeys, v)
+		}
+	}
+
 	// Read agent settings files from storage config directory
 	agentSettings, err := m.readAgentSettings(m.storageDir, opts.Agent)
 	if err != nil {
@@ -285,7 +325,7 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 		if agentImpl, err := m.agentRegistry.Get(opts.Agent); err == nil {
 			// Get workspace sources path from runtime before creating instance
 			workspaceSourcesPath := rt.WorkspaceSourcesPath()
-			agentSettings, err = agentImpl.SkipOnboarding(agentSettings, workspaceSourcesPath)
+			agentSettings, err = agentImpl.SkipOnboarding(agentSettings, workspaceSourcesPath, approvedKeys)
 			if err != nil {
 				return nil, fmt.Errorf("failed to apply agent onboarding settings: %w", err)
 			}
@@ -330,54 +370,6 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 			}
 		}
 		// If agent not found in registry, use settings as-is (not all agents may be implemented)
-	}
-
-	// Map workspace secrets to OneCLI secret definitions and collect env vars
-	var onecliSecrets []onecli.CreateSecretInput
-	secretEnvVars := make(map[string]string)
-	if mergedConfig != nil && mergedConfig.Secrets != nil && len(*mergedConfig.Secrets) > 0 {
-		mapper := onecli.NewSecretMapper(m.secretServiceRegistry)
-		for i, name := range *mergedConfig.Secrets {
-			item, value, err := m.secretStore.Get(name)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get secret %q at index %d: %w", name, i, err)
-			}
-			inputs, err := mapper.Map(item, value)
-			if err != nil {
-				return nil, fmt.Errorf("failed to map secret %q at index %d: %w", name, i, err)
-			}
-			onecliSecrets = append(onecliSecrets, inputs...)
-
-			if item.Type != secret.TypeOther {
-				if svc, svcErr := m.secretServiceRegistry.Get(item.Type); svcErr == nil {
-					for _, envVar := range svc.EnvVars() {
-						secretEnvVars[envVar] = "placeholder"
-					}
-				}
-			} else {
-				for _, envVar := range item.Envs {
-					secretEnvVars[envVar] = "placeholder"
-				}
-			}
-		}
-	}
-
-	// Apply agent-specific preset key approvals based on collected secret env var values
-	if opts.Agent != "" && len(secretEnvVars) > 0 {
-		if agentImpl, agentErr := m.agentRegistry.Get(opts.Agent); agentErr == nil {
-			seen := make(map[string]struct{})
-			var approvedKeys []string
-			for _, v := range secretEnvVars {
-				if _, ok := seen[v]; !ok {
-					seen[v] = struct{}{}
-					approvedKeys = append(approvedKeys, v)
-				}
-			}
-			agentSettings, err = agentImpl.ApprovePresetKey(agentSettings, approvedKeys)
-			if err != nil {
-				return nil, fmt.Errorf("failed to apply agent preset key settings: %w", err)
-			}
-		}
 	}
 
 	// Create runtime instance with merged configuration

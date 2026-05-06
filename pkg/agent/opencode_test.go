@@ -43,7 +43,7 @@ func TestOpenCode_SkipOnboarding(t *testing.T) {
 		agent := NewOpenCode()
 		settings := make(map[string][]byte)
 
-		result, err := agent.SkipOnboarding(settings, "/workspace/sources")
+		result, err := agent.SkipOnboarding(settings, "/workspace/sources", nil)
 		if err != nil {
 			t.Fatalf("SkipOnboarding() error = %v", err)
 		}
@@ -58,7 +58,7 @@ func TestOpenCode_SkipOnboarding(t *testing.T) {
 
 		agent := NewOpenCode()
 
-		result, err := agent.SkipOnboarding(nil, "/workspace/sources")
+		result, err := agent.SkipOnboarding(nil, "/workspace/sources", nil)
 		if err != nil {
 			t.Fatalf("SkipOnboarding() error = %v", err)
 		}
@@ -77,7 +77,7 @@ func TestOpenCode_SkipOnboarding(t *testing.T) {
 			"some/other/file": []byte("existing content"),
 		}
 
-		result, err := agent.SkipOnboarding(existingSettings, "/workspace/sources")
+		result, err := agent.SkipOnboarding(existingSettings, "/workspace/sources", nil)
 		if err != nil {
 			t.Fatalf("SkipOnboarding() error = %v", err)
 		}

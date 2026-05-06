@@ -39,7 +39,7 @@ func TestGoose_SkipOnboarding_NoExistingSettings(t *testing.T) {
 	agent := NewGoose()
 	settings := make(map[string][]byte)
 
-	result, err := agent.SkipOnboarding(settings, "/workspace/sources")
+	result, err := agent.SkipOnboarding(settings, "/workspace/sources", nil)
 	if err != nil {
 		t.Fatalf("SkipOnboarding() error = %v", err)
 	}
@@ -66,7 +66,7 @@ func TestGoose_SkipOnboarding_NilSettings(t *testing.T) {
 
 	agent := NewGoose()
 
-	result, err := agent.SkipOnboarding(nil, "/workspace/sources")
+	result, err := agent.SkipOnboarding(nil, "/workspace/sources", nil)
 	if err != nil {
 		t.Fatalf("SkipOnboarding() error = %v", err)
 	}
@@ -90,7 +90,7 @@ func TestGoose_SkipOnboarding_PreservesExistingTelemetryTrue(t *testing.T) {
 		GooseConfigPath: existingContent,
 	}
 
-	result, err := agent.SkipOnboarding(settings, "/workspace/sources")
+	result, err := agent.SkipOnboarding(settings, "/workspace/sources", nil)
 	if err != nil {
 		t.Fatalf("SkipOnboarding() error = %v", err)
 	}
@@ -117,7 +117,7 @@ func TestGoose_SkipOnboarding_PreservesExistingTelemetryFalse(t *testing.T) {
 		GooseConfigPath: existingContent,
 	}
 
-	result, err := agent.SkipOnboarding(settings, "/workspace/sources")
+	result, err := agent.SkipOnboarding(settings, "/workspace/sources", nil)
 	if err != nil {
 		t.Fatalf("SkipOnboarding() error = %v", err)
 	}
@@ -144,7 +144,7 @@ func TestGoose_SkipOnboarding_PreservesOtherFields(t *testing.T) {
 		GooseConfigPath: existingContent,
 	}
 
-	result, err := agent.SkipOnboarding(settings, "/workspace/sources")
+	result, err := agent.SkipOnboarding(settings, "/workspace/sources", nil)
 	if err != nil {
 		t.Fatalf("SkipOnboarding() error = %v", err)
 	}
@@ -178,7 +178,7 @@ func TestGoose_SkipOnboarding_InvalidYAML(t *testing.T) {
 		GooseConfigPath: []byte("invalid: yaml: :::"),
 	}
 
-	_, err := agent.SkipOnboarding(settings, "/workspace/sources")
+	_, err := agent.SkipOnboarding(settings, "/workspace/sources", nil)
 	if err == nil {
 		t.Error("Expected error for invalid YAML, got nil")
 	}

@@ -34,7 +34,7 @@ func (f *fakeAgent) Name() string {
 	return f.name
 }
 
-func (f *fakeAgent) SkipOnboarding(settings map[string][]byte, _ string) (map[string][]byte, error) {
+func (f *fakeAgent) SkipOnboarding(settings map[string][]byte, _ string, _ []string) (map[string][]byte, error) {
 	return settings, nil
 }
 
@@ -47,10 +47,6 @@ func (f *fakeAgent) SkillsDir() string {
 }
 
 func (f *fakeAgent) SetMCPServers(settings map[string][]byte, _ *workspace.McpConfiguration) (map[string][]byte, error) {
-	return settings, nil
-}
-
-func (f *fakeAgent) ApprovePresetKey(settings map[string][]byte, _ []string) (map[string][]byte, error) {
 	return settings, nil
 }
 

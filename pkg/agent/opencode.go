@@ -50,7 +50,7 @@ func (o *openCodeAgent) Name() string {
 
 // SkipOnboarding returns the settings unchanged since OpenCode does not
 // require onboarding configuration.
-func (o *openCodeAgent) SkipOnboarding(settings map[string][]byte, _ string) (map[string][]byte, error) {
+func (o *openCodeAgent) SkipOnboarding(settings map[string][]byte, _ string, _ []string) (map[string][]byte, error) {
 	if settings == nil {
 		settings = make(map[string][]byte)
 	}
@@ -122,12 +122,6 @@ func (o *openCodeAgent) SkillsDir() string {
 // SetMCPServers returns the settings unchanged, as OpenCode does not support MCP configuration
 // through agent settings files.
 func (o *openCodeAgent) SetMCPServers(settings map[string][]byte, _ *workspace.McpConfiguration) (map[string][]byte, error) {
-	return settings, nil
-}
-
-// ApprovePresetKey returns the settings unchanged, as OpenCode does not support preset key approval
-// through agent settings files.
-func (o *openCodeAgent) ApprovePresetKey(settings map[string][]byte, _ []string) (map[string][]byte, error) {
 	return settings, nil
 }
 

@@ -251,7 +251,7 @@ func (t *trackingAgent) Name() string {
 	return t.name
 }
 
-func (t *trackingAgent) SkipOnboarding(settings map[string][]byte, workspaceSourcesPath string) (map[string][]byte, error) {
+func (t *trackingAgent) SkipOnboarding(settings map[string][]byte, workspaceSourcesPath string, _ []string) (map[string][]byte, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.skipOnboardingCalled = true
@@ -297,10 +297,6 @@ func (t *trackingAgent) SetMCPServers(settings map[string][]byte, _ *workspace.M
 	return settings, nil
 }
 
-func (t *trackingAgent) ApprovePresetKey(settings map[string][]byte, _ []string) (map[string][]byte, error) {
-	return settings, nil
-}
-
 func (t *trackingAgent) WasSetMCPServersCalled() bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -333,7 +329,7 @@ func (e *erroringSetModelAgent) Name() string {
 	return e.name
 }
 
-func (e *erroringSetModelAgent) SkipOnboarding(settings map[string][]byte, _ string) (map[string][]byte, error) {
+func (e *erroringSetModelAgent) SkipOnboarding(settings map[string][]byte, _ string, _ []string) (map[string][]byte, error) {
 	if settings == nil {
 		settings = make(map[string][]byte)
 	}
@@ -349,10 +345,6 @@ func (e *erroringSetModelAgent) SkillsDir() string {
 }
 
 func (e *erroringSetModelAgent) SetMCPServers(settings map[string][]byte, _ *workspace.McpConfiguration) (map[string][]byte, error) {
-	return settings, nil
-}
-
-func (e *erroringSetModelAgent) ApprovePresetKey(settings map[string][]byte, _ []string) (map[string][]byte, error) {
 	return settings, nil
 }
 

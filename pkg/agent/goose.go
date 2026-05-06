@@ -54,7 +54,7 @@ func (g *gooseAgent) Name() string {
 // It sets GOOSE_TELEMETRY_ENABLED to false in the goose config file if the
 // value is not already defined. If the user has already set it in their own
 // config file, the existing value is preserved.
-func (g *gooseAgent) SkipOnboarding(settings map[string][]byte, _ string) (map[string][]byte, error) {
+func (g *gooseAgent) SkipOnboarding(settings map[string][]byte, _ string, _ []string) (map[string][]byte, error) {
 	if settings == nil {
 		settings = make(map[string][]byte)
 	}
@@ -91,12 +91,6 @@ func (g *gooseAgent) SkillsDir() string {
 // SetMCPServers returns the settings unchanged, as Goose does not support MCP configuration
 // through agent settings files.
 func (g *gooseAgent) SetMCPServers(settings map[string][]byte, _ *workspace.McpConfiguration) (map[string][]byte, error) {
-	return settings, nil
-}
-
-// ApprovePresetKey returns the settings unchanged, as Goose does not support preset key approval
-// through agent settings files.
-func (g *gooseAgent) ApprovePresetKey(settings map[string][]byte, _ []string) (map[string][]byte, error) {
 	return settings, nil
 }
 

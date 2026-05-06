@@ -40,7 +40,7 @@ func TestClaude_SkipOnboarding_NoExistingSettings(t *testing.T) {
 	agent := NewClaude()
 	settings := make(map[string][]byte)
 
-	result, err := agent.SkipOnboarding(settings, "/workspace/sources")
+	result, err := agent.SkipOnboarding(settings, "/workspace/sources", nil)
 	if err != nil {
 		t.Fatalf("SkipOnboarding() error = %v", err)
 	}
@@ -83,7 +83,7 @@ func TestClaude_SkipOnboarding_NilSettings(t *testing.T) {
 
 	agent := NewClaude()
 
-	result, err := agent.SkipOnboarding(nil, "/workspace/sources")
+	result, err := agent.SkipOnboarding(nil, "/workspace/sources", nil)
 	if err != nil {
 		t.Fatalf("SkipOnboarding() error = %v", err)
 	}
@@ -128,7 +128,7 @@ func TestClaude_SkipOnboarding_PreservesUnknownFields(t *testing.T) {
 		ClaudeJSONPath: existingJSON,
 	}
 
-	result, err := agent.SkipOnboarding(settings, "/workspace/sources")
+	result, err := agent.SkipOnboarding(settings, "/workspace/sources", nil)
 	if err != nil {
 		t.Fatalf("SkipOnboarding() error = %v", err)
 	}
@@ -222,7 +222,7 @@ func TestClaude_SkipOnboarding_DifferentWorkspacePaths(t *testing.T) {
 			agent := NewClaude()
 			settings := make(map[string][]byte)
 
-			result, err := agent.SkipOnboarding(settings, tc.workspacePath)
+			result, err := agent.SkipOnboarding(settings, tc.workspacePath, nil)
 			if err != nil {
 				t.Fatalf("SkipOnboarding() error = %v", err)
 			}
@@ -274,7 +274,7 @@ func TestClaude_SkipOnboarding_UpdatesExistingProject(t *testing.T) {
 		ClaudeJSONPath: existingJSON,
 	}
 
-	result, err := agent.SkipOnboarding(settings, "/workspace/sources")
+	result, err := agent.SkipOnboarding(settings, "/workspace/sources", nil)
 	if err != nil {
 		t.Fatalf("SkipOnboarding() error = %v", err)
 	}
@@ -314,7 +314,7 @@ func TestClaude_SkipOnboarding_InvalidJSON(t *testing.T) {
 		ClaudeJSONPath: []byte("invalid json {{{"),
 	}
 
-	_, err := agent.SkipOnboarding(settings, "/workspace/sources")
+	_, err := agent.SkipOnboarding(settings, "/workspace/sources", nil)
 	if err == nil {
 		t.Error("Expected error for invalid JSON, got nil")
 	}
@@ -326,7 +326,7 @@ func TestClaude_SkipOnboarding_EmptyWorkspacePath(t *testing.T) {
 	agent := NewClaude()
 	settings := make(map[string][]byte)
 
-	result, err := agent.SkipOnboarding(settings, "")
+	result, err := agent.SkipOnboarding(settings, "", nil)
 	if err != nil {
 		t.Fatalf("SkipOnboarding() error = %v", err)
 	}
@@ -894,24 +894,18 @@ func TestClaude_SetMCPServers_InvalidJSON(t *testing.T) {
 	}
 }
 
-func TestClaude_ApprovePresetKey_NoExistingSettings(t *testing.T) {
+func TestClaude_SkipOnboarding_SetsApprovedKeys(t *testing.T) {
 	t.Parallel()
 
 	agent := NewClaude()
-	settings := make(map[string][]byte)
 
-	result, err := agent.ApprovePresetKey(settings, []string{"placeholder"})
+	result, err := agent.SkipOnboarding(make(map[string][]byte), "/workspace/sources", []string{"placeholder"})
 	if err != nil {
-		t.Fatalf("ApprovePresetKey() error = %v", err)
-	}
-
-	claudeJSON, exists := result[ClaudeJSONPath]
-	if !exists {
-		t.Fatalf("Expected %s to be created", ClaudeJSONPath)
+		t.Fatalf("SkipOnboarding() error = %v", err)
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(claudeJSON, &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -925,39 +919,16 @@ func TestClaude_ApprovePresetKey_NoExistingSettings(t *testing.T) {
 	}
 }
 
-func TestClaude_ApprovePresetKey_NilSettings(t *testing.T) {
+func TestClaude_SkipOnboarding_NilApprovedKeys(t *testing.T) {
 	t.Parallel()
 
 	agent := NewClaude()
 
-	result, err := agent.ApprovePresetKey(nil, []string{"placeholder"})
+	result, err := agent.SkipOnboarding(nil, "/workspace/sources", nil)
 	if err != nil {
-		t.Fatalf("ApprovePresetKey() error = %v", err)
+		t.Fatalf("SkipOnboarding() error = %v", err)
 	}
 
-	if result == nil {
-		t.Fatal("Expected non-nil result map")
-	}
-
-	if _, exists := result[ClaudeJSONPath]; !exists {
-		t.Errorf("Expected %s to be created", ClaudeJSONPath)
-	}
-}
-
-func TestClaude_ApprovePresetKey_EmptyKeys(t *testing.T) {
-	t.Parallel()
-
-	agent := NewClaude()
-	settings := map[string][]byte{
-		ClaudeJSONPath: []byte(`{"existingField": "value"}`),
-	}
-
-	result, err := agent.ApprovePresetKey(settings, []string{})
-	if err != nil {
-		t.Fatalf("ApprovePresetKey() error = %v", err)
-	}
-
-	// settings returned unchanged — no customApiKeyResponses added
 	var config map[string]interface{}
 	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
@@ -967,35 +938,29 @@ func TestClaude_ApprovePresetKey_EmptyKeys(t *testing.T) {
 	}
 }
 
-func TestClaude_ApprovePresetKey_PreservesExistingFields(t *testing.T) {
+func TestClaude_SkipOnboarding_EmptyApprovedKeys(t *testing.T) {
 	t.Parallel()
 
 	agent := NewClaude()
-	existing := map[string]interface{}{
-		"hasCompletedOnboarding": true,
-		"someOtherField":         "keep me",
+	settings := map[string][]byte{
+		ClaudeJSONPath: []byte(`{"existingField": "value"}`),
 	}
-	existingJSON, _ := json.Marshal(existing)
 
-	result, err := agent.ApprovePresetKey(map[string][]byte{ClaudeJSONPath: existingJSON}, []string{"placeholder"})
+	result, err := agent.SkipOnboarding(settings, "/workspace/sources", []string{})
 	if err != nil {
-		t.Fatalf("ApprovePresetKey() error = %v", err)
+		t.Fatalf("SkipOnboarding() error = %v", err)
 	}
 
 	var config map[string]interface{}
 	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
-
-	if v, ok := config["hasCompletedOnboarding"].(bool); !ok || !v {
-		t.Errorf("hasCompletedOnboarding = %v, want true", config["hasCompletedOnboarding"])
-	}
-	if v, ok := config["someOtherField"].(string); !ok || v != "keep me" {
-		t.Errorf("someOtherField = %v, want %q", config["someOtherField"], "keep me")
+	if _, ok := config["customApiKeyResponses"]; ok {
+		t.Error("customApiKeyResponses should not be present when no keys provided")
 	}
 }
 
-func TestClaude_ApprovePresetKey_MergesWithExisting(t *testing.T) {
+func TestClaude_SkipOnboarding_ApprovedKeysMergesWithExisting(t *testing.T) {
 	t.Parallel()
 
 	agent := NewClaude()
@@ -1006,9 +971,9 @@ func TestClaude_ApprovePresetKey_MergesWithExisting(t *testing.T) {
 	}
 	existingJSON, _ := json.Marshal(existing)
 
-	result, err := agent.ApprovePresetKey(map[string][]byte{ClaudeJSONPath: existingJSON}, []string{"placeholder"})
+	result, err := agent.SkipOnboarding(map[string][]byte{ClaudeJSONPath: existingJSON}, "/workspace/sources", []string{"placeholder"})
 	if err != nil {
-		t.Fatalf("ApprovePresetKey() error = %v", err)
+		t.Fatalf("SkipOnboarding() error = %v", err)
 	}
 
 	var config map[string]interface{}
@@ -1027,7 +992,7 @@ func TestClaude_ApprovePresetKey_MergesWithExisting(t *testing.T) {
 	}
 }
 
-func TestClaude_ApprovePresetKey_Deduplicates(t *testing.T) {
+func TestClaude_SkipOnboarding_ApprovedKeysDeduplicates(t *testing.T) {
 	t.Parallel()
 
 	agent := NewClaude()
@@ -1038,9 +1003,9 @@ func TestClaude_ApprovePresetKey_Deduplicates(t *testing.T) {
 	}
 	existingJSON, _ := json.Marshal(existing)
 
-	result, err := agent.ApprovePresetKey(map[string][]byte{ClaudeJSONPath: existingJSON}, []string{"placeholder", "placeholder"})
+	result, err := agent.SkipOnboarding(map[string][]byte{ClaudeJSONPath: existingJSON}, "/workspace/sources", []string{"placeholder", "placeholder"})
 	if err != nil {
-		t.Fatalf("ApprovePresetKey() error = %v", err)
+		t.Fatalf("SkipOnboarding() error = %v", err)
 	}
 
 	var config map[string]interface{}
@@ -1052,16 +1017,5 @@ func TestClaude_ApprovePresetKey_Deduplicates(t *testing.T) {
 	approved := resp["approved"].([]interface{})
 	if len(approved) != 1 || approved[0] != "placeholder" {
 		t.Errorf("approved = %v, want [placeholder]", approved)
-	}
-}
-
-func TestClaude_ApprovePresetKey_InvalidJSON(t *testing.T) {
-	t.Parallel()
-
-	agent := NewClaude()
-
-	_, err := agent.ApprovePresetKey(map[string][]byte{ClaudeJSONPath: []byte("invalid json {{{")}, []string{"placeholder"})
-	if err == nil {
-		t.Error("Expected error for invalid JSON, got nil")
 	}
 }

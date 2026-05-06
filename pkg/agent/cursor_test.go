@@ -40,7 +40,7 @@ func TestCursor_SkipOnboarding_NoExistingSettings(t *testing.T) {
 	settings := make(map[string][]byte)
 
 	before := time.Now().UTC()
-	result, err := agent.SkipOnboarding(settings, "/workspace/sources")
+	result, err := agent.SkipOnboarding(settings, "/workspace/sources", nil)
 	after := time.Now().UTC()
 	if err != nil {
 		t.Fatalf("SkipOnboarding() error = %v", err)
@@ -79,7 +79,7 @@ func TestCursor_SkipOnboarding_NilSettings(t *testing.T) {
 
 	agent := NewCursor()
 
-	result, err := agent.SkipOnboarding(nil, "/workspace/sources")
+	result, err := agent.SkipOnboarding(nil, "/workspace/sources", nil)
 	if err != nil {
 		t.Fatalf("SkipOnboarding() error = %v", err)
 	}
@@ -126,7 +126,7 @@ func TestCursor_SkipOnboarding_DifferentWorkspacePaths(t *testing.T) {
 			agent := NewCursor()
 			settings := make(map[string][]byte)
 
-			result, err := agent.SkipOnboarding(settings, tc.workspacePath)
+			result, err := agent.SkipOnboarding(settings, tc.workspacePath, nil)
 			if err != nil {
 				t.Fatalf("SkipOnboarding() error = %v", err)
 			}
@@ -158,7 +158,7 @@ func TestCursor_SkipOnboarding_PreservesExistingSettings(t *testing.T) {
 		"some/other/file": []byte("existing content"),
 	}
 
-	result, err := agent.SkipOnboarding(existingSettings, "/workspace/sources")
+	result, err := agent.SkipOnboarding(existingSettings, "/workspace/sources", nil)
 	if err != nil {
 		t.Fatalf("SkipOnboarding() error = %v", err)
 	}
