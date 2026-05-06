@@ -209,6 +209,43 @@ The secret service system provides a pluggable architecture for managing secret 
 
 **For detailed guidance on the full secrets abstraction (Store, registry, adding new types), use:** `/working-with-secrets`
 
+### Credential System
+
+The credential system provides a pluggable architecture for intercepting sensitive credential files that users mount into workspace containers. When a declared mount targets a known credential file (e.g., `$HOME/.config/gcloud/application_default_credentials.json`), kdn replaces the real file with a placeholder and configures OneCLI to inject the real credential at request time.
+
+**Key Components:**
+- **`Credential` interface** (`pkg/credential/credential.go`): Contract all credentials must implement:
+  - `Name() string` — unique identifier
+  - `ContainerFilePath() string` — absolute path inside the container where the credential file lives
+  - `Detect(mounts []workspace.Mount, homeDir string) (hostFilePath string, intercepted *workspace.Mount)` — returns the real host path and the mount to intercept, or `("", nil)` if not applicable
+  - `FakeFile(hostFilePath string) ([]byte, error)` — returns placeholder file content (no real credentials)
+  - `Configure(ctx, client onecli.Client, hostFilePath string) error` — reads the real file and registers the credential with OneCLI
+  - `HostPatterns(hostFilePath string) []string` — hostnames OneCLI must be allowed to reach for this credential
+  - `EnvVars(hostFilePath string) map[string]string` — extra environment variables to inject into the container
+- **Registry** (`pkg/credential/registry.go`): Thread-safe ordered list; `NewRegistry() Registry`; `Register()` rejects nil, empty name, and duplicates
+- **Centralized Registration** (`pkg/credentialsetup/register.go`): `RegisterAll(registrar)` registers all built-in credentials (currently `gcloud`)
+- **`CredentialRegistryAware`** optional runtime interface (`pkg/runtime/runtime.go`): Runtimes that implement `SetCredentialRegistry(credential.Registry)` receive the registry automatically when `manager.RegisterRuntime()` is called
+
+**Podman runtime integration:**
+- `detectCredentials()` in `create.go` iterates the registry at `Create` time, writes fake files to `<storageDir>/credentials/<workspaceName>/<credName>/credential` (mode `0600`), and returns `[]activeCredential`
+- Fake credential mounts are added to the container; intercepted original mounts are suppressed via an `interceptedMounts map[mountKey]bool`
+- `setupOnecli` calls `cred.Configure()` for each active credential to register it with OneCLI
+- `collectCredentialHosts()` in `start.go` merges credential host patterns into the network allow-list
+- Credential directories are cleaned up on workspace removal via the `"credentials"` entry in `workspaceTempDirs` (`pkg/runtime/podman/remove.go`)
+
+**Per-workspace credential directory layout:**
+
+```text
+<storageDir>/
+  credentials/
+    <workspaceName>/
+      <credName>/
+        credential    ← fake placeholder file (mode 0600)
+```
+
+**Implementations:**
+- `pkg/credential/gcloud/` — Google Cloud ADC (`application_default_credentials.json`); configures OneCLI Vertex AI via `ConnectApp`
+
 ### Dev Container Features
 
 The `pkg/devcontainers/features` package models, downloads, and orders Dev Container Features (OCI registry artifacts or local file trees) prior to container image generation.

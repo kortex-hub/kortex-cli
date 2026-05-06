@@ -80,7 +80,7 @@ func (p *podmanRuntime) Remove(ctx context.Context, id string) error {
 
 // workspaceTempDirs lists the subdirectories under storageDir that hold
 // per-workspace temporary files and must be cleaned up on removal.
-var workspaceTempDirs = []string{"approval-handler", "certs"}
+var workspaceTempDirs = []string{"approval-handler", "certs", "credentials"}
 
 // cleanupWorkspaceTempDirs removes per-workspace subdirectories from every
 // directory listed in workspaceTempDirs.

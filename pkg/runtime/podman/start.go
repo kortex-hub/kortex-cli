@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
@@ -106,7 +108,11 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 	if err != nil {
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to collect secret hosts: %w", err)
 	}
-	allHosts := mergeHosts(explicitHosts, secretHosts)
+
+	// Automatically add host patterns from credentials that were configured at Create time.
+	// The credential directory acts as a signal that the credential was successfully set up.
+	credentialHosts := p.collectCredentialHosts(tmplData.Name, wsCfg)
+	allHosts := mergeHosts(explicitHosts, mergeHosts(secretHosts, credentialHosts))
 
 	// Networking rules are configured whenever mode is explicitly deny, regardless
 	// of whether any hosts are allowed. An empty host list causes the
@@ -256,6 +262,38 @@ func (p *podmanRuntime) waitForPostgres(ctx context.Context, podName string) err
 		}
 	}
 	return fmt.Errorf("postgres not ready after %d retries: %w", postgresMaxRetries, lastErr)
+}
+
+// collectCredentialHosts returns the host patterns contributed by credentials
+// that were successfully configured at Create time (indicated by the presence of
+// their per-workspace credential directory). For credentials with dynamic host
+// patterns (e.g. OpenShift cluster URL), the workspace mounts are re-read to
+// reconstruct the host path passed to HostPatterns.
+func (p *podmanRuntime) collectCredentialHosts(workspaceName string, wsCfg *workspace.WorkspaceConfiguration) []string {
+	if p.credentialRegistry == nil {
+		return nil
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+
+	var hosts []string
+	for _, cred := range p.credentialRegistry.List() {
+		credDir := filepath.Join(p.storageDir, "credentials", workspaceName, cred.Name())
+		if _, err := os.Stat(credDir); err != nil {
+			continue // credential was not configured at Create time
+		}
+
+		// Re-detect to obtain the host file path for dynamic HostPatterns implementations.
+		hostPath := ""
+		if wsCfg != nil && wsCfg.Mounts != nil {
+			hostPath, _ = cred.Detect(*wsCfg.Mounts, homeDir)
+		}
+		hosts = append(hosts, cred.HostPatterns(hostPath)...)
+	}
+	return hosts
 }
 
 const (

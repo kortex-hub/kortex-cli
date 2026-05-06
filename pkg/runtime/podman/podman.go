@@ -24,6 +24,7 @@ import (
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/containerurl"
+	"github.com/openkaiden/kdn/pkg/credential"
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/config"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/exec"
@@ -44,6 +45,7 @@ type podmanRuntime struct {
 	onecliBaseURLFn       func(port int) string // overridable in tests; nil uses default http://localhost:<port>
 	secretStore           secret.Store
 	secretServiceRegistry secretservice.Registry
+	credentialRegistry    credential.Registry
 }
 
 // onecliURL returns the base URL for the OneCLI service on the given port.
@@ -65,6 +67,9 @@ var _ runtime.AgentLister = (*podmanRuntime)(nil)
 
 // Ensure podmanRuntime implements runtime.SecretServiceRegistryAware at compile time.
 var _ runtime.SecretServiceRegistryAware = (*podmanRuntime)(nil)
+
+// Ensure podmanRuntime implements runtime.CredentialRegistryAware at compile time.
+var _ runtime.CredentialRegistryAware = (*podmanRuntime)(nil)
 
 // Ensure podmanRuntime implements runtime.ConfigTransformer at compile time.
 var _ runtime.ConfigTransformer = (*podmanRuntime)(nil)
@@ -101,6 +106,12 @@ func (p *podmanRuntime) Available() bool {
 // can resolve host patterns for secrets when configuring deny-mode networking.
 func (p *podmanRuntime) SetSecretServiceRegistry(reg secretservice.Registry) {
 	p.secretServiceRegistry = reg
+}
+
+// SetCredentialRegistry injects the credential registry so that Create() can
+// intercept file-based credential mounts and configure OneCLI accordingly.
+func (p *podmanRuntime) SetCredentialRegistry(reg credential.Registry) {
+	p.credentialRegistry = reg
 }
 
 // TransformConfig implements runtime.ConfigTransformer.
