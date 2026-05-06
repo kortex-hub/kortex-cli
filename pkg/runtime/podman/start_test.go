@@ -25,6 +25,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	"github.com/openkaiden/kdn/pkg/credential"
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/runtime/podman/exec"
 	"github.com/openkaiden/kdn/pkg/steplogger"
@@ -735,6 +737,191 @@ func TestStart_DenyMode_NoHosts_ConfiguresNetworking(t *testing.T) {
 	// Approval-handler must be started before pod start so it has config.json.
 	fakeExec.AssertRunCalledWith(t, "start", podName+"-approval-handler")
 	fakeExec.AssertRunCalledWith(t, "pod", "start", podName)
+}
+
+func TestCollectCredentialHosts(t *testing.T) {
+	t.Parallel()
+
+	makeCredDir := func(t *testing.T, storageDir, workspaceName, credName string) {
+		t.Helper()
+		dir := filepath.Join(storageDir, "credentials", workspaceName, credName)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("failed to create credential dir: %v", err)
+		}
+	}
+
+	t.Run("nil registry returns nil", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{storageDir: t.TempDir()}
+		result := p.collectCredentialHosts("ws", nil)
+		if result != nil {
+			t.Errorf("Expected nil, got %v", result)
+		}
+	})
+
+	t.Run("empty registry returns nil", func(t *testing.T) {
+		t.Parallel()
+
+		reg := credential.NewRegistry()
+		p := &podmanRuntime{credentialRegistry: reg, storageDir: t.TempDir()}
+		result := p.collectCredentialHosts("ws", nil)
+		if len(result) != 0 {
+			t.Errorf("Expected empty result, got %v", result)
+		}
+	})
+
+	t.Run("credential dir absent skips credential", func(t *testing.T) {
+		t.Parallel()
+
+		reg := credential.NewRegistry()
+		_ = reg.Register(&fakeCredentialForDetect{
+			name:        "mycred",
+			detectPath:  "/host/path",
+			fakeContent: []byte("ok"),
+		})
+		p := &podmanRuntime{credentialRegistry: reg, storageDir: t.TempDir()}
+
+		// No credential dir created → stat fails → credential skipped.
+		result := p.collectCredentialHosts("ws", nil)
+		if len(result) != 0 {
+			t.Errorf("Expected empty result when credential dir absent, got %v", result)
+		}
+	})
+
+	t.Run("credential dir present, nil wsCfg: HostPatterns called with empty hostPath", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		reg := credential.NewRegistry()
+		cred := &fakeCredentialForDetect{
+			name:        "mycred",
+			detectPath:  "/host/path",
+			fakeContent: []byte("ok"),
+		}
+		_ = reg.Register(cred)
+		makeCredDir(t, storageDir, "ws", "mycred")
+
+		p := &podmanRuntime{credentialRegistry: reg, storageDir: storageDir}
+		result := p.collectCredentialHosts("ws", nil)
+
+		// fakeCredentialForDetect.HostPatterns returns nil, so result is empty.
+		if len(result) != 0 {
+			t.Errorf("Expected empty hosts (fake returns nil), got %v", result)
+		}
+	})
+
+	t.Run("credential dir present, nil Mounts: HostPatterns called with empty hostPath", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		reg := credential.NewRegistry()
+		_ = reg.Register(&fakeCredentialForDetect{name: "mycred", detectPath: "/host/path"})
+		makeCredDir(t, storageDir, "ws", "mycred")
+
+		p := &podmanRuntime{credentialRegistry: reg, storageDir: storageDir}
+		result := p.collectCredentialHosts("ws", &workspace.WorkspaceConfiguration{})
+		if len(result) != 0 {
+			t.Errorf("Expected empty hosts, got %v", result)
+		}
+	})
+
+	t.Run("credential dir present, Mounts set: Detect called and hostPath forwarded", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+
+		// Use a credential that returns host patterns so we can verify the output.
+		cred := &fakeCredentialWithHosts{
+			fakeCredentialForDetect: fakeCredentialForDetect{
+				name:       "mycred",
+				detectPath: "/real/credential",
+			},
+			hostPatterns: []string{"api.example.com", "*.example.com"},
+		}
+		reg := credential.NewRegistry()
+		_ = reg.Register(cred)
+		makeCredDir(t, storageDir, "ws", "mycred")
+
+		mounts := []workspace.Mount{{Host: "/real/path", Target: "/container/path"}}
+		wsCfg := &workspace.WorkspaceConfiguration{Mounts: &mounts}
+		p := &podmanRuntime{credentialRegistry: reg, storageDir: storageDir}
+
+		result := p.collectCredentialHosts("ws", wsCfg)
+
+		if len(result) != 2 {
+			t.Fatalf("Expected 2 host patterns, got %d: %v", len(result), result)
+		}
+		if result[0] != "api.example.com" || result[1] != "*.example.com" {
+			t.Errorf("host patterns = %v, want [api.example.com *.example.com]", result)
+		}
+	})
+
+	t.Run("only credentials with existing dirs contribute hosts", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+
+		present := &fakeCredentialWithHosts{
+			fakeCredentialForDetect: fakeCredentialForDetect{name: "present"},
+			hostPatterns:            []string{"present.example.com"},
+		}
+		absent := &fakeCredentialWithHosts{
+			fakeCredentialForDetect: fakeCredentialForDetect{name: "absent"},
+			hostPatterns:            []string{"absent.example.com"},
+		}
+		reg := credential.NewRegistry()
+		_ = reg.Register(present)
+		_ = reg.Register(absent)
+
+		// Only create the dir for "present".
+		makeCredDir(t, storageDir, "ws", "present")
+
+		p := &podmanRuntime{credentialRegistry: reg, storageDir: storageDir}
+		result := p.collectCredentialHosts("ws", nil)
+
+		if len(result) != 1 || result[0] != "present.example.com" {
+			t.Errorf("host patterns = %v, want [present.example.com]", result)
+		}
+	})
+
+	t.Run("multiple credentials with dirs: all host patterns collected", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+
+		credA := &fakeCredentialWithHosts{
+			fakeCredentialForDetect: fakeCredentialForDetect{name: "cred-a"},
+			hostPatterns:            []string{"a1.example.com", "a2.example.com"},
+		}
+		credB := &fakeCredentialWithHosts{
+			fakeCredentialForDetect: fakeCredentialForDetect{name: "cred-b"},
+			hostPatterns:            []string{"b.example.com"},
+		}
+		reg := credential.NewRegistry()
+		_ = reg.Register(credA)
+		_ = reg.Register(credB)
+
+		makeCredDir(t, storageDir, "ws", "cred-a")
+		makeCredDir(t, storageDir, "ws", "cred-b")
+
+		p := &podmanRuntime{credentialRegistry: reg, storageDir: storageDir}
+		result := p.collectCredentialHosts("ws", nil)
+
+		if len(result) != 3 {
+			t.Fatalf("Expected 3 host patterns, got %d: %v", len(result), result)
+		}
+	})
+}
+
+// fakeCredentialWithHosts extends fakeCredentialForDetect with configurable HostPatterns.
+type fakeCredentialWithHosts struct {
+	fakeCredentialForDetect
+	hostPatterns []string
+}
+
+func (f *fakeCredentialWithHosts) HostPatterns(_ string) []string {
+	return f.hostPatterns
 }
 
 func TestStart_DenyMode_StepLogger(t *testing.T) {
