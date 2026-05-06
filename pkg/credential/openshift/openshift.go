@@ -242,11 +242,6 @@ func (o *openshiftCredential) HostPatterns(hostFilePath string) []string {
 	return []string{host}
 }
 
-// EnvVars returns no extra environment variables for OpenShift credentials.
-func (o *openshiftCredential) EnvVars(_ string) map[string]string {
-	return nil
-}
-
 // loadKubeConfig reads and parses the kubeconfig at path.
 // Returns (nil, nil) if the file does not exist.
 func loadKubeConfig(path string) (*kubeConfig, error) {

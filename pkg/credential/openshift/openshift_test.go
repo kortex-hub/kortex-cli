@@ -308,16 +308,6 @@ func TestOpenshiftCredential_HostPatterns_Missing(t *testing.T) {
 	}
 }
 
-func TestOpenshiftCredential_EnvVars(t *testing.T) {
-	t.Parallel()
-
-	cred := New()
-	vars := cred.EnvVars("")
-	if vars != nil {
-		t.Errorf("EnvVars() = %v, want nil", vars)
-	}
-}
-
 func TestLoadKubeConfig(t *testing.T) {
 	t.Parallel()
 
