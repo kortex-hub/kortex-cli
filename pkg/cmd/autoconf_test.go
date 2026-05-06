@@ -251,6 +251,104 @@ func TestAutoconfCmd_Run_YesFlag(t *testing.T) {
 	}
 }
 
+// TestAutoconfCmd_Run_WithVertexDetector verifies that when a vertexDetector is
+// wired in, run() invokes the Vertex AI autoconf path.
+func TestAutoconfCmd_Run_WithVertexDetector(t *testing.T) {
+	t.Parallel()
+
+	agentUpdater := &fakeAutoconfCmdAgentUpdater{}
+	c := &autoconfCmd{
+		detector: &fakeAutoconfCmdDetector{},
+		confirm:  func(string) (bool, error) { return true, nil },
+		selectTarget: func(_ string, _ []autoconf.ConfigTargetOption) (autoconf.ConfigTarget, error) {
+			return autoconf.ConfigTargetGlobal, nil
+		},
+		vertexDetector: &fakeAutoconfCmdVertexDetector{cfg: &autoconf.VertexConfig{
+			EnvVars: map[string]string{
+				"CLAUDE_CODE_USE_VERTEX":      "1",
+				"ANTHROPIC_VERTEX_PROJECT_ID": "my-project",
+				"CLOUD_ML_REGION":             "us-east5",
+			},
+			ADCHostPath: autoconf.ADCContainerPath,
+		}},
+		agentUpdater: agentUpdater,
+		yes:          true,
+		vertexSelectTarget: func(_ []autoconf.ClaudeVertexConfigTargetOption) (autoconf.ClaudeVertexConfigTarget, error) {
+			return autoconf.ClaudeVertexConfigTargetAgent, nil
+		},
+	}
+
+	cmd := NewAutoconfCmd()
+	var out strings.Builder
+	cmd.SetOut(&out)
+
+	if err := c.run(cmd, []string{}); err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+
+	if len(agentUpdater.envVars) != 3 {
+		t.Errorf("expected 3 env vars written to agent config, got %d", len(agentUpdater.envVars))
+	}
+	if len(agentUpdater.mounts) != 1 {
+		t.Errorf("expected 1 mount written to agent config, got %d", len(agentUpdater.mounts))
+	}
+	if !strings.Contains(out.String(), "claude agent config") {
+		t.Errorf("expected vertex output in stdout, got: %q", out.String())
+	}
+}
+
+// TestAutoconfCmd_PreRun_SetsVertexFields verifies that preRun wires vertex-related
+// dependencies (vertexDetector, agentUpdater, agentLoader, vertexSelectTarget).
+func TestAutoconfCmd_PreRun_SetsVertexFields(t *testing.T) {
+	t.Parallel()
+
+	storageDir := t.TempDir()
+	c := &autoconfCmd{}
+
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	cmd.Flags().String("storage", storageDir, "")
+
+	if err := c.preRun(cmd, []string{}); err != nil {
+		t.Fatalf("preRun returned error: %v", err)
+	}
+
+	if c.vertexDetector == nil {
+		t.Error("vertexDetector not set by preRun")
+	}
+	if c.agentUpdater == nil {
+		t.Error("agentUpdater not set by preRun")
+	}
+	if c.agentLoader == nil {
+		t.Error("agentLoader not set by preRun")
+	}
+	if c.vertexSelectTarget == nil {
+		t.Error("vertexSelectTarget not set by preRun")
+	}
+}
+
+// TestAutoconfCmd_PreRun_PreservesInjectedVertexDetector verifies the nil-guard:
+// a pre-populated vertexDetector must not be overwritten by preRun.
+func TestAutoconfCmd_PreRun_PreservesInjectedVertexDetector(t *testing.T) {
+	t.Parallel()
+
+	storageDir := t.TempDir()
+	injected := &fakeAutoconfCmdVertexDetector{}
+	c := &autoconfCmd{vertexDetector: injected}
+
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+	cmd.Flags().String("storage", storageDir, "")
+
+	if err := c.preRun(cmd, []string{}); err != nil {
+		t.Fatalf("preRun returned error: %v", err)
+	}
+
+	if c.vertexDetector != injected {
+		t.Error("preRun overwrote the pre-injected vertexDetector")
+	}
+}
+
 // fakeAutoconfCmdStore satisfies secret.Store for cmd-level run() tests.
 type fakeAutoconfCmdStore struct{}
 
@@ -265,3 +363,28 @@ func (fakeAutoconfCmdStore) Get(_ string) (secret.ListItem, string, error) {
 type fakeAutoconfCmdUpdater struct{}
 
 func (f *fakeAutoconfCmdUpdater) AddSecret(_, _ string) error { return nil }
+
+// fakeAutoconfCmdVertexDetector satisfies autoconf.VertexDetector for cmd-level tests.
+type fakeAutoconfCmdVertexDetector struct {
+	cfg *autoconf.VertexConfig
+}
+
+func (f *fakeAutoconfCmdVertexDetector) Detect() (*autoconf.VertexConfig, error) {
+	return f.cfg, nil
+}
+
+// fakeAutoconfCmdAgentUpdater satisfies config.AgentConfigUpdater for cmd-level tests.
+type fakeAutoconfCmdAgentUpdater struct {
+	envVars []struct{ agentName, name, value string }
+	mounts  []struct{ agentName, host, target string }
+}
+
+func (f *fakeAutoconfCmdAgentUpdater) AddEnvVar(agentName, name, value string) error {
+	f.envVars = append(f.envVars, struct{ agentName, name, value string }{agentName, name, value})
+	return nil
+}
+
+func (f *fakeAutoconfCmdAgentUpdater) AddMount(agentName, host, target string, _ bool) error {
+	f.mounts = append(f.mounts, struct{ agentName, host, target string }{agentName, host, target})
+	return nil
+}

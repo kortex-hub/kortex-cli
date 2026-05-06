@@ -233,6 +233,98 @@ func TestWorkspaceUpdater_WriteConfig_WriteFileFails(t *testing.T) {
 	}
 }
 
+func TestWorkspaceUpdater_AddEnvVar_CreatesFile(t *testing.T) {
+	t.Parallel()
+
+	u, _ := NewWorkspaceConfigUpdater(t.TempDir())
+	if err := u.AddEnvVar("MY_VAR", "hello"); err != nil {
+		t.Fatalf("AddEnvVar: %v", err)
+	}
+
+	dir := u.(*workspaceConfigUpdater).configDir
+	data, err := os.ReadFile(filepath.Join(dir, WorkspaceConfigFile))
+	if err != nil {
+		t.Fatalf("reading file: %v", err)
+	}
+	var cfg workspace.WorkspaceConfiguration
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if cfg.Environment == nil || len(*cfg.Environment) != 1 {
+		t.Fatalf("expected 1 env var, got %v", cfg.Environment)
+	}
+	if (*cfg.Environment)[0].Name != "MY_VAR" || *(*cfg.Environment)[0].Value != "hello" {
+		t.Errorf("unexpected env var: %+v", (*cfg.Environment)[0])
+	}
+}
+
+func TestWorkspaceUpdater_AddEnvVar_UpdatesExisting(t *testing.T) {
+	t.Parallel()
+
+	u, _ := NewWorkspaceConfigUpdater(t.TempDir())
+	if err := u.AddEnvVar("MY_VAR", "old"); err != nil {
+		t.Fatalf("first AddEnvVar: %v", err)
+	}
+	if err := u.AddEnvVar("MY_VAR", "new"); err != nil {
+		t.Fatalf("second AddEnvVar: %v", err)
+	}
+
+	dir := u.(*workspaceConfigUpdater).configDir
+	data, _ := os.ReadFile(filepath.Join(dir, WorkspaceConfigFile))
+	var cfg workspace.WorkspaceConfiguration
+	_ = json.Unmarshal(data, &cfg)
+	if len(*cfg.Environment) != 1 {
+		t.Errorf("expected 1 env var (no duplicate), got %d", len(*cfg.Environment))
+	}
+	if *(*cfg.Environment)[0].Value != "new" {
+		t.Errorf("expected value=new, got %q", *(*cfg.Environment)[0].Value)
+	}
+}
+
+func TestWorkspaceUpdater_AddMount_CreatesFile(t *testing.T) {
+	t.Parallel()
+
+	u, _ := NewWorkspaceConfigUpdater(t.TempDir())
+	if err := u.AddMount("$HOME/.foo", "$HOME/.foo", true); err != nil {
+		t.Fatalf("AddMount: %v", err)
+	}
+
+	dir := u.(*workspaceConfigUpdater).configDir
+	data, _ := os.ReadFile(filepath.Join(dir, WorkspaceConfigFile))
+	var cfg workspace.WorkspaceConfiguration
+	_ = json.Unmarshal(data, &cfg)
+	if cfg.Mounts == nil || len(*cfg.Mounts) != 1 {
+		t.Fatalf("expected 1 mount, got %v", cfg.Mounts)
+	}
+	m := (*cfg.Mounts)[0]
+	if m.Host != "$HOME/.foo" || m.Target != "$HOME/.foo" {
+		t.Errorf("unexpected mount: %+v", m)
+	}
+	if m.Ro == nil || !*m.Ro {
+		t.Error("expected read-only mount")
+	}
+}
+
+func TestWorkspaceUpdater_AddMount_Idempotent(t *testing.T) {
+	t.Parallel()
+
+	u, _ := NewWorkspaceConfigUpdater(t.TempDir())
+	if err := u.AddMount("$HOME/.foo", "$HOME/.foo", true); err != nil {
+		t.Fatalf("first AddMount: %v", err)
+	}
+	if err := u.AddMount("$HOME/.foo", "$HOME/.foo", true); err != nil {
+		t.Fatalf("second AddMount: %v", err)
+	}
+
+	dir := u.(*workspaceConfigUpdater).configDir
+	data, _ := os.ReadFile(filepath.Join(dir, WorkspaceConfigFile))
+	var cfg workspace.WorkspaceConfiguration
+	_ = json.Unmarshal(data, &cfg)
+	if len(*cfg.Mounts) != 1 {
+		t.Errorf("expected 1 mount after duplicate, got %d", len(*cfg.Mounts))
+	}
+}
+
 // TestWorkspaceUpdater_EmptyFile_TreatedAsMissing verifies that a zero-byte
 // workspace.json is treated as an empty config rather than returning a JSON error.
 func TestWorkspaceUpdater_EmptyFile_TreatedAsMissing(t *testing.T) {
