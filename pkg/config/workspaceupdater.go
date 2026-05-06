@@ -34,6 +34,15 @@ type WorkspaceConfigUpdater interface {
 	// creating the file and directory if they do not yet exist.
 	// The call is idempotent: if the secret is already present it is not duplicated.
 	AddSecret(secretName string) error
+
+	// AddEnvVar adds or updates an environment variable in the workspace config.
+	// If an entry with the same name already exists its value is replaced.
+	AddEnvVar(name, value string) error
+
+	// AddMount adds a mount entry to the workspace config.
+	// The call is idempotent: if a mount with the same host and target already exists
+	// it is not duplicated.
+	AddMount(host, target string, ro bool) error
 }
 
 type workspaceConfigUpdater struct {
@@ -53,6 +62,59 @@ func NewWorkspaceConfigUpdater(configDir string) (WorkspaceConfigUpdater, error)
 		return nil, fmt.Errorf("failed to resolve config directory path: %w", err)
 	}
 	return &workspaceConfigUpdater{configDir: absPath}, nil
+}
+
+func (w *workspaceConfigUpdater) AddEnvVar(name, value string) error {
+	configPath := filepath.Join(w.configDir, WorkspaceConfigFile)
+
+	cfg, err := w.readConfig(configPath)
+	if err != nil {
+		return err
+	}
+
+	if cfg.Environment == nil {
+		v := value
+		envVars := []workspace.EnvironmentVariable{{Name: name, Value: &v}}
+		cfg.Environment = &envVars
+	} else {
+		for i, e := range *cfg.Environment {
+			if e.Name == name {
+				v := value
+				(*cfg.Environment)[i].Value = &v
+				(*cfg.Environment)[i].Secret = nil
+				return w.writeConfig(configPath, cfg)
+			}
+		}
+		v := value
+		*cfg.Environment = append(*cfg.Environment, workspace.EnvironmentVariable{Name: name, Value: &v})
+	}
+
+	return w.writeConfig(configPath, cfg)
+}
+
+func (w *workspaceConfigUpdater) AddMount(host, target string, ro bool) error {
+	configPath := filepath.Join(w.configDir, WorkspaceConfigFile)
+
+	cfg, err := w.readConfig(configPath)
+	if err != nil {
+		return err
+	}
+
+	if cfg.Mounts == nil {
+		roVal := ro
+		mounts := []workspace.Mount{{Host: host, Target: target, Ro: &roVal}}
+		cfg.Mounts = &mounts
+	} else {
+		for _, m := range *cfg.Mounts {
+			if m.Host == host && m.Target == target {
+				return nil
+			}
+		}
+		roVal := ro
+		*cfg.Mounts = append(*cfg.Mounts, workspace.Mount{Host: host, Target: target, Ro: &roVal})
+	}
+
+	return w.writeConfig(configPath, cfg)
 }
 
 func (w *workspaceConfigUpdater) AddSecret(secretName string) error {

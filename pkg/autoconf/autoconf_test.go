@@ -66,11 +66,29 @@ func (f *fakeAutoconfUpdater) AddSecret(projectID, secretName string) error {
 
 // fakeWorkspaceUpdater records calls for the workspace updater.
 type fakeWorkspaceUpdater struct {
-	added []string
+	added   []string
+	envVars []struct{ name, value string }
+	mounts  []struct {
+		host, target string
+		ro           bool
+	}
 }
 
 func (f *fakeWorkspaceUpdater) AddSecret(name string) error {
 	f.added = append(f.added, name)
+	return nil
+}
+
+func (f *fakeWorkspaceUpdater) AddEnvVar(name, value string) error {
+	f.envVars = append(f.envVars, struct{ name, value string }{name, value})
+	return nil
+}
+
+func (f *fakeWorkspaceUpdater) AddMount(host, target string, ro bool) error {
+	f.mounts = append(f.mounts, struct {
+		host, target string
+		ro           bool
+	}{host, target, ro})
 	return nil
 }
 

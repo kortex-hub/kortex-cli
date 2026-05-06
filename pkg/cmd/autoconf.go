@@ -44,6 +44,12 @@ type autoconfCmd struct {
 	detector         autoconf.SecretDetector
 	confirm          func(prompt string) (bool, error)
 	selectTarget     func(secretName string, options []autoconf.ConfigTargetOption) (autoconf.ConfigTarget, error)
+
+	vertexDetector     autoconf.VertexDetector
+	agentUpdater       config.AgentConfigUpdater
+	agentLoader        config.AgentConfigLoader
+	workspaceCfg       config.Config
+	vertexSelectTarget func(options []autoconf.ClaudeVertexConfigTargetOption) (autoconf.ClaudeVertexConfigTarget, error)
 }
 
 func (a *autoconfCmd) preRun(cmd *cobra.Command, args []string) error {
@@ -89,10 +95,31 @@ func (a *autoconfCmd) preRun(cmd *cobra.Command, args []string) error {
 	if wcErr != nil {
 		return fmt.Errorf("failed to create workspace config: %w", wcErr)
 	}
+	a.workspaceCfg = workspaceCfg
 
 	if a.detector == nil {
 		a.detector = autoconf.NewFilteredSecretDetector(services, a.store, loader, a.projectID, workspaceCfg)
 	}
+
+	if a.vertexDetector == nil {
+		vd, vdErr := autoconf.NewVertexDetector()
+		if vdErr != nil {
+			return fmt.Errorf("failed to create vertex detector: %w", vdErr)
+		}
+		a.vertexDetector = vd
+	}
+
+	agentUpdater, auErr := config.NewAgentConfigUpdater(absStorageDir)
+	if auErr != nil {
+		return fmt.Errorf("failed to create agent config updater: %w", auErr)
+	}
+	a.agentUpdater = agentUpdater
+
+	agentLoader, alErr := config.NewAgentConfigLoader(absStorageDir)
+	if alErr != nil {
+		return fmt.Errorf("failed to create agent config loader: %w", alErr)
+	}
+	a.agentLoader = agentLoader
 
 	wu, wuErr := config.NewWorkspaceConfigUpdater(kaidenDir)
 	if wuErr != nil {
@@ -105,6 +132,9 @@ func (a *autoconfCmd) preRun(cmd *cobra.Command, args []string) error {
 	}
 	if a.selectTarget == nil {
 		a.selectTarget = huhSelectTarget
+	}
+	if a.vertexSelectTarget == nil {
+		a.vertexSelectTarget = huhSelectVertexTarget
 	}
 
 	return nil
@@ -122,6 +152,24 @@ func huhConfirm(prompt string) (bool, error) {
 		return false, nil
 	}
 	return ok, err
+}
+
+func huhSelectVertexTarget(options []autoconf.ClaudeVertexConfigTargetOption) (autoconf.ClaudeVertexConfigTarget, error) {
+	huhOptions := make([]huh.Option[autoconf.ClaudeVertexConfigTarget], len(options))
+	for i, opt := range options {
+		huhOptions[i] = huh.NewOption(opt.Label, opt.Target)
+	}
+
+	var selected autoconf.ClaudeVertexConfigTarget
+	err := huh.NewSelect[autoconf.ClaudeVertexConfigTarget]().
+		Title("Add Vertex AI configuration to:").
+		Options(huhOptions...).
+		Value(&selected).
+		Run()
+	if errors.Is(err, huh.ErrUserAborted) {
+		return 0, autoconf.ErrSkipped
+	}
+	return selected, err
 }
 
 func huhSelectTarget(secretName string, options []autoconf.ConfigTargetOption) (autoconf.ConfigTarget, error) {
@@ -143,6 +191,8 @@ func huhSelectTarget(secretName string, options []autoconf.ConfigTargetOption) (
 }
 
 func (a *autoconfCmd) run(cmd *cobra.Command, args []string) error {
+	out := cmd.OutOrStdout()
+
 	runner := autoconf.New(autoconf.Options{
 		Detector:         a.detector,
 		Store:            a.store,
@@ -153,7 +203,24 @@ func (a *autoconfCmd) run(cmd *cobra.Command, args []string) error {
 		Confirm:          a.confirm,
 		SelectTarget:     a.selectTarget,
 	})
-	return runner.Run(cmd.OutOrStdout())
+	if err := runner.Run(out); err != nil {
+		return err
+	}
+
+	if a.vertexDetector == nil {
+		return nil
+	}
+	vertexRunner := autoconf.NewClaudeVertexAutoconf(autoconf.ClaudeVertexAutoconfOptions{
+		Detector:         a.vertexDetector,
+		AgentUpdater:     a.agentUpdater,
+		WorkspaceUpdater: a.workspaceUpdater,
+		AgentLoader:      a.agentLoader,
+		WorkspaceConfig:  a.workspaceCfg,
+		Yes:              a.yes,
+		Confirm:          a.confirm,
+		SelectTarget:     a.vertexSelectTarget,
+	})
+	return vertexRunner.Run(out)
 }
 
 // NewAutoconfCmd returns the autoconf command.

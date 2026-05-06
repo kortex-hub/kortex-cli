@@ -114,7 +114,31 @@ This scenario demonstrates how to configure Claude Code to use a model hosted on
 
 **Step 1: Configure Claude agent settings**
 
-Create or edit `~/.kdn/config/agents.json` to add the required environment variables and mount your Google Cloud credentials into the workspace:
+The easiest way is to let `kdn autoconf` detect your environment and configure things automatically. Set the required Vertex AI environment variables in your shell and run:
+
+```bash
+export CLAUDE_CODE_USE_VERTEX=1
+export ANTHROPIC_VERTEX_PROJECT_ID=my-gcp-project-id
+export CLOUD_ML_REGION=my-region
+
+kdn autoconf
+```
+
+`autoconf` detects all three variables plus your application default credentials file, then asks where to record the configuration:
+
+- **Claude agent config (all Claude workspaces)** — writes to `~/.kdn/config/agents.json`; applies to every Claude workspace you create from now on
+- **Local (.kaiden/workspace.json)** — applies only to the current project
+
+Pick the agent config option to configure all future Claude workspaces at once. To skip the interactive prompt and apply immediately to the agent config, pass `--yes`:
+
+```bash
+CLAUDE_CODE_USE_VERTEX=1 ANTHROPIC_VERTEX_PROJECT_ID=my-gcp-project-id CLOUD_ML_REGION=my-region \
+  kdn autoconf --yes
+```
+
+**Alternative: configure manually**
+
+If the environment variables are not present in your shell, create or edit `~/.kdn/config/agents.json` directly:
 
 ```json
 {
@@ -134,7 +158,11 @@ Create or edit `~/.kdn/config/agents.json` to add the required environment varia
       }
     ],
     "mounts": [
-      {"host": "$HOME/.config/gcloud", "target": "$HOME/.config/gcloud", "ro": true}
+      {
+        "host": "$HOME/.config/gcloud/application_default_credentials.json",
+        "target": "$HOME/.config/gcloud/application_default_credentials.json",
+        "ro": true
+      }
     ]
   }
 }
@@ -142,10 +170,10 @@ Create or edit `~/.kdn/config/agents.json` to add the required environment varia
 
 **Fields:**
 
-- `CLAUDE_CODE_USE_VERTEX` - Set to `1` to instruct Claude Code to use Vertex AI instead of the Anthropic API
-- `ANTHROPIC_VERTEX_PROJECT_ID` - Your Google Cloud project ID where Vertex AI is configured
-- `CLOUD_ML_REGION` - The region where Claude is available on Vertex AI
-- `$HOME/.config/gcloud` mounted read-only - Provides the workspace access to your application default credentials
+- `CLAUDE_CODE_USE_VERTEX` — set to `1` to instruct Claude Code to use Vertex AI instead of the Anthropic API
+- `ANTHROPIC_VERTEX_PROJECT_ID` — your Google Cloud project ID where Vertex AI is configured
+- `CLOUD_ML_REGION` — the region where Claude is available on Vertex AI
+- The ADC file mounted read-only — provides the workspace access to your application default credentials
 
 **Step 2: Register and start the workspace**
 
@@ -164,27 +192,17 @@ When Claude Code starts, it detects `ANTHROPIC_VERTEX_PROJECT_ID` and `CLOUD_ML_
 
 **Sharing local Claude settings (optional)**
 
-To reuse your host Claude Code settings (preferences, custom instructions, etc.) inside the workspace, add `~/.claude` and `~/.claude.json` to the mounts:
+To reuse your host Claude Code settings (preferences, custom instructions, etc.) inside the workspace, add `~/.claude` and `~/.claude.json` to the mounts in `~/.kdn/config/agents.json`:
 
 ```json
 {
   "claude": {
-    "environment": [
-      {
-        "name": "CLAUDE_CODE_USE_VERTEX",
-        "value": "1"
-      },
-      {
-        "name": "ANTHROPIC_VERTEX_PROJECT_ID",
-        "value": "my-gcp-project-id"
-      },
-      {
-        "name": "CLOUD_ML_REGION",
-        "value": "my-region"
-      }
-    ],
     "mounts": [
-      {"host": "$HOME/.config/gcloud", "target": "$HOME/.config/gcloud", "ro": true},
+      {
+        "host": "$HOME/.config/gcloud/application_default_credentials.json",
+        "target": "$HOME/.config/gcloud/application_default_credentials.json",
+        "ro": true
+      },
       {"host": "$HOME/.claude", "target": "$HOME/.claude"},
       {"host": "$HOME/.claude.json", "target": "$HOME/.claude.json"}
     ]
@@ -197,10 +215,11 @@ To reuse your host Claude Code settings (preferences, custom instructions, etc.)
 **Notes:**
 
 - Run `gcloud auth application-default login` on your host machine before starting the workspace to ensure valid credentials are available
-- kdn automatically intercepts the gcloud mount: a placeholder credential file is written into the container and OneCLI injects the real Application Default Credentials transparently at request time — the actual credential file never touches the container filesystem
-- No `ANTHROPIC_API_KEY` is needed when using Vertex AI — credentials are provided via the mounted gcloud configuration
+- kdn automatically intercepts the ADC file mount: a placeholder credential file is written into the container and OneCLI injects the real Application Default Credentials transparently at request time — the actual credential file never touches the container filesystem
+- No `ANTHROPIC_API_KEY` is needed when using Vertex AI — credentials are provided via the mounted application default credentials
 - When `network.mode` is `"deny"`, the Google OAuth and Vertex AI endpoints (`oauth2.googleapis.com`, `aiplatform.googleapis.com`) are automatically added to the allow-list — no explicit `hosts` entry is needed
 - To pin a specific Claude model, use `--model` flag during `init` (e.g., `--model claude-sonnet-4-20250514`), which takes precedence over any model in default settings, or add an `ANTHROPIC_MODEL` environment variable (e.g., `"claude-opus-4-5"`)
+- If you run `kdn autoconf` again after Vertex AI is already configured, it reports the existing configuration location and exits without making changes
 
 ### Starting Claude with Default Settings
 

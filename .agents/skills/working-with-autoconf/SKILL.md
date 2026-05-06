@@ -275,6 +275,88 @@ var buf bytes.Buffer
 err := runner.Run(&buf)
 ```
 
+## Vertex AI Detection for Claude (`ClaudeVertexAutoconf`)
+
+In addition to the secret-based flow, `kdn autoconf` also runs a separate Vertex AI detection step for Claude workspaces. This is handled by `ClaudeVertexAutoconf` in `autoconfclaudevertex.go`.
+
+### How it works
+
+```text
+VertexDetector.Detect()   → *VertexConfig (nil = not detected)
+  ↓ non-nil
+  findExistingLocations()  → skip if CLAUDE_CODE_USE_VERTEX already in agent or workspace cfg
+  confirm?  (skipped when --yes)
+  selectTarget()           → ClaudeVertexConfigTargetAgent | ClaudeVertexConfigTargetLocal
+  applyTarget()
+    Agent target  → AgentConfigUpdater.AddEnvVar("claude", ...) × 3 + AddMount
+    Local target  → WorkspaceConfigUpdater.AddEnvVar(...) × 3 + AddMount
+```
+
+### Key types
+
+**`VertexDetector`** (`detectclaudevertex.go`):
+```go
+type VertexDetector interface {
+    Detect() (*VertexConfig, error)
+}
+```
+Returns a non-nil `*VertexConfig` only when all three env vars (`CLAUDE_CODE_USE_VERTEX`, `ANTHROPIC_VERTEX_PROJECT_ID`, `CLOUD_ML_REGION`) are set and the ADC file exists on disk. Constructor: `NewVertexDetector() (VertexDetector, error)`.
+
+**`VertexConfig`**:
+```go
+type VertexConfig struct {
+    EnvVars     map[string]string // the three detected env var values
+    ADCHostPath string            // host path for the ADC file mount (starts with $HOME)
+}
+```
+
+**`ClaudeVertexAutoconf`** (`autoconfclaudevertex.go`):
+```go
+type ClaudeVertexAutoconf interface {
+    Run(out io.Writer) error
+}
+func NewClaudeVertexAutoconf(opts ClaudeVertexAutoconfOptions) ClaudeVertexAutoconf
+```
+
+Important `ClaudeVertexAutoconfOptions` fields:
+
+| Field | Purpose |
+|-------|---------|
+| `Detector` | `VertexDetector` |
+| `AgentUpdater` | `config.AgentConfigUpdater` — writes to `agents.json` |
+| `WorkspaceUpdater` | `config.WorkspaceConfigUpdater` — nil means local target not offered |
+| `AgentLoader` | `config.AgentConfigLoader` — checks if already configured in agent config |
+| `WorkspaceConfig` | `config.Config` — checks if already configured in workspace config |
+| `Yes` | skip confirm + select, defaults to agent target |
+| `Confirm` / `SelectTarget` | injectable for testing |
+
+**`ADCContainerPath`** — `$HOME/.config/gcloud/application_default_credentials.json` — the container path used for the ADC mount target. On Linux/macOS the host path is identical; on Windows it is computed from `%APPDATA%` via `adcConfigHostPath()` (in `adcpath_windows.go`).
+
+### Env var write order
+
+The three env vars are always written in the order defined by `vertexEnvVars`:
+1. `CLAUDE_CODE_USE_VERTEX`
+2. `ANTHROPIC_VERTEX_PROJECT_ID`
+3. `CLOUD_ML_REGION`
+
+### Testing patterns
+
+Fake `VertexDetector`:
+```go
+type fakeVertexDetector struct{ cfg *autoconf.VertexConfig }
+func (f *fakeVertexDetector) Detect() (*autoconf.VertexConfig, error) { return f.cfg, nil }
+```
+
+Fake `AgentConfigUpdater`:
+```go
+type fakeAgentUpdater struct {
+    envVars []struct{ agentName, name, value string }
+    mounts  []struct{ agentName, host, target string; ro bool }
+}
+func (f *fakeAgentUpdater) AddEnvVar(agent, name, value string) error { ... }
+func (f *fakeAgentUpdater) AddMount(agent, host, target string, ro bool) error { ... }
+```
+
 ## Key Files
 
 | File | Purpose |
@@ -282,9 +364,13 @@ err := runner.Run(&buf)
 | `pkg/autoconf/detect.go` | `SecretDetector` interface + `envSecretDetector` |
 | `pkg/autoconf/filter.go` | `SecretFilter` + `alreadyConfiguredFilter` + `FilterResult` |
 | `pkg/autoconf/autoconf.go` | `Autoconf` interface + `autoconfRunner` + `ConfigTarget` |
+| `pkg/autoconf/detectclaudevertex.go` | `VertexDetector` interface + `envVertexDetector` + `VertexConfig` |
+| `pkg/autoconf/autoconfclaudevertex.go` | `ClaudeVertexAutoconf` interface + runner |
+| `pkg/autoconf/adcpath.go` / `adcpath_windows.go` | Platform-specific ADC file path helpers |
 | `pkg/cmd/autoconf.go` | Thin CLI wiring: flag parsing, dependency construction, `project.Detector` injection |
 | `pkg/project/project.go` | `Detector` interface + shared project-ID detection logic (git remote → URL, no remote → path) |
 | `pkg/config/projectsupdater.go` | `ProjectConfigUpdater` — reads/writes `~/.kdn/config/projects.json` |
 | `pkg/config/workspaceupdater.go` | `WorkspaceConfigUpdater` — reads/writes `.kaiden/workspace.json` |
+| `pkg/config/agents.go` | `AgentConfigUpdater` + `AgentConfigLoader` — reads/writes `~/.kdn/config/agents.json` |
 | `pkg/secretservicesetup/register.go` | `ListServices()` — returns fully-constructed service instances |
 | `pkg/secretservicesetup/secretservices.json` | Authoritative list of known secret services and their env vars |

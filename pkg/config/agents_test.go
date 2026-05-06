@@ -349,3 +349,152 @@ func TestAgentConfigLoader_ModuleDesignPattern(t *testing.T) {
 		var _ AgentConfigLoader = (*agentConfigLoader)(nil)
 	})
 }
+
+func TestNewAgentConfigUpdater(t *testing.T) {
+	t.Parallel()
+
+	t.Run("creates updater successfully", func(t *testing.T) {
+		t.Parallel()
+
+		u, err := NewAgentConfigUpdater(t.TempDir())
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if u == nil {
+			t.Error("expected non-nil updater")
+		}
+	})
+
+	t.Run("returns error for empty storage dir", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := NewAgentConfigUpdater("")
+		if !errors.Is(err, ErrInvalidPath) {
+			t.Errorf("expected ErrInvalidPath, got %v", err)
+		}
+	})
+}
+
+func TestAgentConfigUpdater_AddEnvVar(t *testing.T) {
+	t.Parallel()
+
+	t.Run("creates file when absent", func(t *testing.T) {
+		t.Parallel()
+
+		u, _ := NewAgentConfigUpdater(t.TempDir())
+		if err := u.AddEnvVar("claude", "MY_VAR", "hello"); err != nil {
+			t.Fatalf("AddEnvVar: %v", err)
+		}
+
+		loader, _ := NewAgentConfigLoader(u.(*agentConfigUpdater).storageDir)
+		cfg, err := loader.Load("claude")
+		if err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if cfg.Environment == nil || len(*cfg.Environment) != 1 {
+			t.Fatalf("expected 1 env var, got %v", cfg.Environment)
+		}
+		if (*cfg.Environment)[0].Name != "MY_VAR" || *(*cfg.Environment)[0].Value != "hello" {
+			t.Errorf("unexpected env var: %+v", (*cfg.Environment)[0])
+		}
+	})
+
+	t.Run("appends to existing env vars", func(t *testing.T) {
+		t.Parallel()
+
+		u, _ := NewAgentConfigUpdater(t.TempDir())
+		if err := u.AddEnvVar("claude", "A", "1"); err != nil {
+			t.Fatalf("AddEnvVar A: %v", err)
+		}
+		if err := u.AddEnvVar("claude", "B", "2"); err != nil {
+			t.Fatalf("AddEnvVar B: %v", err)
+		}
+
+		loader, _ := NewAgentConfigLoader(u.(*agentConfigUpdater).storageDir)
+		cfg, _ := loader.Load("claude")
+		if len(*cfg.Environment) != 2 {
+			t.Errorf("expected 2 env vars, got %d", len(*cfg.Environment))
+		}
+	})
+
+	t.Run("updates existing env var value", func(t *testing.T) {
+		t.Parallel()
+
+		u, _ := NewAgentConfigUpdater(t.TempDir())
+		if err := u.AddEnvVar("claude", "MY_VAR", "old"); err != nil {
+			t.Fatalf("AddEnvVar first: %v", err)
+		}
+		if err := u.AddEnvVar("claude", "MY_VAR", "new"); err != nil {
+			t.Fatalf("AddEnvVar second: %v", err)
+		}
+
+		loader, _ := NewAgentConfigLoader(u.(*agentConfigUpdater).storageDir)
+		cfg, _ := loader.Load("claude")
+		if len(*cfg.Environment) != 1 {
+			t.Errorf("expected 1 env var (no duplicate), got %d", len(*cfg.Environment))
+		}
+		if *(*cfg.Environment)[0].Value != "new" {
+			t.Errorf("expected value=new, got %q", *(*cfg.Environment)[0].Value)
+		}
+	})
+
+	t.Run("does not affect other agents", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		u, _ := NewAgentConfigUpdater(storageDir)
+		if err := u.AddEnvVar("claude", "MY_VAR", "hello"); err != nil {
+			t.Fatalf("AddEnvVar: %v", err)
+		}
+
+		loader, _ := NewAgentConfigLoader(storageDir)
+		gooseCfg, _ := loader.Load("goose")
+		if gooseCfg.Environment != nil {
+			t.Error("expected goose to have no env vars")
+		}
+	})
+}
+
+func TestAgentConfigUpdater_AddMount(t *testing.T) {
+	t.Parallel()
+
+	t.Run("creates file when absent", func(t *testing.T) {
+		t.Parallel()
+
+		u, _ := NewAgentConfigUpdater(t.TempDir())
+		if err := u.AddMount("claude", "$HOME/.foo", "$HOME/.foo", true); err != nil {
+			t.Fatalf("AddMount: %v", err)
+		}
+
+		loader, _ := NewAgentConfigLoader(u.(*agentConfigUpdater).storageDir)
+		cfg, _ := loader.Load("claude")
+		if cfg.Mounts == nil || len(*cfg.Mounts) != 1 {
+			t.Fatalf("expected 1 mount, got %v", cfg.Mounts)
+		}
+		m := (*cfg.Mounts)[0]
+		if m.Host != "$HOME/.foo" || m.Target != "$HOME/.foo" {
+			t.Errorf("unexpected mount: %+v", m)
+		}
+		if m.Ro == nil || !*m.Ro {
+			t.Error("expected mount to be read-only")
+		}
+	})
+
+	t.Run("idempotent on same host+target", func(t *testing.T) {
+		t.Parallel()
+
+		u, _ := NewAgentConfigUpdater(t.TempDir())
+		if err := u.AddMount("claude", "$HOME/.foo", "$HOME/.foo", true); err != nil {
+			t.Fatalf("AddMount first: %v", err)
+		}
+		if err := u.AddMount("claude", "$HOME/.foo", "$HOME/.foo", true); err != nil {
+			t.Fatalf("AddMount second: %v", err)
+		}
+
+		loader, _ := NewAgentConfigLoader(u.(*agentConfigUpdater).storageDir)
+		cfg, _ := loader.Load("claude")
+		if len(*cfg.Mounts) != 1 {
+			t.Errorf("expected 1 mount after duplicate, got %d", len(*cfg.Mounts))
+		}
+	})
+}
