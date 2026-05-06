@@ -24,13 +24,13 @@ import "path/filepath"
 
 // adcDetectPath returns the absolute host path to the gcloud ADC file used
 // for existence checking.
-func adcDetectPath(homeDir string) string {
+func adcDetectPath(homeDir, _ string) string {
 	return filepath.Join(homeDir, ".config", "gcloud", "application_default_credentials.json")
 }
 
 // adcConfigHostPath returns the host path to write in a workspace mount entry.
 // On Linux/macOS the ADC file lives under $HOME/.config/gcloud/, so the
 // $HOME-variable form matches the actual file location.
-func adcConfigHostPath(_ string) string {
+func adcConfigHostPath(_, _ string) string {
 	return ADCContainerPath
 }

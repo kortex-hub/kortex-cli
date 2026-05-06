@@ -21,7 +21,6 @@
 package autoconf
 
 import (
-	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -30,12 +29,11 @@ import (
 // adcDetectPath returns the absolute host path to the gcloud ADC file used
 // for existence checking. On Windows gcloud stores credentials under %APPDATA%
 // rather than under the user home directory.
-func adcDetectPath(_ string) string {
-	appdata := os.Getenv("APPDATA")
-	if appdata == "" {
+func adcDetectPath(_, appDataDir string) string {
+	if appDataDir == "" {
 		return ""
 	}
-	return filepath.Join(appdata, "gcloud", "application_default_credentials.json")
+	return filepath.Join(appDataDir, "gcloud", "application_default_credentials.json")
 }
 
 // adcConfigHostPath returns the host path to write in a workspace mount entry.
@@ -43,12 +41,11 @@ func adcDetectPath(_ string) string {
 // $HOME\AppData\Roaming), so the path is expressed as $HOME/<rel>/gcloud/...
 // so that it starts with $HOME as required by the mount config format.
 // Returns "" if %APPDATA% is unset or is not located under homeDir.
-func adcConfigHostPath(homeDir string) string {
-	appdata := os.Getenv("APPDATA")
-	if appdata == "" {
+func adcConfigHostPath(homeDir, appDataDir string) string {
+	if appDataDir == "" {
 		return ""
 	}
-	rel, err := filepath.Rel(homeDir, appdata)
+	rel, err := filepath.Rel(homeDir, appDataDir)
 	if err != nil || strings.HasPrefix(rel, "..") {
 		return ""
 	}

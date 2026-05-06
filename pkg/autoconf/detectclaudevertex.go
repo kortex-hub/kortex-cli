@@ -59,9 +59,10 @@ type VertexDetector interface {
 // envVertexDetector is the default implementation, reading from os.LookupEnv
 // and checking for the ADC file via os.Stat.
 type envVertexDetector struct {
-	lookupEnv func(string) (string, bool)
-	statFile  func(string) error
-	homeDir   string
+	lookupEnv  func(string) (string, bool)
+	statFile   func(string) error
+	homeDir    string
+	appDataDir string // value of %APPDATA% on Windows; empty on other platforms
 }
 
 var _ VertexDetector = (*envVertexDetector)(nil)
@@ -74,19 +75,22 @@ func NewVertexDetector() (VertexDetector, error) {
 		return nil, fmt.Errorf("could not determine home directory: %w", err)
 	}
 	return &envVertexDetector{
-		lookupEnv: os.LookupEnv,
-		statFile:  func(p string) error { _, err := os.Stat(p); return err },
-		homeDir:   homeDir,
+		lookupEnv:  os.LookupEnv,
+		statFile:   func(p string) error { _, err := os.Stat(p); return err },
+		homeDir:    homeDir,
+		appDataDir: os.Getenv("APPDATA"),
 	}, nil
 }
 
 // newVertexDetectorWithInjection creates an envVertexDetector with injectable
-// lookupEnv and statFile functions. Used in tests.
-func newVertexDetectorWithInjection(lookupEnv func(string) (string, bool), statFile func(string) error, homeDir string) VertexDetector {
+// dependencies. appDataDir substitutes %APPDATA% on Windows; pass "" on
+// non-Windows or in tests that don't exercise the Windows ADC path.
+func newVertexDetectorWithInjection(lookupEnv func(string) (string, bool), statFile func(string) error, homeDir, appDataDir string) VertexDetector {
 	return &envVertexDetector{
-		lookupEnv: lookupEnv,
-		statFile:  statFile,
-		homeDir:   homeDir,
+		lookupEnv:  lookupEnv,
+		statFile:   statFile,
+		homeDir:    homeDir,
+		appDataDir: appDataDir,
 	}
 }
 
@@ -111,11 +115,11 @@ func (d *envVertexDetector) Detect() (*VertexConfig, error) {
 		detectPath = gac
 		hostPath = credHostPath(gac, d.homeDir)
 	} else {
-		detectPath = adcDetectPath(d.homeDir)
+		detectPath = adcDetectPath(d.homeDir, d.appDataDir)
 		if detectPath == "" {
 			return nil, nil
 		}
-		hostPath = adcConfigHostPath(d.homeDir)
+		hostPath = adcConfigHostPath(d.homeDir, d.appDataDir)
 		if hostPath == "" {
 			return nil, nil
 		}

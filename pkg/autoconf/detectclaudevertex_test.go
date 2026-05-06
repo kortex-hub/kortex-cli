@@ -21,6 +21,7 @@ package autoconf
 import (
 	"errors"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -60,10 +61,150 @@ func adcExists(_ string) error { return nil }
 // adcMissing is a statFile stub that reports the ADC file as absent.
 func adcMissing(_ string) error { return errors.New("file not found") }
 
+func TestVertexDetector_MissingClaudeCodeUseVertex(t *testing.T) {
+	t.Parallel()
+
+	lookup := func(name string) (string, bool) {
+		if name == "CLAUDE_CODE_USE_VERTEX" {
+			return "", false
+		}
+		return fullEnv()(name)
+	}
+	d := newVertexDetectorWithInjection(lookup, adcExists, "/home/user", "")
+	cfg, err := d.Detect()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg != nil {
+		t.Errorf("expected nil VertexConfig when CLAUDE_CODE_USE_VERTEX is unset, got %+v", cfg)
+	}
+}
+
+func TestVertexDetector_MissingProjectID(t *testing.T) {
+	t.Parallel()
+
+	lookup := func(name string) (string, bool) {
+		if name == "ANTHROPIC_VERTEX_PROJECT_ID" {
+			return "", false
+		}
+		return fullEnv()(name)
+	}
+	d := newVertexDetectorWithInjection(lookup, adcExists, "/home/user", "")
+	cfg, err := d.Detect()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg != nil {
+		t.Errorf("expected nil when ANTHROPIC_VERTEX_PROJECT_ID is unset, got %+v", cfg)
+	}
+}
+
+func TestVertexDetector_MissingRegion(t *testing.T) {
+	t.Parallel()
+
+	lookup := func(name string) (string, bool) {
+		if name == "CLOUD_ML_REGION" {
+			return "", false
+		}
+		return fullEnv()(name)
+	}
+	d := newVertexDetectorWithInjection(lookup, adcExists, "/home/user", "")
+	cfg, err := d.Detect()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg != nil {
+		t.Errorf("expected nil when CLOUD_ML_REGION is unset, got %+v", cfg)
+	}
+}
+
+func TestVertexDetector_ADCFileMissing(t *testing.T) {
+	t.Parallel()
+
+	d := newVertexDetectorWithInjection(fullEnv(), adcMissing, "/home/user", "")
+	cfg, err := d.Detect()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg != nil {
+		t.Errorf("expected nil when ADC file is absent, got %+v", cfg)
+	}
+}
+
+func TestVertexDetector_GOOGLE_APPLICATION_CREDENTIALS_UsedWhenSet(t *testing.T) {
+	t.Parallel()
+
+	homeDir := t.TempDir()
+	customCreds := filepath.Join(homeDir, "custom", "creds.json")
+
+	d := newVertexDetectorWithInjection(fullEnvWithGAC(customCreds), adcExists, homeDir, "")
+	cfg, err := d.Detect()
+	if err != nil {
+		t.Fatalf("Detect: %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("expected non-nil config when GOOGLE_APPLICATION_CREDENTIALS is set")
+	}
+	want := "$HOME/custom/creds.json"
+	if cfg.ADCHostPath != want {
+		t.Errorf("ADCHostPath: want %q, got %q", want, cfg.ADCHostPath)
+	}
+}
+
+func TestVertexDetector_GOOGLE_APPLICATION_CREDENTIALS_FileMissing(t *testing.T) {
+	t.Parallel()
+
+	homeDir := t.TempDir()
+	customCreds := filepath.Join(homeDir, "custom", "creds.json")
+
+	d := newVertexDetectorWithInjection(fullEnvWithGAC(customCreds), adcMissing, homeDir, "")
+	cfg, err := d.Detect()
+	if err != nil {
+		t.Fatalf("Detect: %v", err)
+	}
+	if cfg != nil {
+		t.Error("expected nil config when GOOGLE_APPLICATION_CREDENTIALS file is missing")
+	}
+}
+
+func TestVertexDetector_GOOGLE_APPLICATION_CREDENTIALS_OutsideHome(t *testing.T) {
+	t.Parallel()
+
+	homeDir := t.TempDir()
+	otherDir := t.TempDir() // sibling of homeDir — not under homeDir
+	customCreds := filepath.Join(otherDir, "creds.json")
+
+	d := newVertexDetectorWithInjection(fullEnvWithGAC(customCreds), adcExists, homeDir, "")
+	cfg, err := d.Detect()
+	if err != nil {
+		t.Fatalf("Detect: %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("expected non-nil config")
+	}
+	// Path is not under homeDir → returned as-is (absolute path).
+	if cfg.ADCHostPath != customCreds {
+		t.Errorf("ADCHostPath: want %q, got %q", customCreds, cfg.ADCHostPath)
+	}
+}
+
+// platformTestDirs returns a homeDir and an appDataDir appropriate for the
+// current OS. On Windows, appDataDir is a subdirectory of homeDir matching the
+// real %APPDATA% layout; on other systems it is empty (the detector ignores it).
+func platformTestDirs(t *testing.T) (homeDir, appDataDir string) {
+	t.Helper()
+	homeDir = t.TempDir()
+	if runtime.GOOS == "windows" {
+		appDataDir = filepath.Join(homeDir, "AppData", "Roaming")
+	}
+	return homeDir, appDataDir
+}
+
 func TestVertexDetector_AllConditionsMet(t *testing.T) {
 	t.Parallel()
 
-	d := newVertexDetectorWithInjection(fullEnv(), adcExists, "/home/user")
+	homeDir, appDataDir := platformTestDirs(t)
+	d := newVertexDetectorWithInjection(fullEnv(), adcExists, homeDir, appDataDir)
 	cfg, err := d.Detect()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -85,144 +226,45 @@ func TestVertexDetector_AllConditionsMet(t *testing.T) {
 	}
 }
 
-func TestVertexDetector_MissingClaudeCodeUseVertex(t *testing.T) {
-	t.Parallel()
-
-	lookup := func(name string) (string, bool) {
-		if name == "CLAUDE_CODE_USE_VERTEX" {
-			return "", false
-		}
-		return fullEnv()(name)
-	}
-	d := newVertexDetectorWithInjection(lookup, adcExists, "/home/user")
-	cfg, err := d.Detect()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if cfg != nil {
-		t.Errorf("expected nil VertexConfig when CLAUDE_CODE_USE_VERTEX is unset, got %+v", cfg)
-	}
-}
-
-func TestVertexDetector_MissingProjectID(t *testing.T) {
-	t.Parallel()
-
-	lookup := func(name string) (string, bool) {
-		if name == "ANTHROPIC_VERTEX_PROJECT_ID" {
-			return "", false
-		}
-		return fullEnv()(name)
-	}
-	d := newVertexDetectorWithInjection(lookup, adcExists, "/home/user")
-	cfg, err := d.Detect()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if cfg != nil {
-		t.Errorf("expected nil when ANTHROPIC_VERTEX_PROJECT_ID is unset, got %+v", cfg)
-	}
-}
-
-func TestVertexDetector_MissingRegion(t *testing.T) {
-	t.Parallel()
-
-	lookup := func(name string) (string, bool) {
-		if name == "CLOUD_ML_REGION" {
-			return "", false
-		}
-		return fullEnv()(name)
-	}
-	d := newVertexDetectorWithInjection(lookup, adcExists, "/home/user")
-	cfg, err := d.Detect()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if cfg != nil {
-		t.Errorf("expected nil when CLOUD_ML_REGION is unset, got %+v", cfg)
-	}
-}
-
-func TestVertexDetector_ADCFileMissing(t *testing.T) {
-	t.Parallel()
-
-	d := newVertexDetectorWithInjection(fullEnv(), adcMissing, "/home/user")
-	cfg, err := d.Detect()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if cfg != nil {
-		t.Errorf("expected nil when ADC file is absent, got %+v", cfg)
-	}
-}
-
-func TestVertexDetector_GOOGLE_APPLICATION_CREDENTIALS_UsedWhenSet(t *testing.T) {
+func TestVertexDetector_AppDataDir_DoesNotBreakDetection(t *testing.T) {
 	t.Parallel()
 
 	homeDir := t.TempDir()
-	customCreds := filepath.Join(homeDir, "custom", "creds.json")
+	var appDataDir string
+	if runtime.GOOS == "windows" {
+		// On Windows appDataDir must be under homeDir so adcConfigHostPath can
+		// compute a $HOME-relative path for the mount entry.
+		appDataDir = filepath.Join(homeDir, "AppData", "Roaming")
+	} else {
+		// On non-Windows adcDetectPath ignores appDataDir; a sibling TempDir
+		// that is unrelated to homeDir must not prevent detection.
+		appDataDir = t.TempDir()
+	}
 
-	d := newVertexDetectorWithInjection(fullEnvWithGAC(customCreds), adcExists, homeDir)
+	d := newVertexDetectorWithInjection(fullEnv(), adcExists, homeDir, appDataDir)
 	cfg, err := d.Detect()
 	if err != nil {
 		t.Fatalf("Detect: %v", err)
 	}
 	if cfg == nil {
-		t.Fatal("expected non-nil config when GOOGLE_APPLICATION_CREDENTIALS is set")
+		t.Fatal("expected non-nil VertexConfig when appDataDir is set")
 	}
-	want := "$HOME/custom/creds.json"
-	if cfg.ADCHostPath != want {
-		t.Errorf("ADCHostPath: want %q, got %q", want, cfg.ADCHostPath)
-	}
-}
-
-func TestVertexDetector_GOOGLE_APPLICATION_CREDENTIALS_FileMissing(t *testing.T) {
-	t.Parallel()
-
-	homeDir := t.TempDir()
-	customCreds := filepath.Join(homeDir, "custom", "creds.json")
-
-	d := newVertexDetectorWithInjection(fullEnvWithGAC(customCreds), adcMissing, homeDir)
-	cfg, err := d.Detect()
-	if err != nil {
-		t.Fatalf("Detect: %v", err)
-	}
-	if cfg != nil {
-		t.Error("expected nil config when GOOGLE_APPLICATION_CREDENTIALS file is missing")
+	if cfg.ADCHostPath == "" {
+		t.Error("expected ADCHostPath to be non-empty")
 	}
 }
 
 func TestVertexDetector_GOOGLE_APPLICATION_CREDENTIALS_EmptyFallsBackToADC(t *testing.T) {
 	t.Parallel()
 
-	// Empty GOOGLE_APPLICATION_CREDENTIALS → fall back to platform-specific ADC path.
-	d := newVertexDetectorWithInjection(fullEnvWithGAC(""), adcExists, "/home/user")
+	homeDir, appDataDir := platformTestDirs(t)
+	d := newVertexDetectorWithInjection(fullEnvWithGAC(""), adcExists, homeDir, appDataDir)
 	cfg, err := d.Detect()
 	if err != nil {
 		t.Fatalf("Detect: %v", err)
 	}
 	if cfg == nil {
 		t.Fatal("expected non-nil config when falling back to default ADC path")
-	}
-}
-
-func TestVertexDetector_GOOGLE_APPLICATION_CREDENTIALS_OutsideHome(t *testing.T) {
-	t.Parallel()
-
-	homeDir := t.TempDir()
-	otherDir := t.TempDir() // sibling of homeDir — not under homeDir
-	customCreds := filepath.Join(otherDir, "creds.json")
-
-	d := newVertexDetectorWithInjection(fullEnvWithGAC(customCreds), adcExists, homeDir)
-	cfg, err := d.Detect()
-	if err != nil {
-		t.Fatalf("Detect: %v", err)
-	}
-	if cfg == nil {
-		t.Fatal("expected non-nil config")
-	}
-	// Path is not under homeDir → returned as-is (absolute path).
-	if cfg.ADCHostPath != customCreds {
-		t.Errorf("ADCHostPath: want %q, got %q", customCreds, cfg.ADCHostPath)
 	}
 }
 
@@ -235,7 +277,7 @@ func TestVertexDetector_EmptyEnvVarValue(t *testing.T) {
 		}
 		return fullEnv()(name)
 	}
-	d := newVertexDetectorWithInjection(lookup, adcExists, "/home/user")
+	d := newVertexDetectorWithInjection(lookup, adcExists, "/home/user", "")
 	cfg, err := d.Detect()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
