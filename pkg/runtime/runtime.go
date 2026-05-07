@@ -114,6 +114,10 @@ type CreateParams struct {
 	// the CLI. Keys are flag names (matching FlagDef.Name), values are the
 	// user-provided strings. This map is nil when no runtime flags were set.
 	RuntimeOptions map[string]string
+
+	// Model is the model ID configured for the agent, in the form
+	// "provider::model::baseURL". Empty when no model was specified.
+	Model string
 }
 
 // RuntimeInfo contains information about a runtime instance.

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -146,6 +147,32 @@ func mergeHosts(a, b []string) []string {
 		}
 	}
 	return result
+}
+
+// collectModelHosts extracts the hostname from the baseURL embedded in a
+// "provider::model::baseURL" model ID and returns it as a single-element slice.
+// Returns nil when modelID is empty, has no baseURL component, the baseURL is
+// unparseable, or the host resolves to loopback (localhost / 127.x / ::1).
+func collectModelHosts(modelID string) []string {
+	if modelID == "" {
+		return nil
+	}
+	_, _, baseURL := config.ParseModelID(modelID)
+	if baseURL == "" {
+		return nil
+	}
+	u, err := url.Parse(baseURL)
+	if err != nil || u.Host == "" {
+		return nil
+	}
+	hostname := u.Hostname()
+	if hostname == "localhost" {
+		return nil
+	}
+	if ip := net.ParseIP(hostname); ip != nil && ip.IsLoopback() {
+		return nil
+	}
+	return []string{hostname}
 }
 
 // approvalHandlerConfig is serialized to config.json in the approval-handler
