@@ -227,6 +227,13 @@ func (i *initCmd) run(cmd *cobra.Command, args []string) error {
 	}
 	ctx = logger.WithLogger(ctx, l)
 
+	// Warn when the selected runtime is experimental
+	if rt, err := i.manager.GetRuntime(i.runtime); err == nil {
+		if _, ok := rt.(runtime.Experimental); ok && i.output != "json" {
+			fmt.Fprintf(cmd.ErrOrStderr(), "⚠️  %s runtime support is experimental\n", i.runtime)
+		}
+	}
+
 	// Create a new instance
 	instance, err := instances.NewInstance(instances.NewInstanceParams{
 		SourceDir: i.absSourcesDir,

@@ -94,6 +94,9 @@ type Manager interface {
 	// Returns ErrInstanceNotFound if the workspace does not exist.
 	// Returns ErrDashboardNotSupported if the runtime does not implement the Dashboard interface.
 	GetDashboardURL(ctx context.Context, nameOrID string) (string, error)
+	// GetRuntime retrieves a registered runtime by type.
+	// Returns an error if the runtime type is not registered.
+	GetRuntime(runtimeType string) (runtime.Runtime, error)
 	// RegisterRuntime registers a runtime with the manager's registry
 	RegisterRuntime(rt runtime.Runtime) error
 	// RegisterAgent registers an agent with the manager's registry
@@ -803,6 +806,11 @@ func (m *manager) GetDashboardURL(ctx context.Context, nameOrID string) (string,
 }
 
 // RegisterRuntime registers a runtime with the manager's registry.
+// GetRuntime retrieves a registered runtime by type.
+func (m *manager) GetRuntime(runtimeType string) (runtime.Runtime, error) {
+	return m.runtimeRegistry.Get(runtimeType)
+}
+
 func (m *manager) RegisterRuntime(rt runtime.Runtime) error {
 	if err := m.runtimeRegistry.Register(rt); err != nil {
 		return err

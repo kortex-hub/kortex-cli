@@ -261,6 +261,18 @@ type ConfigTransformer interface {
 	TransformConfig(config *workspace.WorkspaceConfiguration) error
 }
 
+// Experimental is an optional interface for runtimes whose support is experimental.
+// The mere presence of this interface on a runtime signals experimental status;
+// the IsExperimental method carries no return value and need not be called directly.
+// Commands that use the runtime (e.g. init) display a warning when this interface is detected.
+//
+// Example implementation:
+//
+//	func (r *myRuntime) IsExperimental() {}
+type Experimental interface {
+	IsExperimental()
+}
+
 // ValidateState validates that a runtime state is one of the valid WorkspaceState values.
 // Valid states are: "running", "stopped", "error", "unknown".
 // Returns an error if the state is not valid.
