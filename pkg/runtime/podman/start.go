@@ -112,7 +112,11 @@ func (p *podmanRuntime) Start(ctx context.Context, id string) (runtime.RuntimeIn
 	// Automatically add host patterns from credentials that were configured at Create time.
 	// The credential directory acts as a signal that the credential was successfully set up.
 	credentialHosts := p.collectCredentialHosts(tmplData.Name, wsCfg)
-	allHosts := mergeHosts(explicitHosts, mergeHosts(secretHosts, credentialHosts))
+
+	// Automatically add the baseURL hostname from a custom model endpoint so
+	// the agent can reach the LLM API without manual network.hosts entries.
+	modelHosts := collectModelHosts(tmplData.Model)
+	allHosts := mergeHosts(explicitHosts, mergeHosts(secretHosts, mergeHosts(credentialHosts, modelHosts)))
 	fmt.Fprintf(l.Stderr(), "[network] allowed hosts for approval-handler: %v\n", allHosts)
 
 	// Networking rules are configured whenever mode is explicitly deny, regardless

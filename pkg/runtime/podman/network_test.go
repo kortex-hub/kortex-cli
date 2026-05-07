@@ -1022,3 +1022,60 @@ func TestMergeHosts(t *testing.T) {
 		}
 	})
 }
+
+func TestCollectModelHosts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty model ID returns nil", func(t *testing.T) {
+		t.Parallel()
+		if got := collectModelHosts(""); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("plain model ID with no baseURL returns nil", func(t *testing.T) {
+		t.Parallel()
+		if got := collectModelHosts("claude-sonnet-4-20250514"); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("provider::model with no baseURL returns nil", func(t *testing.T) {
+		t.Parallel()
+		if got := collectModelHosts("openai::gpt-4o"); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("localhost baseURL returns nil", func(t *testing.T) {
+		t.Parallel()
+		if got := collectModelHosts("openai::gpt-4o::http://localhost:11434/v1"); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("loopback IP baseURL returns nil", func(t *testing.T) {
+		t.Parallel()
+		if got := collectModelHosts("openai::gpt-4o::http://127.0.0.1:8080/v1"); got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+
+	t.Run("external https baseURL returns hostname", func(t *testing.T) {
+		t.Parallel()
+		got := collectModelHosts("openai::gpt-4o::https://my.endpoint.example.com/v1")
+		want := []string{"my.endpoint.example.com"}
+		if len(got) != 1 || got[0] != want[0] {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+
+	t.Run("external baseURL with port returns hostname without port", func(t *testing.T) {
+		t.Parallel()
+		got := collectModelHosts("openai::gpt-4o::https://api.example.com:8443/v1")
+		want := []string{"api.example.com"}
+		if len(got) != 1 || got[0] != want[0] {
+			t.Errorf("got %v, want %v", got, want)
+		}
+	})
+}

@@ -58,6 +58,9 @@ type podTemplateData struct {
 	Agent              string
 	ApprovalHandlerDir string
 	Forwards           []api.WorkspaceForward
+	// Model is the model ID as provided by the user (e.g. "openai::gpt-4o::https://my.endpoint/v1").
+	// Persisted so Start() can extract the baseURL hostname for network allow-listing.
+	Model string
 }
 
 // validateCreateParams validates the create parameters.
@@ -514,6 +517,7 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		Agent:              params.Agent,
 		ApprovalHandlerDir: podmanSystem.HostPathToMachinePath(approvalHandlerDir),
 		Forwards:           forwards,
+		Model:              params.Model,
 	}
 
 	tmpPodDir := filepath.Join(instanceDir, "pod")
