@@ -343,7 +343,7 @@ The config system manages workspace configuration for **injecting environment va
 A separate mechanism (distinct from env/mount config) allows default dotfiles to be baked into the workspace image:
 
 - **Location:** `~/.kdn/config/<agent>/` (e.g., `~/.kdn/config/claude/`)
-- Files are read by `manager.readAgentSettings()` into a `map[string][]byte` and passed to the runtime via `runtime.CreateParams.AgentSettings`
+- Files are read by `manager.readAgentSettings()` into a `map[string]agent.SettingsFile` and passed to the runtime via `runtime.CreateParams.AgentSettings`
 - After reading, the manager calls `agent.SkipOnboarding()`, `agent.SetModel()` (if a model is set), and `agent.SetMCPServers()` (if MCP is configured) to further modify the settings map
 - The Podman runtime writes these files into the build context as `agent-settings/` and adds `COPY --chown=agent:agent agent-settings/. /home/agent/` to the Containerfile
 - Result: every file under `config/<agent>/` lands at the corresponding path under `/home/agent/` inside the image

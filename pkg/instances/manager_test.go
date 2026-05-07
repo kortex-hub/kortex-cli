@@ -227,10 +227,10 @@ type trackingAgent struct {
 	name                   string
 	skillsDir              string
 	skipOnboardingCalled   bool
-	skipOnboardingSettings map[string][]byte
+	skipOnboardingSettings map[string]agent.SettingsFile
 	skipOnboardingPath     string
 	setModelCalled         bool
-	setModelSettings       map[string][]byte
+	setModelSettings       map[string]agent.SettingsFile
 	setModelID             string
 	setMCPServersCalled    bool
 	mu                     sync.Mutex
@@ -251,26 +251,26 @@ func (t *trackingAgent) Name() string {
 	return t.name
 }
 
-func (t *trackingAgent) SkipOnboarding(settings map[string][]byte, workspaceSourcesPath string, _ []string) (map[string][]byte, error) {
+func (t *trackingAgent) SkipOnboarding(settings map[string]agent.SettingsFile, workspaceSourcesPath string, _ []string) (map[string]agent.SettingsFile, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.skipOnboardingCalled = true
 	t.skipOnboardingSettings = settings
 	t.skipOnboardingPath = workspaceSourcesPath
 	if settings == nil {
-		settings = make(map[string][]byte)
+		settings = make(map[string]agent.SettingsFile)
 	}
 	return settings, nil
 }
 
-func (t *trackingAgent) SetModel(settings map[string][]byte, modelID string) (map[string][]byte, error) {
+func (t *trackingAgent) SetModel(settings map[string]agent.SettingsFile, modelID string) (map[string]agent.SettingsFile, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.setModelCalled = true
 	t.setModelSettings = settings
 	t.setModelID = modelID
 	if settings == nil {
-		settings = make(map[string][]byte)
+		settings = make(map[string]agent.SettingsFile)
 	}
 	return settings, nil
 }
@@ -287,12 +287,12 @@ func (t *trackingAgent) GetSetModelID() string {
 	return t.setModelID
 }
 
-func (t *trackingAgent) SetMCPServers(settings map[string][]byte, _ *workspace.McpConfiguration) (map[string][]byte, error) {
+func (t *trackingAgent) SetMCPServers(settings map[string]agent.SettingsFile, _ *workspace.McpConfiguration) (map[string]agent.SettingsFile, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.setMCPServersCalled = true
 	if settings == nil {
-		settings = make(map[string][]byte)
+		settings = make(map[string]agent.SettingsFile)
 	}
 	return settings, nil
 }
@@ -329,14 +329,14 @@ func (e *erroringSetModelAgent) Name() string {
 	return e.name
 }
 
-func (e *erroringSetModelAgent) SkipOnboarding(settings map[string][]byte, _ string, _ []string) (map[string][]byte, error) {
+func (e *erroringSetModelAgent) SkipOnboarding(settings map[string]agent.SettingsFile, _ string, _ []string) (map[string]agent.SettingsFile, error) {
 	if settings == nil {
-		settings = make(map[string][]byte)
+		settings = make(map[string]agent.SettingsFile)
 	}
 	return settings, nil
 }
 
-func (e *erroringSetModelAgent) SetModel(_ map[string][]byte, _ string) (map[string][]byte, error) {
+func (e *erroringSetModelAgent) SetModel(_ map[string]agent.SettingsFile, _ string) (map[string]agent.SettingsFile, error) {
 	return nil, errors.New("simulated SetModel error")
 }
 
@@ -344,7 +344,7 @@ func (e *erroringSetModelAgent) SkillsDir() string {
 	return ""
 }
 
-func (e *erroringSetModelAgent) SetMCPServers(settings map[string][]byte, _ *workspace.McpConfiguration) (map[string][]byte, error) {
+func (e *erroringSetModelAgent) SetMCPServers(settings map[string]agent.SettingsFile, _ *workspace.McpConfiguration) (map[string]agent.SettingsFile, error) {
 	return settings, nil
 }
 
@@ -2808,8 +2808,8 @@ func TestReadAgentSettings(t *testing.T) {
 		if !ok {
 			t.Error("Expected key '.claude/settings.json' in result map")
 		}
-		if string(content) != `{"theme":"dark"}` {
-			t.Errorf("Expected content %q, got %q", `{"theme":"dark"}`, string(content))
+		if string(content.Content) != `{"theme":"dark"}` {
+			t.Errorf("Expected content %q, got %q", `{"theme":"dark"}`, string(content.Content))
 		}
 	})
 
@@ -2851,8 +2851,8 @@ func TestReadAgentSettings(t *testing.T) {
 				t.Errorf("Expected key %q in result map", relPath)
 				continue
 			}
-			if string(got) != string(expectedContent) {
-				t.Errorf("Content mismatch for %q: expected %q, got %q", relPath, expectedContent, got)
+			if string(got.Content) != string(expectedContent) {
+				t.Errorf("Content mismatch for %q: expected %q, got %q", relPath, expectedContent, got.Content)
 			}
 		}
 	})

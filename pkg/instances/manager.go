@@ -1010,9 +1010,10 @@ func (m *manager) saveInstances(instances []Instance) error {
 }
 
 // readAgentSettings reads all files from {storageDir}/config/{agentName}/ into a map.
-// Keys are relative paths using forward slashes; values are file contents.
+// Keys are relative paths using forward slashes; values are SettingsFile structs
+// containing file content and executable permission metadata derived from disk mode bits.
 // Returns nil (no error) if the directory does not exist.
-func (m *manager) readAgentSettings(storageDir, agentName string) (map[string][]byte, error) {
+func (m *manager) readAgentSettings(storageDir, agentName string) (map[string]agent.SettingsFile, error) {
 	if agentName == "" {
 		return nil, nil
 	}
@@ -1027,7 +1028,7 @@ func (m *manager) readAgentSettings(storageDir, agentName string) (map[string][]
 		return nil, nil
 	}
 
-	settings := make(map[string][]byte)
+	settings := make(map[string]agent.SettingsFile)
 	err := fs.WalkDir(os.DirFS(agentSettingsDir), ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -1035,11 +1036,19 @@ func (m *manager) readAgentSettings(storageDir, agentName string) (map[string][]
 		if d.IsDir() {
 			return nil
 		}
-		content, err := os.ReadFile(filepath.Join(agentSettingsDir, filepath.FromSlash(path)))
+		fullPath := filepath.Join(agentSettingsDir, filepath.FromSlash(path))
+		content, err := os.ReadFile(fullPath)
 		if err != nil {
 			return fmt.Errorf("failed to read agent settings file %s: %w", path, err)
 		}
-		settings[path] = content
+		info, err := os.Stat(fullPath)
+		if err != nil {
+			return fmt.Errorf("failed to stat agent settings file %s: %w", path, err)
+		}
+		settings[path] = agent.SettingsFile{
+			Content:    content,
+			Executable: info.Mode()&0111 != 0,
+		}
 		return nil
 	})
 	if err != nil {

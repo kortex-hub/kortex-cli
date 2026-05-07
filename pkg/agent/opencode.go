@@ -50,11 +50,8 @@ func (o *openCodeAgent) Name() string {
 
 // SkipOnboarding returns the settings unchanged since OpenCode does not
 // require onboarding configuration.
-func (o *openCodeAgent) SkipOnboarding(settings map[string][]byte, _ string, _ []string) (map[string][]byte, error) {
-	if settings == nil {
-		settings = make(map[string][]byte)
-	}
-	return settings, nil
+func (o *openCodeAgent) SkipOnboarding(settings map[string]SettingsFile, _ string, _ []string) (map[string]SettingsFile, error) {
+	return EnsureSettings(settings), nil
 }
 
 // SetModel configures the model ID in OpenCode settings.
@@ -65,16 +62,9 @@ func (o *openCodeAgent) SkipOnboarding(settings map[string][]byte, _ string, _ [
 //   - "provider::model::baseURL" — sets provider/model and configures the provider with the given base URL
 //
 // All other fields in .config/opencode/opencode.json are preserved.
-func (o *openCodeAgent) SetModel(settings map[string][]byte, modelID string) (map[string][]byte, error) {
-	if settings == nil {
-		settings = make(map[string][]byte)
-	}
-
-	var existingContent []byte
-	var exists bool
-	if existingContent, exists = settings[OpenCodeConfigPath]; !exists {
-		existingContent = []byte("{}")
-	}
+func (o *openCodeAgent) SetModel(settings map[string]SettingsFile, modelID string) (map[string]SettingsFile, error) {
+	settings = EnsureSettings(settings)
+	existingContent := GetContent(settings, OpenCodeConfigPath, []byte("{}"))
 
 	var config map[string]interface{}
 	if err := json.Unmarshal(existingContent, &config); err != nil {
@@ -110,7 +100,7 @@ func (o *openCodeAgent) SetModel(settings map[string][]byte, modelID string) (ma
 		return nil, fmt.Errorf("failed to marshal modified %s: %w", OpenCodeConfigPath, err)
 	}
 
-	settings[OpenCodeConfigPath] = modifiedContent
+	settings = SetContent(settings, OpenCodeConfigPath, modifiedContent)
 	return settings, nil
 }
 
@@ -121,7 +111,7 @@ func (o *openCodeAgent) SkillsDir() string {
 
 // SetMCPServers returns the settings unchanged, as OpenCode does not support MCP configuration
 // through agent settings files.
-func (o *openCodeAgent) SetMCPServers(settings map[string][]byte, _ *workspace.McpConfiguration) (map[string][]byte, error) {
+func (o *openCodeAgent) SetMCPServers(settings map[string]SettingsFile, _ *workspace.McpConfiguration) (map[string]SettingsFile, error) {
 	return settings, nil
 }
 

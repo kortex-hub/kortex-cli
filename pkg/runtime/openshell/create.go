@@ -24,6 +24,7 @@ import (
 	"time"
 
 	api "github.com/openkaiden/kdn-api/cli/go"
+	"github.com/openkaiden/kdn/pkg/agent"
 	"github.com/openkaiden/kdn/pkg/logger"
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/steplogger"
@@ -202,17 +203,17 @@ func (r *openshellRuntime) createSandbox(ctx context.Context, name string, agent
 }
 
 // uploadAgentSettings writes agent settings files into the sandbox using sandbox upload.
-func (r *openshellRuntime) uploadAgentSettings(ctx context.Context, name string, settings map[string][]byte) error {
+func (r *openshellRuntime) uploadAgentSettings(ctx context.Context, name string, settings map[string]agent.SettingsFile) error {
 	l := logger.FromContext(ctx)
 
-	for relPath, content := range settings {
+	for relPath, sf := range settings {
 		tmpFile, err := os.CreateTemp("", "kdn-agent-setting-*")
 		if err != nil {
 			return fmt.Errorf("failed to create temp file for %s: %w", relPath, err)
 		}
 		tmpPath := tmpFile.Name()
 
-		if _, err := tmpFile.Write(content); err != nil {
+		if _, err := tmpFile.Write(sf.Content); err != nil {
 			tmpFile.Close()
 			os.Remove(tmpPath)
 			return fmt.Errorf("failed to write temp file for %s: %w", relPath, err)

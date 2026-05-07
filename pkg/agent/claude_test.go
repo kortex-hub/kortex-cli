@@ -38,7 +38,7 @@ func TestClaude_SkipOnboarding_NoExistingSettings(t *testing.T) {
 	t.Parallel()
 
 	agent := NewClaude()
-	settings := make(map[string][]byte)
+	settings := make(map[string]SettingsFile)
 
 	result, err := agent.SkipOnboarding(settings, "/workspace/sources", nil)
 	if err != nil {
@@ -53,7 +53,7 @@ func TestClaude_SkipOnboarding_NoExistingSettings(t *testing.T) {
 
 	// Parse and verify content
 	var config map[string]interface{}
-	if err := json.Unmarshal(claudeJSON, &config); err != nil {
+	if err := json.Unmarshal(claudeJSON.Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -124,8 +124,8 @@ func TestClaude_SkipOnboarding_PreservesUnknownFields(t *testing.T) {
 		t.Fatalf("Failed to marshal existing settings: %v", err)
 	}
 
-	settings := map[string][]byte{
-		ClaudeJSONPath: existingJSON,
+	settings := map[string]SettingsFile{
+		ClaudeJSONPath: SettingsFile{Content: existingJSON},
 	}
 
 	result, err := agent.SkipOnboarding(settings, "/workspace/sources", nil)
@@ -135,7 +135,7 @@ func TestClaude_SkipOnboarding_PreservesUnknownFields(t *testing.T) {
 
 	// Parse result
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeJSONPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -220,7 +220,7 @@ func TestClaude_SkipOnboarding_DifferentWorkspacePaths(t *testing.T) {
 			t.Parallel()
 
 			agent := NewClaude()
-			settings := make(map[string][]byte)
+			settings := make(map[string]SettingsFile)
 
 			result, err := agent.SkipOnboarding(settings, tc.workspacePath, nil)
 			if err != nil {
@@ -228,7 +228,7 @@ func TestClaude_SkipOnboarding_DifferentWorkspacePaths(t *testing.T) {
 			}
 
 			var config map[string]interface{}
-			if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
+			if err := json.Unmarshal(result[ClaudeJSONPath].Content, &config); err != nil {
 				t.Fatalf("Failed to parse result JSON: %v", err)
 			}
 
@@ -270,8 +270,8 @@ func TestClaude_SkipOnboarding_UpdatesExistingProject(t *testing.T) {
 		t.Fatalf("Failed to marshal existing settings: %v", err)
 	}
 
-	settings := map[string][]byte{
-		ClaudeJSONPath: existingJSON,
+	settings := map[string]SettingsFile{
+		ClaudeJSONPath: SettingsFile{Content: existingJSON},
 	}
 
 	result, err := agent.SkipOnboarding(settings, "/workspace/sources", nil)
@@ -280,7 +280,7 @@ func TestClaude_SkipOnboarding_UpdatesExistingProject(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeJSONPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -310,8 +310,8 @@ func TestClaude_SkipOnboarding_InvalidJSON(t *testing.T) {
 
 	agent := NewClaude()
 
-	settings := map[string][]byte{
-		ClaudeJSONPath: []byte("invalid json {{{"),
+	settings := map[string]SettingsFile{
+		ClaudeJSONPath: SettingsFile{Content: []byte("invalid json {{{")},
 	}
 
 	_, err := agent.SkipOnboarding(settings, "/workspace/sources", nil)
@@ -324,7 +324,7 @@ func TestClaude_SkipOnboarding_EmptyWorkspacePath(t *testing.T) {
 	t.Parallel()
 
 	agent := NewClaude()
-	settings := make(map[string][]byte)
+	settings := make(map[string]SettingsFile)
 
 	result, err := agent.SkipOnboarding(settings, "", nil)
 	if err != nil {
@@ -332,7 +332,7 @@ func TestClaude_SkipOnboarding_EmptyWorkspacePath(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeJSONPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -356,7 +356,7 @@ func TestClaude_SetModel_NoExistingSettings(t *testing.T) {
 	t.Parallel()
 
 	agent := NewClaude()
-	settings := make(map[string][]byte)
+	settings := make(map[string]SettingsFile)
 
 	result, err := agent.SetModel(settings, "model-from-flag")
 	if err != nil {
@@ -369,7 +369,7 @@ func TestClaude_SetModel_NoExistingSettings(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(claudeJSON, &config); err != nil {
+	if err := json.Unmarshal(claudeJSON.Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -412,8 +412,8 @@ func TestClaude_SetModel_PreservesExistingFields(t *testing.T) {
 		t.Fatalf("Failed to marshal existing settings: %v", err)
 	}
 
-	settings := map[string][]byte{
-		ClaudeSettingsPath: existingJSON,
+	settings := map[string]SettingsFile{
+		ClaudeSettingsPath: SettingsFile{Content: existingJSON},
 	}
 
 	result, err := agent.SetModel(settings, "model-from-flag")
@@ -422,7 +422,7 @@ func TestClaude_SetModel_PreservesExistingFields(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeSettingsPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeSettingsPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -446,8 +446,8 @@ func TestClaude_SetModel_InvalidJSON(t *testing.T) {
 
 	agent := NewClaude()
 
-	settings := map[string][]byte{
-		ClaudeSettingsPath: []byte("invalid json {{{"),
+	settings := map[string]SettingsFile{
+		ClaudeSettingsPath: SettingsFile{Content: []byte("invalid json {{{")},
 	}
 
 	_, err := agent.SetModel(settings, "model-from-flag")
@@ -471,8 +471,8 @@ func TestClaude_SetModel_OverwritesExistingModel(t *testing.T) {
 		t.Fatalf("Failed to marshal existing settings: %v", err)
 	}
 
-	settings := map[string][]byte{
-		ClaudeSettingsPath: existingJSON,
+	settings := map[string]SettingsFile{
+		ClaudeSettingsPath: SettingsFile{Content: existingJSON},
 	}
 
 	result, err := agent.SetModel(settings, "model-from-flag")
@@ -481,7 +481,7 @@ func TestClaude_SetModel_OverwritesExistingModel(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeSettingsPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeSettingsPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -500,7 +500,7 @@ func TestClaude_SetModel_ProviderModelFormat(t *testing.T) {
 	t.Parallel()
 
 	agent := NewClaude()
-	settings := make(map[string][]byte)
+	settings := make(map[string]SettingsFile)
 
 	result, err := agent.SetModel(settings, "claude::gemma2:7b")
 	if err != nil {
@@ -508,7 +508,7 @@ func TestClaude_SetModel_ProviderModelFormat(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeSettingsPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeSettingsPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -521,7 +521,7 @@ func TestClaude_SetModel_ProviderModelURLFormat(t *testing.T) {
 	t.Parallel()
 
 	agent := NewClaude()
-	settings := make(map[string][]byte)
+	settings := make(map[string]SettingsFile)
 
 	result, err := agent.SetModel(settings, "claude::gemma2:7b::http://localhost:11434/v1")
 	if err != nil {
@@ -529,7 +529,7 @@ func TestClaude_SetModel_ProviderModelURLFormat(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeSettingsPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeSettingsPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -551,8 +551,8 @@ func TestClaude_SetMCPServers_NilMCP(t *testing.T) {
 	t.Parallel()
 
 	agent := NewClaude()
-	settings := map[string][]byte{
-		ClaudeJSONPath: []byte(`{"hasCompletedOnboarding": true}`),
+	settings := map[string]SettingsFile{
+		ClaudeJSONPath: SettingsFile{Content: []byte(`{"hasCompletedOnboarding": true}`)},
 	}
 
 	result, err := agent.SetMCPServers(settings, nil)
@@ -561,8 +561,8 @@ func TestClaude_SetMCPServers_NilMCP(t *testing.T) {
 	}
 
 	// Settings should be returned unchanged
-	if string(result[ClaudeJSONPath]) != `{"hasCompletedOnboarding": true}` {
-		t.Errorf("SetMCPServers() with nil MCP modified settings unexpectedly: %s", result[ClaudeJSONPath])
+	if string(result[ClaudeJSONPath].Content) != `{"hasCompletedOnboarding": true}` {
+		t.Errorf("SetMCPServers() with nil MCP modified settings unexpectedly: %s", result[ClaudeJSONPath].Content)
 	}
 }
 
@@ -607,7 +607,7 @@ func TestClaude_SetMCPServers_CommandBased(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeJSONPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -662,7 +662,7 @@ func TestClaude_SetMCPServers_URLBased(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeJSONPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -708,7 +708,7 @@ func TestClaude_SetMCPServers_URLBased_NoHeaders(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeJSONPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -739,7 +739,7 @@ func TestClaude_SetMCPServers_Mixed(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeJSONPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -780,13 +780,13 @@ func TestClaude_SetMCPServers_PreservesExistingMCPServers(t *testing.T) {
 		},
 	}
 
-	result, err := agent.SetMCPServers(map[string][]byte{ClaudeJSONPath: existingJSON}, mcp)
+	result, err := agent.SetMCPServers(map[string]SettingsFile{ClaudeJSONPath: SettingsFile{Content: existingJSON}}, mcp)
 	if err != nil {
 		t.Fatalf("SetMCPServers() error = %v", err)
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeJSONPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -823,13 +823,13 @@ func TestClaude_SetMCPServers_PreservesOtherFields(t *testing.T) {
 		},
 	}
 
-	result, err := agent.SetMCPServers(map[string][]byte{ClaudeJSONPath: existingJSON}, mcp)
+	result, err := agent.SetMCPServers(map[string]SettingsFile{ClaudeJSONPath: SettingsFile{Content: existingJSON}}, mcp)
 	if err != nil {
 		t.Fatalf("SetMCPServers() error = %v", err)
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeJSONPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -860,7 +860,7 @@ func TestClaude_SetMCPServers_CommandNoArgs(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeJSONPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -888,7 +888,7 @@ func TestClaude_SetMCPServers_InvalidJSON(t *testing.T) {
 		},
 	}
 
-	_, err := agent.SetMCPServers(map[string][]byte{ClaudeJSONPath: []byte("invalid json {{{")}, mcp)
+	_, err := agent.SetMCPServers(map[string]SettingsFile{ClaudeJSONPath: SettingsFile{Content: []byte("invalid json {{{")}}, mcp)
 	if err == nil {
 		t.Error("Expected error for invalid JSON, got nil")
 	}
@@ -899,13 +899,13 @@ func TestClaude_SkipOnboarding_SetsApprovedKeys(t *testing.T) {
 
 	agent := NewClaude()
 
-	result, err := agent.SkipOnboarding(make(map[string][]byte), "/workspace/sources", []string{"placeholder"})
+	result, err := agent.SkipOnboarding(make(map[string]SettingsFile), "/workspace/sources", []string{"placeholder"})
 	if err != nil {
 		t.Fatalf("SkipOnboarding() error = %v", err)
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeJSONPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -930,7 +930,7 @@ func TestClaude_SkipOnboarding_NilApprovedKeys(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeJSONPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 	if _, ok := config["customApiKeyResponses"]; ok {
@@ -942,8 +942,8 @@ func TestClaude_SkipOnboarding_EmptyApprovedKeys(t *testing.T) {
 	t.Parallel()
 
 	agent := NewClaude()
-	settings := map[string][]byte{
-		ClaudeJSONPath: []byte(`{"existingField": "value"}`),
+	settings := map[string]SettingsFile{
+		ClaudeJSONPath: SettingsFile{Content: []byte(`{"existingField": "value"}`)},
 	}
 
 	result, err := agent.SkipOnboarding(settings, "/workspace/sources", []string{})
@@ -952,7 +952,7 @@ func TestClaude_SkipOnboarding_EmptyApprovedKeys(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeJSONPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 	if _, ok := config["customApiKeyResponses"]; ok {
@@ -971,13 +971,13 @@ func TestClaude_SkipOnboarding_ApprovedKeysMergesWithExisting(t *testing.T) {
 	}
 	existingJSON, _ := json.Marshal(existing)
 
-	result, err := agent.SkipOnboarding(map[string][]byte{ClaudeJSONPath: existingJSON}, "/workspace/sources", []string{"placeholder"})
+	result, err := agent.SkipOnboarding(map[string]SettingsFile{ClaudeJSONPath: SettingsFile{Content: existingJSON}}, "/workspace/sources", []string{"placeholder"})
 	if err != nil {
 		t.Fatalf("SkipOnboarding() error = %v", err)
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeJSONPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -1003,13 +1003,13 @@ func TestClaude_SkipOnboarding_ApprovedKeysDeduplicates(t *testing.T) {
 	}
 	existingJSON, _ := json.Marshal(existing)
 
-	result, err := agent.SkipOnboarding(map[string][]byte{ClaudeJSONPath: existingJSON}, "/workspace/sources", []string{"placeholder", "placeholder"})
+	result, err := agent.SkipOnboarding(map[string]SettingsFile{ClaudeJSONPath: SettingsFile{Content: existingJSON}}, "/workspace/sources", []string{"placeholder", "placeholder"})
 	if err != nil {
 		t.Fatalf("SkipOnboarding() error = %v", err)
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[ClaudeJSONPath], &config); err != nil {
+	if err := json.Unmarshal(result[ClaudeJSONPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 

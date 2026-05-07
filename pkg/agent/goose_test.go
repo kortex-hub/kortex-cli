@@ -37,7 +37,7 @@ func TestGoose_SkipOnboarding_NoExistingSettings(t *testing.T) {
 	t.Parallel()
 
 	agent := NewGoose()
-	settings := make(map[string][]byte)
+	settings := make(map[string]SettingsFile)
 
 	result, err := agent.SkipOnboarding(settings, "/workspace/sources", nil)
 	if err != nil {
@@ -50,7 +50,7 @@ func TestGoose_SkipOnboarding_NoExistingSettings(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := yaml.Unmarshal(configYAML, &config); err != nil {
+	if err := yaml.Unmarshal(configYAML.Content, &config); err != nil {
 		t.Fatalf("Failed to parse result YAML: %v", err)
 	}
 
@@ -86,8 +86,8 @@ func TestGoose_SkipOnboarding_PreservesExistingTelemetryTrue(t *testing.T) {
 	agent := NewGoose()
 
 	existingContent := []byte("GOOSE_MODEL: \"claude-sonnet-4-6\"\nGOOSE_TELEMETRY_ENABLED: true\n")
-	settings := map[string][]byte{
-		GooseConfigPath: existingContent,
+	settings := map[string]SettingsFile{
+		GooseConfigPath: SettingsFile{Content: existingContent},
 	}
 
 	result, err := agent.SkipOnboarding(settings, "/workspace/sources", nil)
@@ -96,7 +96,7 @@ func TestGoose_SkipOnboarding_PreservesExistingTelemetryTrue(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := yaml.Unmarshal(result[GooseConfigPath], &config); err != nil {
+	if err := yaml.Unmarshal(result[GooseConfigPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result YAML: %v", err)
 	}
 
@@ -113,8 +113,8 @@ func TestGoose_SkipOnboarding_PreservesExistingTelemetryFalse(t *testing.T) {
 	agent := NewGoose()
 
 	existingContent := []byte("GOOSE_TELEMETRY_ENABLED: false\n")
-	settings := map[string][]byte{
-		GooseConfigPath: existingContent,
+	settings := map[string]SettingsFile{
+		GooseConfigPath: SettingsFile{Content: existingContent},
 	}
 
 	result, err := agent.SkipOnboarding(settings, "/workspace/sources", nil)
@@ -123,7 +123,7 @@ func TestGoose_SkipOnboarding_PreservesExistingTelemetryFalse(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := yaml.Unmarshal(result[GooseConfigPath], &config); err != nil {
+	if err := yaml.Unmarshal(result[GooseConfigPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result YAML: %v", err)
 	}
 
@@ -140,8 +140,8 @@ func TestGoose_SkipOnboarding_PreservesOtherFields(t *testing.T) {
 	agent := NewGoose()
 
 	existingContent := []byte("GOOSE_MODEL: \"claude-sonnet-4-6\"\nGOOSE_PROVIDER: \"anthropic\"\n")
-	settings := map[string][]byte{
-		GooseConfigPath: existingContent,
+	settings := map[string]SettingsFile{
+		GooseConfigPath: SettingsFile{Content: existingContent},
 	}
 
 	result, err := agent.SkipOnboarding(settings, "/workspace/sources", nil)
@@ -150,7 +150,7 @@ func TestGoose_SkipOnboarding_PreservesOtherFields(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := yaml.Unmarshal(result[GooseConfigPath], &config); err != nil {
+	if err := yaml.Unmarshal(result[GooseConfigPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result YAML: %v", err)
 	}
 
@@ -174,8 +174,8 @@ func TestGoose_SkipOnboarding_InvalidYAML(t *testing.T) {
 
 	agent := NewGoose()
 
-	settings := map[string][]byte{
-		GooseConfigPath: []byte("invalid: yaml: :::"),
+	settings := map[string]SettingsFile{
+		GooseConfigPath: SettingsFile{Content: []byte("invalid: yaml: :::")},
 	}
 
 	_, err := agent.SkipOnboarding(settings, "/workspace/sources", nil)
@@ -188,7 +188,7 @@ func TestGoose_SetModel_NoExistingSettings(t *testing.T) {
 	t.Parallel()
 
 	agent := NewGoose()
-	settings := make(map[string][]byte)
+	settings := make(map[string]SettingsFile)
 
 	result, err := agent.SetModel(settings, "model-from-flag")
 	if err != nil {
@@ -201,7 +201,7 @@ func TestGoose_SetModel_NoExistingSettings(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := yaml.Unmarshal(configYAML, &config); err != nil {
+	if err := yaml.Unmarshal(configYAML.Content, &config); err != nil {
 		t.Fatalf("Failed to parse result YAML: %v", err)
 	}
 
@@ -235,8 +235,8 @@ func TestGoose_SetModel_PreservesExistingFields(t *testing.T) {
 	agent := NewGoose()
 
 	existingContent := []byte("GOOSE_TELEMETRY_ENABLED: false\nGOOSE_PROVIDER: \"anthropic\"\n")
-	settings := map[string][]byte{
-		GooseConfigPath: existingContent,
+	settings := map[string]SettingsFile{
+		GooseConfigPath: SettingsFile{Content: existingContent},
 	}
 
 	result, err := agent.SetModel(settings, "model-from-flag")
@@ -245,7 +245,7 @@ func TestGoose_SetModel_PreservesExistingFields(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := yaml.Unmarshal(result[GooseConfigPath], &config); err != nil {
+	if err := yaml.Unmarshal(result[GooseConfigPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result YAML: %v", err)
 	}
 
@@ -269,8 +269,8 @@ func TestGoose_SetModel_InvalidYAML(t *testing.T) {
 
 	agent := NewGoose()
 
-	settings := map[string][]byte{
-		GooseConfigPath: []byte("invalid: yaml: :::"),
+	settings := map[string]SettingsFile{
+		GooseConfigPath: SettingsFile{Content: []byte("invalid: yaml: :::")},
 	}
 
 	_, err := agent.SetModel(settings, "model-from-flag")
@@ -285,8 +285,8 @@ func TestGoose_SetModel_OverwritesExistingModel(t *testing.T) {
 	agent := NewGoose()
 
 	existingContent := []byte("GOOSE_MODEL: \"original-model\"\nGOOSE_TELEMETRY_ENABLED: false\n")
-	settings := map[string][]byte{
-		GooseConfigPath: existingContent,
+	settings := map[string]SettingsFile{
+		GooseConfigPath: SettingsFile{Content: existingContent},
 	}
 
 	result, err := agent.SetModel(settings, "model-from-flag")
@@ -295,7 +295,7 @@ func TestGoose_SetModel_OverwritesExistingModel(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := yaml.Unmarshal(result[GooseConfigPath], &config); err != nil {
+	if err := yaml.Unmarshal(result[GooseConfigPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result YAML: %v", err)
 	}
 
@@ -314,7 +314,7 @@ func TestGoose_SetModel_ProviderModelFormat(t *testing.T) {
 	t.Parallel()
 
 	agent := NewGoose()
-	settings := make(map[string][]byte)
+	settings := make(map[string]SettingsFile)
 
 	result, err := agent.SetModel(settings, "goose::gemma2:7b")
 	if err != nil {
@@ -322,7 +322,7 @@ func TestGoose_SetModel_ProviderModelFormat(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := yaml.Unmarshal(result[GooseConfigPath], &config); err != nil {
+	if err := yaml.Unmarshal(result[GooseConfigPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result YAML: %v", err)
 	}
 
@@ -335,7 +335,7 @@ func TestGoose_SetModel_ProviderModelURLFormat(t *testing.T) {
 	t.Parallel()
 
 	agent := NewGoose()
-	settings := make(map[string][]byte)
+	settings := make(map[string]SettingsFile)
 
 	result, err := agent.SetModel(settings, "goose::gemma2:7b::http://localhost:11434/v1")
 	if err != nil {
@@ -343,7 +343,7 @@ func TestGoose_SetModel_ProviderModelURLFormat(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := yaml.Unmarshal(result[GooseConfigPath], &config); err != nil {
+	if err := yaml.Unmarshal(result[GooseConfigPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result YAML: %v", err)
 	}
 

@@ -37,7 +37,7 @@ func TestCursor_SkipOnboarding_NoExistingSettings(t *testing.T) {
 	t.Parallel()
 
 	agent := NewCursor()
-	settings := make(map[string][]byte)
+	settings := make(map[string]SettingsFile)
 
 	before := time.Now().UTC()
 	result, err := agent.SkipOnboarding(settings, "/workspace/sources", nil)
@@ -53,7 +53,7 @@ func TestCursor_SkipOnboarding_NoExistingSettings(t *testing.T) {
 	}
 
 	var content map[string]interface{}
-	if err := json.Unmarshal(trustedFile, &content); err != nil {
+	if err := json.Unmarshal(trustedFile.Content, &content); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -124,7 +124,7 @@ func TestCursor_SkipOnboarding_DifferentWorkspacePaths(t *testing.T) {
 			t.Parallel()
 
 			agent := NewCursor()
-			settings := make(map[string][]byte)
+			settings := make(map[string]SettingsFile)
 
 			result, err := agent.SkipOnboarding(settings, tc.workspacePath, nil)
 			if err != nil {
@@ -138,7 +138,7 @@ func TestCursor_SkipOnboarding_DifferentWorkspacePaths(t *testing.T) {
 			}
 
 			var content map[string]interface{}
-			if err := json.Unmarshal(trustedFile, &content); err != nil {
+			if err := json.Unmarshal(trustedFile.Content, &content); err != nil {
 				t.Fatalf("Failed to parse result JSON: %v", err)
 			}
 
@@ -154,8 +154,8 @@ func TestCursor_SkipOnboarding_PreservesExistingSettings(t *testing.T) {
 
 	agent := NewCursor()
 
-	existingSettings := map[string][]byte{
-		"some/other/file": []byte("existing content"),
+	existingSettings := map[string]SettingsFile{
+		"some/other/file": SettingsFile{Content: []byte("existing content")},
 	}
 
 	result, err := agent.SkipOnboarding(existingSettings, "/workspace/sources", nil)
@@ -163,7 +163,7 @@ func TestCursor_SkipOnboarding_PreservesExistingSettings(t *testing.T) {
 		t.Fatalf("SkipOnboarding() error = %v", err)
 	}
 
-	if string(result["some/other/file"]) != "existing content" {
+	if string(result["some/other/file"].Content) != "existing content" {
 		t.Errorf("Existing settings were not preserved")
 	}
 
@@ -224,7 +224,7 @@ func TestCursor_SetModel_NoExistingSettings(t *testing.T) {
 	t.Parallel()
 
 	agent := NewCursor()
-	settings := make(map[string][]byte)
+	settings := make(map[string]SettingsFile)
 
 	result, err := agent.SetModel(settings, "model-from-flag")
 	if err != nil {
@@ -241,7 +241,7 @@ func TestCursor_SetModel_NoExistingSettings(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(cliConfig, &config); err != nil {
+	if err := json.Unmarshal(cliConfig.Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -295,8 +295,8 @@ func TestCursor_SetModel_PreservesExistingSettings(t *testing.T) {
 
 	agent := NewCursor()
 
-	existingSettings := map[string][]byte{
-		"some/other/file": []byte("existing content"),
+	existingSettings := map[string]SettingsFile{
+		"some/other/file": SettingsFile{Content: []byte("existing content")},
 	}
 
 	result, err := agent.SetModel(existingSettings, "some-model-id")
@@ -304,7 +304,7 @@ func TestCursor_SetModel_PreservesExistingSettings(t *testing.T) {
 		t.Fatalf("SetModel() error = %v", err)
 	}
 
-	if string(result["some/other/file"]) != "existing content" {
+	if string(result["some/other/file"].Content) != "existing content" {
 		t.Errorf("Existing settings were not preserved")
 	}
 
@@ -324,8 +324,8 @@ func TestCursor_SetModel_PreservesExistingCLIConfig(t *testing.T) {
 	}
 	existingJSON, _ := json.Marshal(existingConfig)
 
-	settings := map[string][]byte{
-		CursorCLIConfigPath: existingJSON,
+	settings := map[string]SettingsFile{
+		CursorCLIConfigPath: SettingsFile{Content: existingJSON},
 	}
 
 	result, err := agent.SetModel(settings, "new-model-id")
@@ -334,7 +334,7 @@ func TestCursor_SetModel_PreservesExistingCLIConfig(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[CursorCLIConfigPath], &config); err != nil {
+	if err := json.Unmarshal(result[CursorCLIConfigPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -370,8 +370,8 @@ func TestCursor_SetModel_OverwritesExistingModel(t *testing.T) {
 	}
 	existingJSON, _ := json.Marshal(existingConfig)
 
-	settings := map[string][]byte{
-		CursorCLIConfigPath: existingJSON,
+	settings := map[string]SettingsFile{
+		CursorCLIConfigPath: SettingsFile{Content: existingJSON},
 	}
 
 	result, err := agent.SetModel(settings, "new-model-id")
@@ -380,7 +380,7 @@ func TestCursor_SetModel_OverwritesExistingModel(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[CursorCLIConfigPath], &config); err != nil {
+	if err := json.Unmarshal(result[CursorCLIConfigPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -402,8 +402,8 @@ func TestCursor_SetModel_InvalidJSON(t *testing.T) {
 
 	agent := NewCursor()
 
-	settings := map[string][]byte{
-		CursorCLIConfigPath: []byte("invalid json"),
+	settings := map[string]SettingsFile{
+		CursorCLIConfigPath: SettingsFile{Content: []byte("invalid json")},
 	}
 
 	_, err := agent.SetModel(settings, "some-model-id")
@@ -416,7 +416,7 @@ func TestCursor_SetModel_ProviderModelFormat(t *testing.T) {
 	t.Parallel()
 
 	agent := NewCursor()
-	settings := make(map[string][]byte)
+	settings := make(map[string]SettingsFile)
 
 	result, err := agent.SetModel(settings, "cursor::gemma2:7b")
 	if err != nil {
@@ -424,7 +424,7 @@ func TestCursor_SetModel_ProviderModelFormat(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[CursorCLIConfigPath], &config); err != nil {
+	if err := json.Unmarshal(result[CursorCLIConfigPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 
@@ -442,7 +442,7 @@ func TestCursor_SetModel_ProviderModelURLFormat(t *testing.T) {
 	t.Parallel()
 
 	agent := NewCursor()
-	settings := make(map[string][]byte)
+	settings := make(map[string]SettingsFile)
 
 	result, err := agent.SetModel(settings, "cursor::gemma2:7b::http://localhost:11434/v1")
 	if err != nil {
@@ -450,7 +450,7 @@ func TestCursor_SetModel_ProviderModelURLFormat(t *testing.T) {
 	}
 
 	var config map[string]interface{}
-	if err := json.Unmarshal(result[CursorCLIConfigPath], &config); err != nil {
+	if err := json.Unmarshal(result[CursorCLIConfigPath].Content, &config); err != nil {
 		t.Fatalf("Failed to parse result JSON: %v", err)
 	}
 

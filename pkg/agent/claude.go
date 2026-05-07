@@ -54,16 +54,9 @@ func (c *claudeAgent) Name() string {
 // It sets hasCompletedOnboarding to true, marks the workspace sources
 // directory as trusted, and pre-approves any provided API key values
 // in customApiKeyResponses.approved. All other fields are preserved.
-func (c *claudeAgent) SkipOnboarding(settings map[string][]byte, workspaceSourcesPath string, approvedKeys []string) (map[string][]byte, error) {
-	if settings == nil {
-		settings = make(map[string][]byte)
-	}
-
-	var existingContent []byte
-	var exists bool
-	if existingContent, exists = settings[ClaudeJSONPath]; !exists {
-		existingContent = []byte("{}")
-	}
+func (c *claudeAgent) SkipOnboarding(settings map[string]SettingsFile, workspaceSourcesPath string, approvedKeys []string) (map[string]SettingsFile, error) {
+	settings = EnsureSettings(settings)
+	existingContent := GetContent(settings, ClaudeJSONPath, []byte("{}"))
 
 	// Parse into map to preserve all unknown fields
 	var config map[string]interface{}
@@ -142,7 +135,7 @@ func (c *claudeAgent) SkipOnboarding(settings map[string][]byte, workspaceSource
 		return nil, fmt.Errorf("failed to marshal modified %s: %w", ClaudeJSONPath, err)
 	}
 
-	settings[ClaudeJSONPath] = modifiedContent
+	settings = SetContent(settings, ClaudeJSONPath, modifiedContent)
 	return settings, nil
 }
 
@@ -157,19 +150,12 @@ func (c *claudeAgent) SkillsDir() string {
 // URL-based servers use type "sse" with {url, headers}.
 // All other fields in the settings file are preserved.
 // If mcp is nil, settings are returned unchanged.
-func (c *claudeAgent) SetMCPServers(settings map[string][]byte, mcp *workspace.McpConfiguration) (map[string][]byte, error) {
+func (c *claudeAgent) SetMCPServers(settings map[string]SettingsFile, mcp *workspace.McpConfiguration) (map[string]SettingsFile, error) {
 	if mcp == nil {
 		return settings, nil
 	}
-	if settings == nil {
-		settings = make(map[string][]byte)
-	}
-
-	var existingContent []byte
-	var exists bool
-	if existingContent, exists = settings[ClaudeJSONPath]; !exists {
-		existingContent = []byte("{}")
-	}
+	settings = EnsureSettings(settings)
+	existingContent := GetContent(settings, ClaudeJSONPath, []byte("{}"))
 
 	var config map[string]interface{}
 	if err := json.Unmarshal(existingContent, &config); err != nil {
@@ -226,23 +212,16 @@ func (c *claudeAgent) SetMCPServers(settings map[string][]byte, mcp *workspace.M
 		return nil, fmt.Errorf("failed to marshal modified %s: %w", ClaudeJSONPath, err)
 	}
 
-	settings[ClaudeJSONPath] = modifiedContent
+	settings = SetContent(settings, ClaudeJSONPath, modifiedContent)
 	return settings, nil
 }
 
 // SetModel configures the model ID in Claude settings.
 // It sets the model field in .claude/settings.json.
 // All other fields in the settings file are preserved.
-func (c *claudeAgent) SetModel(settings map[string][]byte, modelID string) (map[string][]byte, error) {
-	if settings == nil {
-		settings = make(map[string][]byte)
-	}
-
-	var existingContent []byte
-	var exists bool
-	if existingContent, exists = settings[ClaudeSettingsPath]; !exists {
-		existingContent = []byte("{}")
-	}
+func (c *claudeAgent) SetModel(settings map[string]SettingsFile, modelID string) (map[string]SettingsFile, error) {
+	settings = EnsureSettings(settings)
+	existingContent := GetContent(settings, ClaudeSettingsPath, []byte("{}"))
 
 	var config map[string]interface{}
 	if err := json.Unmarshal(existingContent, &config); err != nil {
@@ -257,6 +236,6 @@ func (c *claudeAgent) SetModel(settings map[string][]byte, modelID string) (map[
 		return nil, fmt.Errorf("failed to marshal modified %s: %w", ClaudeSettingsPath, err)
 	}
 
-	settings[ClaudeSettingsPath] = modifiedContent
+	settings = SetContent(settings, ClaudeSettingsPath, modifiedContent)
 	return settings, nil
 }

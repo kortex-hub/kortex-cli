@@ -50,10 +50,8 @@ func (c *cursorAgent) Name() string {
 // SkipOnboarding modifies Cursor settings to skip onboarding prompts.
 // It creates a .workspace-trusted file in the Cursor projects directory
 // for the given workspace sources path.
-func (c *cursorAgent) SkipOnboarding(settings map[string][]byte, workspaceSourcesPath string, _ []string) (map[string][]byte, error) {
-	if settings == nil {
-		settings = make(map[string][]byte)
-	}
+func (c *cursorAgent) SkipOnboarding(settings map[string]SettingsFile, workspaceSourcesPath string, _ []string) (map[string]SettingsFile, error) {
+	settings = EnsureSettings(settings)
 
 	cursorDir := workspacePathToCursorDir(workspaceSourcesPath)
 	filePath := fmt.Sprintf(".cursor/projects/%s/.workspace-trusted", cursorDir)
@@ -68,7 +66,7 @@ func (c *cursorAgent) SkipOnboarding(settings map[string][]byte, workspaceSource
 		return nil, fmt.Errorf("failed to marshal cursor workspace-trusted file: %w", err)
 	}
 
-	settings[filePath] = contentJSON
+	settings = SetContent(settings, filePath, contentJSON)
 	return settings, nil
 }
 
@@ -79,23 +77,16 @@ func (c *cursorAgent) SkillsDir() string {
 
 // SetMCPServers returns the settings unchanged, as Cursor does not support MCP configuration
 // through agent settings files.
-func (c *cursorAgent) SetMCPServers(settings map[string][]byte, _ *workspace.McpConfiguration) (map[string][]byte, error) {
+func (c *cursorAgent) SetMCPServers(settings map[string]SettingsFile, _ *workspace.McpConfiguration) (map[string]SettingsFile, error) {
 	return settings, nil
 }
 
 // SetModel configures the model ID in Cursor settings.
 // It sets the model object in cli-config.json with the specified model ID.
 // All other fields in the settings file are preserved.
-func (c *cursorAgent) SetModel(settings map[string][]byte, modelID string) (map[string][]byte, error) {
-	if settings == nil {
-		settings = make(map[string][]byte)
-	}
-
-	var existingContent []byte
-	var exists bool
-	if existingContent, exists = settings[CursorCLIConfigPath]; !exists {
-		existingContent = []byte("{}")
-	}
+func (c *cursorAgent) SetModel(settings map[string]SettingsFile, modelID string) (map[string]SettingsFile, error) {
+	settings = EnsureSettings(settings)
+	existingContent := GetContent(settings, CursorCLIConfigPath, []byte("{}"))
 
 	var config map[string]interface{}
 	if err := json.Unmarshal(existingContent, &config); err != nil {
@@ -121,7 +112,7 @@ func (c *cursorAgent) SetModel(settings map[string][]byte, modelID string) (map[
 		return nil, fmt.Errorf("failed to marshal modified %s: %w", CursorCLIConfigPath, err)
 	}
 
-	settings[CursorCLIConfigPath] = modifiedContent
+	settings = SetContent(settings, CursorCLIConfigPath, modifiedContent)
 	return settings, nil
 }
 

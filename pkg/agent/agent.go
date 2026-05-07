@@ -22,31 +22,69 @@ import (
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 )
 
+// SettingsFile represents an agent settings file with its content and metadata.
+type SettingsFile struct {
+	Content    []byte
+	Executable bool
+}
+
+// GetContent returns the content bytes for a settings file path, or defaultContent
+// if the path does not exist.
+func GetContent(settings map[string]SettingsFile, path string, defaultContent []byte) []byte {
+	if sf, ok := settings[path]; ok {
+		return sf.Content
+	}
+	return defaultContent
+}
+
+// SetContent updates or creates a settings file entry, preserving the Executable
+// flag if the entry already exists. Returns the (possibly initialized) settings map.
+func SetContent(settings map[string]SettingsFile, path string, content []byte) map[string]SettingsFile {
+	if settings == nil {
+		settings = make(map[string]SettingsFile)
+	}
+	if sf, ok := settings[path]; ok {
+		sf.Content = content
+		settings[path] = sf
+	} else {
+		settings[path] = SettingsFile{Content: content}
+	}
+	return settings
+}
+
+// EnsureSettings returns the settings map, creating one if nil.
+func EnsureSettings(settings map[string]SettingsFile) map[string]SettingsFile {
+	if settings == nil {
+		return make(map[string]SettingsFile)
+	}
+	return settings
+}
+
 // Agent is an interface for agent-specific configuration and setup operations.
 type Agent interface {
 	// Name returns the agent name (e.g., "claude", "goose").
 	Name() string
 	// SkipOnboarding modifies agent settings to skip onboarding prompts.
-	// It takes the current agent settings map (path -> content), the workspace
+	// It takes the current agent settings map (path -> SettingsFile), the workspace
 	// sources path inside the container, and an optional list of API key values
 	// to pre-approve so the agent does not prompt the user about them.
 	// Returns the modified settings map, or an error if modification fails.
-	SkipOnboarding(settings map[string][]byte, workspaceSourcesPath string, approvedKeys []string) (map[string][]byte, error)
+	SkipOnboarding(settings map[string]SettingsFile, workspaceSourcesPath string, approvedKeys []string) (map[string]SettingsFile, error)
 	// SetModel configures the model ID in the agent settings.
-	// It takes the current agent settings map (path -> content) and the model ID,
+	// It takes the current agent settings map (path -> SettingsFile) and the model ID,
 	// and returns the modified settings with the model configured.
 	// If the agent does not support model configuration, settings are returned unchanged.
 	// Returns the modified settings map, or an error if modification fails.
-	SetModel(settings map[string][]byte, modelID string) (map[string][]byte, error)
+	SetModel(settings map[string]SettingsFile, modelID string) (map[string]SettingsFile, error)
 	// SkillsDir returns the container path (using $HOME variable) under which skill
 	// directories should be mounted (e.g., "$HOME/.claude/skills" for Claude Code).
 	// Returns "" if the agent does not support skills mounting.
 	SkillsDir() string
 	// SetMCPServers configures MCP servers in the agent settings.
-	// It takes the current agent settings map (path -> content) and the MCP configuration,
+	// It takes the current agent settings map (path -> SettingsFile) and the MCP configuration,
 	// and returns the modified settings with MCP servers configured.
 	// If the agent does not support MCP configuration, settings are returned unchanged.
 	// If mcp is nil, settings are returned unchanged.
 	// Returns the modified settings map, or an error if modification fails.
-	SetMCPServers(settings map[string][]byte, mcp *workspace.McpConfiguration) (map[string][]byte, error)
+	SetMCPServers(settings map[string]SettingsFile, mcp *workspace.McpConfiguration) (map[string]SettingsFile, error)
 }

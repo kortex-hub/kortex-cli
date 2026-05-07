@@ -54,13 +54,11 @@ func (g *gooseAgent) Name() string {
 // It sets GOOSE_TELEMETRY_ENABLED to false in the goose config file if the
 // value is not already defined. If the user has already set it in their own
 // config file, the existing value is preserved.
-func (g *gooseAgent) SkipOnboarding(settings map[string][]byte, _ string, _ []string) (map[string][]byte, error) {
-	if settings == nil {
-		settings = make(map[string][]byte)
-	}
+func (g *gooseAgent) SkipOnboarding(settings map[string]SettingsFile, _ string, _ []string) (map[string]SettingsFile, error) {
+	settings = EnsureSettings(settings)
 
 	var config map[string]interface{}
-	if content, exists := settings[GooseConfigPath]; exists {
+	if content := GetContent(settings, GooseConfigPath, nil); content != nil {
 		if err := yaml.Unmarshal(content, &config); err != nil {
 			return nil, fmt.Errorf("failed to parse existing %s: %w", GooseConfigPath, err)
 		}
@@ -79,7 +77,7 @@ func (g *gooseAgent) SkipOnboarding(settings map[string][]byte, _ string, _ []st
 		return nil, fmt.Errorf("failed to marshal modified %s: %w", GooseConfigPath, err)
 	}
 
-	settings[GooseConfigPath] = modifiedContent
+	settings = SetContent(settings, GooseConfigPath, modifiedContent)
 	return settings, nil
 }
 
@@ -90,20 +88,18 @@ func (g *gooseAgent) SkillsDir() string {
 
 // SetMCPServers returns the settings unchanged, as Goose does not support MCP configuration
 // through agent settings files.
-func (g *gooseAgent) SetMCPServers(settings map[string][]byte, _ *workspace.McpConfiguration) (map[string][]byte, error) {
+func (g *gooseAgent) SetMCPServers(settings map[string]SettingsFile, _ *workspace.McpConfiguration) (map[string]SettingsFile, error) {
 	return settings, nil
 }
 
 // SetModel configures the model ID in Goose settings.
 // It sets the GOOSE_MODEL key in the config file.
 // All other fields in the settings file are preserved.
-func (g *gooseAgent) SetModel(settings map[string][]byte, modelID string) (map[string][]byte, error) {
-	if settings == nil {
-		settings = make(map[string][]byte)
-	}
+func (g *gooseAgent) SetModel(settings map[string]SettingsFile, modelID string) (map[string]SettingsFile, error) {
+	settings = EnsureSettings(settings)
 
 	var config map[string]interface{}
-	if content, exists := settings[GooseConfigPath]; exists {
+	if content := GetContent(settings, GooseConfigPath, nil); content != nil {
 		if err := yaml.Unmarshal(content, &config); err != nil {
 			return nil, fmt.Errorf("failed to parse existing %s: %w", GooseConfigPath, err)
 		}
@@ -120,6 +116,6 @@ func (g *gooseAgent) SetModel(settings map[string][]byte, modelID string) (map[s
 		return nil, fmt.Errorf("failed to marshal modified %s: %w", GooseConfigPath, err)
 	}
 
-	settings[GooseConfigPath] = modifiedContent
+	settings = SetContent(settings, GooseConfigPath, modifiedContent)
 	return settings, nil
 }

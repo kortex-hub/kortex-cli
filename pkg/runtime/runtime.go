@@ -22,6 +22,7 @@ import (
 
 	api "github.com/openkaiden/kdn-api/cli/go"
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	"github.com/openkaiden/kdn/pkg/agent"
 	"github.com/openkaiden/kdn/pkg/credential"
 	"github.com/openkaiden/kdn/pkg/onecli"
 	"github.com/openkaiden/kdn/pkg/secretservice"
@@ -80,9 +81,10 @@ type CreateParams struct {
 
 	// AgentSettings contains the agent settings files to embed into the agent user's
 	// home directory in the workspace image. Keys are relative file paths using
-	// forward slashes (e.g., ".claude/settings.json"), values are file contents.
+	// forward slashes (e.g., ".claude/settings.json"), values are SettingsFile
+	// structs containing content and permission metadata.
 	// This map can be nil or empty if no default settings are configured.
-	AgentSettings map[string][]byte
+	AgentSettings map[string]agent.SettingsFile
 
 	// OnecliSecrets contains pre-mapped OneCLI secret definitions to provision
 	// when the workspace is first started. These are created by the manager from

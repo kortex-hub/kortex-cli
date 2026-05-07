@@ -69,7 +69,7 @@ The `Add()` method:
 3. Loads project config (global `""` + project-specific merged)
 4. Loads agent config (if agent name provided)
 5. Merges configs: workspace → global → project → agent
-6. Reads agent settings files from `<storage-dir>/config/<agent>/` into `map[string][]byte`
+6. Reads agent settings files from `<storage-dir>/config/<agent>/` into `map[string]agent.SettingsFile`
 7. Calls agent's `SkipOnboarding()` method if agent is registered (e.g., Claude agent automatically sets onboarding flags)
 8. Calls agent's `SetModel()` method if model is specified (takes precedence over model in settings files)
 9. Calls agent's `SetMCPServers()` method if the merged config contains MCP servers (writes them into agent settings)

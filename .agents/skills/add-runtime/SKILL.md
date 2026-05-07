@@ -115,7 +115,7 @@ func (r *<runtime-name>Runtime) Create(ctx context.Context, params runtime.Creat
     }
 
     // Step 3: Copy agent default settings files into the workspace home directory.
-    // params.AgentSettings is a map[string][]byte (relative forward-slash path → content)
+    // params.AgentSettings is a map[string]agent.SettingsFile (relative forward-slash path → settings file)
     // populated from <storage-dir>/config/<agent>/ by the instances manager.
     // The manager automatically modifies these settings via agent.SkipOnboarding() if the
     // agent is registered (e.g., Claude agent adds hasCompletedOnboarding and trust flags).

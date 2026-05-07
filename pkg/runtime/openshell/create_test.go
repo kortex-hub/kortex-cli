@@ -25,6 +25,7 @@ import (
 
 	api "github.com/openkaiden/kdn-api/cli/go"
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	"github.com/openkaiden/kdn/pkg/agent"
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/runtime/openshell/exec"
 )
@@ -246,8 +247,8 @@ func TestUploadAgentSettings_UsesSandboxUpload(t *testing.T) {
 	fakeExec := exec.NewFake()
 	rt := newWithDeps(fakeExec, "/fake/openshell-gateway", t.TempDir())
 
-	settings := map[string][]byte{
-		".claude.json": []byte("{\n  \"key\": \"value\"\n}\n"),
+	settings := map[string]agent.SettingsFile{
+		".claude.json": agent.SettingsFile{Content: []byte("{\n  \"key\": \"value\"\n}\n")},
 	}
 
 	err := rt.uploadAgentSettings(context.Background(), "kdn-test", settings)
@@ -424,8 +425,8 @@ func TestCreate_FullFlow_WithAgentSettings(t *testing.T) {
 		Name:       "with-settings",
 		SourcePath: t.TempDir(),
 		Agent:      "claude",
-		AgentSettings: map[string][]byte{
-			".claude.json": []byte(`{"key": "value"}`),
+		AgentSettings: map[string]agent.SettingsFile{
+			".claude.json": agent.SettingsFile{Content: []byte(`{"key": "value"}`)},
 		},
 	}
 
@@ -633,9 +634,9 @@ func TestUploadAgentSettings_MultipleFiles(t *testing.T) {
 	fakeExec := exec.NewFake()
 	rt := newWithDeps(fakeExec, "/fake/openshell-gateway", t.TempDir())
 
-	settings := map[string][]byte{
-		".claude.json":    []byte(`{"key": "value"}`),
-		"subdir/file.txt": []byte("nested file"),
+	settings := map[string]agent.SettingsFile{
+		".claude.json":    agent.SettingsFile{Content: []byte(`{"key": "value"}`)},
+		"subdir/file.txt": agent.SettingsFile{Content: []byte("nested file")},
 	}
 
 	err := rt.uploadAgentSettings(context.Background(), "kdn-test", settings)
@@ -672,8 +673,8 @@ func TestUploadAgentSettings_Error(t *testing.T) {
 	}
 	rt := newWithDeps(fakeExec, "/fake/openshell-gateway", t.TempDir())
 
-	settings := map[string][]byte{
-		".claude.json": []byte(`{}`),
+	settings := map[string]agent.SettingsFile{
+		".claude.json": agent.SettingsFile{Content: []byte(`{}`)},
 	}
 
 	err := rt.uploadAgentSettings(context.Background(), "kdn-test", settings)
@@ -784,8 +785,8 @@ func TestCreate_FullFlow_AgentSettingsUploadError(t *testing.T) {
 		Name:       "settings-fail",
 		SourcePath: t.TempDir(),
 		Agent:      "claude",
-		AgentSettings: map[string][]byte{
-			".config": []byte("data"),
+		AgentSettings: map[string]agent.SettingsFile{
+			".config": agent.SettingsFile{Content: []byte("data")},
 		},
 	}
 

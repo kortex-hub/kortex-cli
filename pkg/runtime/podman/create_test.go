@@ -30,6 +30,7 @@ import (
 
 	api "github.com/openkaiden/kdn-api/cli/go"
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	"github.com/openkaiden/kdn/pkg/agent"
 	"github.com/openkaiden/kdn/pkg/credential"
 	"github.com/openkaiden/kdn/pkg/onecli"
 	"github.com/openkaiden/kdn/pkg/runtime"
@@ -312,9 +313,9 @@ func TestCreateContainerfile(t *testing.T) {
 			RunCommands:     []string{},
 			TerminalCommand: []string{"claude"},
 		}
-		settings := map[string][]byte{
-			".claude/settings.json": []byte(`{"theme":"dark"}`),
-			".gitconfig":            []byte("[user]\n\tname = Agent\n"),
+		settings := map[string]agent.SettingsFile{
+			".claude/settings.json": {Content: []byte(`{"theme":"dark"}`)},
+			".gitconfig":            {Content: []byte("[user]\n\tname = Agent\n")},
 		}
 
 		err := p.createContainerfile(instanceDir, imageConfig, agentConfig, settings, nil)

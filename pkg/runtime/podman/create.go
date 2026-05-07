@@ -27,6 +27,7 @@ import (
 
 	api "github.com/openkaiden/kdn-api/cli/go"
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
+	"github.com/openkaiden/kdn/pkg/agent"
 	"github.com/openkaiden/kdn/pkg/credential"
 	"github.com/openkaiden/kdn/pkg/devcontainers/features"
 	"github.com/openkaiden/kdn/pkg/logger"
@@ -88,7 +89,7 @@ func (p *podmanRuntime) createInstanceDirectory(name string) (string, error) {
 // so they can be embedded in the image via a COPY instruction.
 // If featureInfos is non-empty, the features have already been downloaded to instanceDir/features/
 // and the Containerfile will include instructions to install them.
-func (p *podmanRuntime) createContainerfile(instanceDir string, imageConfig *config.ImageConfig, agentConfig *config.AgentConfig, settings map[string][]byte, featureInfos []featureInstallInfo) error {
+func (p *podmanRuntime) createContainerfile(instanceDir string, imageConfig *config.ImageConfig, agentConfig *config.AgentConfig, settings map[string]agent.SettingsFile, featureInfos []featureInstallInfo) error {
 	// Generate sudoers content
 	sudoersContent := generateSudoers(imageConfig.Sudo)
 	sudoersPath := filepath.Join(instanceDir, "sudoers")
@@ -102,12 +103,16 @@ func (p *podmanRuntime) createContainerfile(instanceDir string, imageConfig *con
 		if err := os.MkdirAll(settingsDir, 0755); err != nil {
 			return fmt.Errorf("failed to create agent settings dir: %w", err)
 		}
-		for relPath, content := range settings {
+		for relPath, sf := range settings {
 			destPath := filepath.Join(settingsDir, filepath.FromSlash(relPath))
 			if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
 				return fmt.Errorf("failed to create directory for %s: %w", relPath, err)
 			}
-			if err := os.WriteFile(destPath, content, 0600); err != nil {
+			perm := os.FileMode(0600)
+			if sf.Executable {
+				perm = 0755
+			}
+			if err := os.WriteFile(destPath, sf.Content, perm); err != nil {
 				return fmt.Errorf("failed to write agent settings file %s: %w", relPath, err)
 			}
 		}
