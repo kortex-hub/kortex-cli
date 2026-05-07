@@ -129,6 +129,12 @@ var nativeProviders = map[string]bool{
 	"google":    true,
 }
 
+// vertexAIProviders lists providers that use Vertex AI native SDK in OpenCode.
+// These always need a provider block with empty model entries but no npm or name fields.
+var vertexAIProviders = map[string]bool{
+	"google-vertex-anthropic": true,
+}
+
 // configureProvider adds a provider block with the given base URL and registers the model.
 func configureProvider(config map[string]interface{}, provider, modelName, baseURL string) error {
 	providers, _ := config["provider"].(map[string]interface{})
@@ -139,10 +145,9 @@ func configureProvider(config map[string]interface{}, provider, modelName, baseU
 
 	providerEntry, _ := providers[provider].(map[string]interface{})
 	if providerEntry == nil {
-		providerEntry = map[string]interface{}{
-			"name": provider,
-		}
-		if !nativeProviders[provider] {
+		providerEntry = make(map[string]interface{})
+		if !nativeProviders[provider] && !vertexAIProviders[provider] {
+			providerEntry["name"] = provider
 			providerEntry["npm"] = "@ai-sdk/openai-compatible"
 		}
 	}
@@ -161,9 +166,13 @@ func configureProvider(config map[string]interface{}, provider, modelName, baseU
 		models = make(map[string]interface{})
 	}
 	if _, exists := models[modelName]; !exists {
-		models[modelName] = map[string]interface{}{
-			"_launch": true,
-			"name":    modelName,
+		if vertexAIProviders[provider] {
+			models[modelName] = map[string]interface{}{}
+		} else {
+			models[modelName] = map[string]interface{}{
+				"_launch": true,
+				"name":    modelName,
+			}
 		}
 	}
 	providerEntry["models"] = models
@@ -181,5 +190,6 @@ var defaultProviderBaseURLs = map[string]string{
 // names expected by OpenCode. For example, "gemini" maps to "google" because
 // OpenCode uses the "@ai-sdk/google" package under the "google" key.
 var providerAliases = map[string]string{
-	"gemini": "google",
+	"gemini":   "google",
+	"vertexai": "google-vertex-anthropic",
 }
