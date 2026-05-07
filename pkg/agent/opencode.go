@@ -124,7 +124,6 @@ func (o *openCodeAgent) SetMCPServers(settings map[string]SettingsFile, _ *works
 // These do not need the "npm": "@ai-sdk/openai-compatible" field.
 var nativeProviders = map[string]bool{
 	"anthropic": true,
-	"openai":    true,
 	"mistral":   true,
 	"google":    true,
 }
