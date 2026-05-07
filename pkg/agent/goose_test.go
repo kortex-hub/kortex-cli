@@ -397,30 +397,6 @@ func TestGoose_SetModel_EmptyProviderDefaultsToOpenAI(t *testing.T) {
 	}
 }
 
-func TestGoose_SetModel_ClaudeProviderMapsToAnthropic(t *testing.T) {
-	t.Parallel()
-
-	agent := NewGoose()
-
-	result, err := agent.SetModel(make(map[string]SettingsFile), "claude::claude-sonnet-4-6")
-	if err != nil {
-		t.Fatalf("SetModel() error = %v", err)
-	}
-
-	var config map[string]interface{}
-	if err := yaml.Unmarshal(result[GooseConfigPath].Content, &config); err != nil {
-		t.Fatalf("Failed to parse result YAML: %v", err)
-	}
-
-	if model, ok := config[gooseModelKey].(string); !ok || model != "claude-sonnet-4-6" {
-		t.Errorf("%s = %v, want %q", gooseModelKey, config[gooseModelKey], "claude-sonnet-4-6")
-	}
-
-	if provider, ok := config[gooseProviderKey].(string); !ok || provider != "anthropic" {
-		t.Errorf("%s = %v, want %q", gooseProviderKey, config[gooseProviderKey], "anthropic")
-	}
-}
-
 func TestGoose_SetModel_GeminiProviderMapsToGoogle(t *testing.T) {
 	t.Parallel()
 

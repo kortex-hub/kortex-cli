@@ -38,10 +38,7 @@ const (
 
 // gooseProviderMapping translates kdn provider IDs to the names Goose expects.
 var gooseProviderMapping = map[string]string{
-	"openai":  "openai",
-	"claude":  "anthropic",
-	"gemini":  "google",
-	"mistral": "mistral",
+	"gemini": "google",
 }
 
 // gooseAgent is the implementation of Agent for Goose.
