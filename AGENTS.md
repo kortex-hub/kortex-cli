@@ -174,6 +174,7 @@ The runtime system provides a pluggable architecture for managing workspaces on 
 - **Terminal**: Enables interactive terminal sessions with instances (auto-starts if needed)
 - **Dashboard**: Enables runtimes to expose a web dashboard URL (`GetURL(ctx, instanceID) (string, error)`)
 - **FlagProvider**: Enables runtimes to declare runtime-specific CLI flags (`Flags() []FlagDef`). Flag values flow through `AddOptions.RuntimeOptions` and `CreateParams.RuntimeOptions` as `map[string]string`, keeping the command layer runtime-agnostic. The `runtimesetup.ListFlags()` bridge discovers flags from all available runtimes for registration on cobra commands.
+- **Experimental**: Signals that a runtime's support is experimental. The `init` command detects this interface via `manager.GetRuntime()` and prints `⚠️  <name> runtime support is experimental` to stderr (suppressed in JSON output mode). No return value — presence of the interface is the signal.
 
 **For detailed runtime implementation guidance, use:** `/working-with-runtime-system`
 
@@ -442,6 +443,9 @@ manager.GetDashboardURL(ctx, id)
 
 // Interactive terminal
 manager.Terminal(ctx, id, []string{"bash"})
+
+// Retrieve a registered runtime by type (e.g. to check optional interfaces like Experimental)
+manager.GetRuntime(runtimeType)
 ```
 
 **Workspace Name Sanitization:** The manager automatically sanitizes workspace names — whether auto-generated from the source directory basename or provided via `--name`. Names are lowercased and any run of invalid characters (spaces, `@`, etc.) is collapsed into a single hyphen. This ensures compatibility with runtimes like Podman that require lowercase image names.

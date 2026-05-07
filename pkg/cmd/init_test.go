@@ -20,6 +20,7 @@ package cmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -31,6 +32,7 @@ import (
 	"github.com/openkaiden/kdn/pkg/cmd/testutil"
 	"github.com/openkaiden/kdn/pkg/instances"
 	"github.com/openkaiden/kdn/pkg/runtime"
+	"github.com/openkaiden/kdn/pkg/runtime/fake"
 	"github.com/openkaiden/kdn/pkg/runtimesetup"
 	"github.com/spf13/cobra"
 )
@@ -2535,6 +2537,131 @@ func TestInitCmd_Examples(t *testing.T) {
 	if err != nil {
 		t.Errorf("Example validation failed: %v", err)
 	}
+}
+
+func TestInitCmd_ExperimentalWarning(t *testing.T) {
+	t.Parallel()
+
+	t.Run("displays warning to stderr when runtime is experimental", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+		if err := manager.RegisterRuntime(fake.NewWithExperimental()); err != nil {
+			t.Fatalf("Failed to register experimental runtime: %v", err)
+		}
+
+		c := &initCmd{
+			runtime:        "fake",
+			agent:          "test-agent",
+			absSourcesDir:  sourcesDir,
+			absConfigDir:   filepath.Join(sourcesDir, ".kaiden"),
+			manager:        manager,
+			runtimeOptions: map[string]string{},
+		}
+
+		cmd := &cobra.Command{}
+		cmd.SetContext(context.Background())
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+		cmd.SetOut(stdout)
+		cmd.SetErr(stderr)
+
+		if err := c.run(cmd, nil); err != nil {
+			t.Fatalf("run() failed: %v", err)
+		}
+
+		stderrStr := stderr.String()
+		if !strings.Contains(stderrStr, "fake runtime support is experimental") {
+			t.Errorf("Expected experimental warning in stderr, got: %q", stderrStr)
+		}
+	})
+
+	t.Run("no warning when runtime is not experimental", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		c := &initCmd{
+			runtime:        "fake",
+			agent:          "test-agent",
+			absSourcesDir:  sourcesDir,
+			absConfigDir:   filepath.Join(sourcesDir, ".kaiden"),
+			manager:        manager,
+			runtimeOptions: map[string]string{},
+		}
+
+		cmd := &cobra.Command{}
+		cmd.SetContext(context.Background())
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+		cmd.SetOut(stdout)
+		cmd.SetErr(stderr)
+
+		if err := c.run(cmd, nil); err != nil {
+			t.Fatalf("run() failed: %v", err)
+		}
+
+		stderrStr := stderr.String()
+		if strings.Contains(stderrStr, "experimental") {
+			t.Errorf("Expected no experimental warning in stderr, got: %q", stderrStr)
+		}
+	})
+
+	t.Run("no warning in JSON output mode even when runtime is experimental", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+		if err := manager.RegisterRuntime(fake.NewWithExperimental()); err != nil {
+			t.Fatalf("Failed to register experimental runtime: %v", err)
+		}
+
+		c := &initCmd{
+			runtime:        "fake",
+			agent:          "test-agent",
+			absSourcesDir:  sourcesDir,
+			absConfigDir:   filepath.Join(sourcesDir, ".kaiden"),
+			manager:        manager,
+			output:         "json",
+			runtimeOptions: map[string]string{},
+		}
+
+		cmd := &cobra.Command{}
+		cmd.SetContext(context.Background())
+		stdout := new(bytes.Buffer)
+		stderr := new(bytes.Buffer)
+		cmd.SetOut(stdout)
+		cmd.SetErr(stderr)
+
+		if err := c.run(cmd, nil); err != nil {
+			t.Fatalf("run() failed: %v", err)
+		}
+
+		stderrStr := stderr.String()
+		if strings.Contains(stderrStr, "experimental") {
+			t.Errorf("Expected no experimental warning in JSON mode, got: %q", stderrStr)
+		}
+	})
 }
 
 func TestRegisterRuntimeFlags(t *testing.T) {

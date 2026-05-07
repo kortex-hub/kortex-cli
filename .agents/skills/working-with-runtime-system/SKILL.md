@@ -224,6 +224,32 @@ return errors.New("runtime does not support terminal sessions")
 
 This pattern allows runtimes to provide additional capabilities without requiring all runtimes to implement every possible feature.
 
+### Experimental Interface
+
+The `Experimental` interface marks a runtime's support as experimental. Its presence alone is the signal — the method carries no return value and callers never invoke it directly.
+
+```go
+type Experimental interface {
+    IsExperimental()
+}
+```
+
+When the `init` command runs, it calls `manager.GetRuntime(runtimeType)` and checks for this interface. If present, it prints a warning to stderr before creating the workspace:
+
+```text
+⚠️  <name> runtime support is experimental
+```
+
+The warning is suppressed in JSON output mode (`--output json`).
+
+**Example implementation:**
+
+```go
+func (r *myRuntime) IsExperimental() {}
+```
+
+Add this method to a runtime when its implementation is not yet stable enough for production use.
+
 ## State Validation
 
 All runtimes must return valid WorkspaceState values in `RuntimeInfo.State`. The instances manager enforces validation at the boundary using a **fail-fast approach**.
