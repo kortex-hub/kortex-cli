@@ -493,6 +493,49 @@ func TestOpenCode_SetModel(t *testing.T) {
 		}
 	})
 
+	t.Run("vertexai provider is mapped to google-vertex-anthropic", func(t *testing.T) {
+		t.Parallel()
+
+		agent := NewOpenCode()
+		settings := make(map[string]SettingsFile)
+
+		result, err := agent.SetModel(settings, "vertexai::claude-sonnet-4-5")
+		if err != nil {
+			t.Fatalf("SetModel() error = %v", err)
+		}
+
+		var config map[string]interface{}
+		if err := json.Unmarshal(result[OpenCodeConfigPath].Content, &config); err != nil {
+			t.Fatalf("Failed to parse result JSON: %v", err)
+		}
+
+		if config["model"] != "google-vertex-anthropic/claude-sonnet-4-5" {
+			t.Errorf("model = %v, want %q", config["model"], "google-vertex-anthropic/claude-sonnet-4-5")
+		}
+
+		providers := config["provider"].(map[string]interface{})
+		vertexProvider, ok := providers["google-vertex-anthropic"].(map[string]interface{})
+		if !ok {
+			t.Fatal("Expected google-vertex-anthropic provider block")
+		}
+
+		if _, hasName := vertexProvider["name"]; hasName {
+			t.Error("google-vertex-anthropic provider should not have name field")
+		}
+		if _, hasNpm := vertexProvider["npm"]; hasNpm {
+			t.Error("google-vertex-anthropic provider should not have npm field")
+		}
+
+		models := vertexProvider["models"].(map[string]interface{})
+		modelEntry, ok := models["claude-sonnet-4-5"].(map[string]interface{})
+		if !ok {
+			t.Fatal("Expected claude-sonnet-4-5 model entry")
+		}
+		if len(modelEntry) != 0 {
+			t.Errorf("google-vertex-anthropic model entry should be empty, got %v", modelEntry)
+		}
+	})
+
 	t.Run("plain model ID without provider", func(t *testing.T) {
 		t.Parallel()
 
