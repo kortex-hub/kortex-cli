@@ -406,7 +406,10 @@ func buildNftScript(agentUID int, hostGW string) string {
 	// Ensure nftables is installed before applying rules.
 	parts = append(parts, "command -v nft >/dev/null 2>&1 || dnf install -y nftables >/dev/null 2>&1")
 
-	// IPv4 rules — default accept, block agent UID (except loopback + host gateway)
+	// IPv4 rules — default accept, block agent UID (except loopback + host gateway).
+	// The established/related rule allows response packets for inbound connections
+	// (e.g. port-forwarded requests via gvproxy on macOS) while still blocking the
+	// agent from initiating new outbound connections.
 	parts = append(parts,
 		"nft delete table ip filter 2>/dev/null || true",
 		"nft add table ip filter",
@@ -416,7 +419,10 @@ func buildNftScript(agentUID int, hostGW string) string {
 	if hostGW != "" {
 		parts = append(parts, fmt.Sprintf("nft add rule ip filter output ip daddr %s accept", hostGW))
 	}
-	parts = append(parts, fmt.Sprintf("nft add rule ip filter output meta skuid %d drop", agentUID))
+	parts = append(parts,
+		"nft add rule ip filter output ct state established,related accept",
+		fmt.Sprintf("nft add rule ip filter output meta skuid %d drop", agentUID),
+	)
 
 	// IPv6 rules — mirror
 	parts = append(parts,
@@ -424,6 +430,7 @@ func buildNftScript(agentUID int, hostGW string) string {
 		"nft add table ip6 filter",
 		"nft add chain ip6 filter output '{ type filter hook output priority 0; policy accept; }'",
 		"nft add rule ip6 filter output oif lo accept",
+		"nft add rule ip6 filter output ct state established,related accept",
 		fmt.Sprintf("nft add rule ip6 filter output meta skuid %d drop", agentUID),
 	)
 
