@@ -368,29 +368,32 @@ func (p *podmanRuntime) resolveWSLHostIP(ctx context.Context) string {
 	return ""
 }
 
-// injectWSLHostEntry adds or updates a host.containers.internal entry in
-// /etc/hosts inside the workspace container, mapping it to the Windows
-// host IP read from the podman machine's /etc/resolv.conf via SSH.
-// Filters out any existing entry before appending so repeated Start()
-// calls don't accumulate stale lines.
+// injectHostEntry adds or replaces an /etc/hosts entry inside the given
+// container, mapping hostname to ip. Existing lines for the hostname are
+// removed first so repeated Start() calls don't accumulate stale entries.
+func (p *podmanRuntime) injectHostEntry(ctx context.Context, containerID, hostname, ip string) error {
+	escaped := strings.ReplaceAll(hostname, ".", "\\.")
+	cmd := fmt.Sprintf(
+		"grep -v '%s' /etc/hosts > /tmp/hosts.tmp && cp /tmp/hosts.tmp /etc/hosts && rm /tmp/hosts.tmp && echo '%s %s' >> /etc/hosts",
+		escaped, ip, hostname,
+	)
+	if err := p.executor.Run(ctx, io.Discard, io.Discard,
+		"exec", "--user", "root", containerID, "sh", "-c", cmd,
+	); err != nil {
+		return fmt.Errorf("failed to inject %s entry: %w", hostname, err)
+	}
+	return nil
+}
+
+// injectWSLHostEntry adds a native-host.internal entry to /etc/hosts inside
+// the given container, mapping it to the Windows gateway IP so that host-native
+// services (e.g. Ollama) are reachable.
 func (p *podmanRuntime) injectWSLHostEntry(ctx context.Context, containerID string) error {
 	hostIP := p.resolveWSLHostIP(ctx)
 	if hostIP == "" {
 		return fmt.Errorf("failed to resolve Windows host IP from podman machine")
 	}
-
-	// /etc/hosts is a mount in containers — sed -i fails because it tries to
-	// rename a temp file over the mount. Use grep + tee to modify in-place.
-	cmd := fmt.Sprintf(
-		"grep -v 'host\\.containers\\.internal' /etc/hosts > /tmp/hosts.tmp && cp /tmp/hosts.tmp /etc/hosts && rm /tmp/hosts.tmp && echo '%s host.containers.internal' >> /etc/hosts",
-		hostIP,
-	)
-	if err := p.executor.Run(ctx, io.Discard, io.Discard,
-		"exec", "--user", "root", containerID, "sh", "-c", cmd,
-	); err != nil {
-		return fmt.Errorf("failed to update /etc/hosts entry: %w", err)
-	}
-	return nil
+	return p.injectHostEntry(ctx, containerID, "native-host.internal", hostIP)
 }
 
 // buildNftScript generates the shell script that sets up nftables OUTPUT rules.

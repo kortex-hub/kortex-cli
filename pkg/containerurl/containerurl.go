@@ -23,8 +23,13 @@ import (
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 )
 
-// ContainerHost is the hostname used to reach the host machine from inside a container.
+// ContainerHost is the hostname used to reach the podman VM from inside a container.
 const ContainerHost = "host.containers.internal"
+
+// NativeHost is the hostname injected into /etc/hosts to reach the native
+// host machine (e.g. the Windows host on WSL2). On non-WSL2 platforms this
+// is not injected — URLs fall back to ContainerHost.
+const NativeHost = "native-host.internal"
 
 // localhostAliases lists hostnames and IPs that refer to the local machine.
 var localhostAliases = []string{"localhost", "127.0.0.1", "0.0.0.0", "::1", "[::1]"}
