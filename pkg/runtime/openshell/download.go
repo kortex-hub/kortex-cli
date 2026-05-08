@@ -29,7 +29,7 @@ import (
 const (
 	openshellGatewayRelease  = "dev"
 	openshellRelease         = "dev"
-	openshellDriverVMRelease = "vm-dev"
+	openshellDriverVMRelease = "dev"
 	githubRepo               = "NVIDIA/OpenShell"
 )
 

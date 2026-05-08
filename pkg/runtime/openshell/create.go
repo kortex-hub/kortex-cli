@@ -190,7 +190,7 @@ func (r *openshellRuntime) createSandbox(ctx context.Context, name string, agent
 	for _, p := range providers {
 		args = append(args, "--provider", p)
 	}
-	args = append(args, "--no-tty", "--no-bootstrap", "--", "true")
+	args = append(args, "--no-tty", "--", "true")
 	err := r.executor.Run(ctx, l.Stdout(), l.Stderr(), args...)
 	if err == nil {
 		return nil
