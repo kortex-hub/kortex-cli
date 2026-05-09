@@ -30,7 +30,7 @@ func (r *openshellRuntime) Info(ctx context.Context, id string) (runtime.Runtime
 		return runtime.RuntimeInfo{}, fmt.Errorf("%w: sandbox ID is required", runtime.ErrInvalidParams)
 	}
 
-	if err := r.ensureBinaries(); err != nil {
+	if err := r.ensureBinaries(ctx); err != nil {
 		return runtime.RuntimeInfo{}, err
 	}
 

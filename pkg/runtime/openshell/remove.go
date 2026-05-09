@@ -33,7 +33,7 @@ func (r *openshellRuntime) Remove(ctx context.Context, id string) error {
 		return fmt.Errorf("%w: sandbox ID is required", runtime.ErrInvalidParams)
 	}
 
-	if err := r.ensureBinaries(); err != nil {
+	if err := r.ensureBinaries(ctx); err != nil {
 		return err
 	}
 

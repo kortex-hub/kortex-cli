@@ -180,6 +180,16 @@ The runtime system provides a pluggable architecture for managing workspaces on 
 
 **To add a new runtime, use:** `/add-runtime`
 
+### OpenShell Runtime — Version Management
+
+The OpenShell runtime downloads three binaries (`openshell`, `openshell-gateway`, `openshell-driver-vm`) from official GitHub releases at `https://github.com/NVIDIA/OpenShell/releases`.
+
+**Default version constant:** `pkg/runtime/openshell/version.go` defines `DefaultVersion` (currently `v0.0.37`). To bump the default, edit this single constant.
+
+**`--openshell-version` flag:** Users can override the version at `kdn init` time (e.g., `kdn init --openshell-version v0.1.0`). The flag value flows through `RuntimeOptions["openshell-version"]` and is read in `Create()` before binaries are downloaded.
+
+**Binary caching:** Binaries are cached per version at `<storageDir>/bin/<version>/`. Different versions coexist without conflict.
+
 ### Podman Runtime — Deny-mode Networking
 
 When a workspace has `network.mode = deny`, the Podman runtime enforces outbound traffic filtering on every `Start()` using two layers. Allowed hosts come from `network.hosts` and are automatically augmented by host patterns derived from configured secrets. With no allowed hosts at all, the approval-handler denies every request (fully-isolated workspace).

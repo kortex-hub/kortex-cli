@@ -117,7 +117,7 @@ func (r *openshellRuntime) hasActiveSandboxes(ctx context.Context) bool {
 func (r *openshellRuntime) ensureGatewayRunning(ctx context.Context) error {
 	// Download binaries on first use (deferred from Initialize to avoid
 	// network calls during runtime registration).
-	if err := r.ensureBinaries(); err != nil {
+	if err := r.ensureBinaries(ctx); err != nil {
 		return err
 	}
 

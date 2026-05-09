@@ -27,10 +27,7 @@ import (
 )
 
 const (
-	openshellGatewayRelease  = "dev"
-	openshellRelease         = "dev"
-	openshellDriverVMRelease = "vm-dev"
-	githubRepo               = "NVIDIA/OpenShell"
+	githubRepo = "NVIDIA/OpenShell"
 )
 
 // platformAsset returns the asset name for the current platform.

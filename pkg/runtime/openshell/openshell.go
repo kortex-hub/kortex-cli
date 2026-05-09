@@ -16,6 +16,7 @@
 package openshell
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -24,6 +25,7 @@ import (
 	"github.com/openkaiden/kdn/pkg/runtime/openshell/exec"
 	"github.com/openkaiden/kdn/pkg/secret"
 	"github.com/openkaiden/kdn/pkg/secretservice"
+	"github.com/openkaiden/kdn/pkg/steplogger"
 )
 
 const (
@@ -44,6 +46,7 @@ type openshellRuntime struct {
 	binariesErr           error
 	secretStore           secret.Store
 	secretServiceRegistry secretservice.Registry
+	version               string
 }
 
 // Ensure openshellRuntime implements runtime.Runtime at compile time.
@@ -100,6 +103,10 @@ func (r *openshellRuntime) Flags() []runtime.FlagDef {
 			Usage:       "OpenShell driver to use (podman, vm)",
 			Completions: []string{"podman", "vm"},
 		},
+		{
+			Name:  "openshell-version",
+			Usage: fmt.Sprintf("OpenShell version tag to download (default: %s)", DefaultVersion),
+		},
 	}
 }
 
@@ -128,30 +135,41 @@ func (r *openshellRuntime) Initialize(storageDir string) error {
 // openshell-driver-vm binaries if they are not already present.
 // It is safe to call from multiple entry points — the download
 // runs at most once per runtime instance.
-func (r *openshellRuntime) ensureBinaries() error {
+func (r *openshellRuntime) ensureBinaries(ctx context.Context) error {
 	r.binariesOnce.Do(func() {
-		r.binariesErr = r.downloadBinaries()
+		r.binariesErr = r.downloadBinaries(ctx)
 	})
 	return r.binariesErr
 }
 
-func (r *openshellRuntime) downloadBinaries() error {
-	binDir := filepath.Join(r.storageDir, "bin")
+func (r *openshellRuntime) resolveVersion() string {
+	if r.version != "" {
+		return r.version
+	}
+	return DefaultVersion
+}
 
-	gatewayPath, err := ensureBinary(binDir, "openshell-gateway", openshellGatewayRelease)
+func (r *openshellRuntime) downloadBinaries(ctx context.Context) error {
+	version := r.resolveVersion()
+	binDir := filepath.Join(r.storageDir, "bin", version)
+
+	step := steplogger.FromContext(ctx)
+	step.Start(fmt.Sprintf("Downloading OpenShell %s binaries", version), fmt.Sprintf("OpenShell %s binaries ready", version))
+
+	gatewayPath, err := ensureBinary(binDir, "openshell-gateway", version)
 	if err != nil {
 		return fmt.Errorf("failed to ensure openshell-gateway binary: %w", err)
 	}
 	r.gatewayBinaryPath = gatewayPath
 
-	openshellPath, err := ensureBinary(binDir, "openshell", openshellRelease)
+	openshellPath, err := ensureBinary(binDir, "openshell", version)
 	if err != nil {
 		return fmt.Errorf("failed to ensure openshell binary: %w", err)
 	}
 	r.executor = exec.New(openshellPath)
 
 	if _, assetErr := platformAsset("openshell-driver-vm"); assetErr == nil {
-		vmDriverPath, dlErr := ensureBinary(binDir, "openshell-driver-vm", openshellDriverVMRelease)
+		vmDriverPath, dlErr := ensureBinary(binDir, "openshell-driver-vm", version)
 		if dlErr != nil {
 			return fmt.Errorf("failed to ensure openshell-driver-vm binary: %w", dlErr)
 		}

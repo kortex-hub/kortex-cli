@@ -15,6 +15,7 @@
 package openshell
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -99,8 +100,8 @@ func TestOpenshellRuntime_Flags(t *testing.T) {
 	rt := &openshellRuntime{}
 	flags := rt.Flags()
 
-	if len(flags) != 1 {
-		t.Fatalf("Expected 1 flag, got %d", len(flags))
+	if len(flags) != 2 {
+		t.Fatalf("Expected 2 flags, got %d", len(flags))
 	}
 
 	if flags[0].Name != "openshell-driver" {
@@ -108,6 +109,10 @@ func TestOpenshellRuntime_Flags(t *testing.T) {
 	}
 	if len(flags[0].Completions) != 2 {
 		t.Errorf("Expected 2 completions for openshell-driver, got %d", len(flags[0].Completions))
+	}
+
+	if flags[1].Name != "openshell-version" {
+		t.Errorf("Expected second flag name 'openshell-version', got %q", flags[1].Name)
 	}
 }
 
@@ -183,7 +188,7 @@ func TestOpenshellRuntime_EnsureBinaries_SkipsWhenDepsInjected(t *testing.T) {
 	fakeExec := exec.NewFake()
 	rt := newWithDeps(fakeExec, "/fake/openshell-gateway", t.TempDir())
 
-	err := rt.ensureBinaries()
+	err := rt.ensureBinaries(context.Background())
 	if err != nil {
 		t.Fatalf("ensureBinaries() should be no-op for test deps: %v", err)
 	}
@@ -197,7 +202,7 @@ func TestDownloadBinaries_WithPreExistingBinaries(t *testing.T) {
 	t.Parallel()
 
 	storageDir := t.TempDir()
-	binDir := filepath.Join(storageDir, "bin")
+	binDir := filepath.Join(storageDir, "bin", DefaultVersion)
 	if err := os.MkdirAll(binDir, 0755); err != nil {
 		t.Fatalf("Failed to create bin dir: %v", err)
 	}
@@ -214,7 +219,7 @@ func TestDownloadBinaries_WithPreExistingBinaries(t *testing.T) {
 	}
 
 	rt := &openshellRuntime{storageDir: storageDir}
-	err := rt.downloadBinaries()
+	err := rt.downloadBinaries(context.Background())
 	if err != nil {
 		t.Fatalf("downloadBinaries() with existing binaries: %v", err)
 	}
@@ -231,7 +236,7 @@ func TestEnsureBinaries_RunsOnce(t *testing.T) {
 	t.Parallel()
 
 	storageDir := t.TempDir()
-	binDir := filepath.Join(storageDir, "bin")
+	binDir := filepath.Join(storageDir, "bin", DefaultVersion)
 	if err := os.MkdirAll(binDir, 0755); err != nil {
 		t.Fatalf("Failed to create bin dir: %v", err)
 	}
@@ -250,12 +255,13 @@ func TestEnsureBinaries_RunsOnce(t *testing.T) {
 	rt := &openshellRuntime{storageDir: storageDir}
 
 	// Call ensureBinaries twice — downloadBinaries should only execute once
-	if err := rt.ensureBinaries(); err != nil {
+	ctx := context.Background()
+	if err := rt.ensureBinaries(ctx); err != nil {
 		t.Fatalf("First ensureBinaries() call: %v", err)
 	}
 	firstExecutor := rt.executor
 
-	if err := rt.ensureBinaries(); err != nil {
+	if err := rt.ensureBinaries(ctx); err != nil {
 		t.Fatalf("Second ensureBinaries() call: %v", err)
 	}
 

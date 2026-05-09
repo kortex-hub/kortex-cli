@@ -28,7 +28,7 @@ func (r *openshellRuntime) Terminal(ctx context.Context, instanceID string, _ st
 		return fmt.Errorf("%w: instance ID is required", runtime.ErrInvalidParams)
 	}
 
-	if err := r.ensureBinaries(); err != nil {
+	if err := r.ensureBinaries(ctx); err != nil {
 		return err
 	}
 
