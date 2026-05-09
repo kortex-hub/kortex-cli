@@ -494,9 +494,11 @@ func (f *fakeAutoconfCmdAgentUpdater) AddMount(agentName, host, target string, _
 // fakeAutoconfCmdFailingStore is a secret.Store whose Create always returns an error.
 type fakeAutoconfCmdFailingStore struct{}
 
-func (fakeAutoconfCmdFailingStore) Create(_ secret.CreateParams) error { return errors.New("store error") }
-func (fakeAutoconfCmdFailingStore) List() ([]secret.ListItem, error)   { return nil, nil }
-func (fakeAutoconfCmdFailingStore) Remove(_ string) error              { return nil }
+func (fakeAutoconfCmdFailingStore) Create(_ secret.CreateParams) error {
+	return errors.New("store error")
+}
+func (fakeAutoconfCmdFailingStore) List() ([]secret.ListItem, error) { return nil, nil }
+func (fakeAutoconfCmdFailingStore) Remove(_ string) error            { return nil }
 func (fakeAutoconfCmdFailingStore) Get(_ string) (secret.ListItem, string, error) {
 	return secret.ListItem{}, "", secret.ErrSecretNotFound
 }
