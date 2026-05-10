@@ -18,7 +18,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"slices"
+	"strings"
 	"testing"
 
 	api "github.com/openkaiden/kdn-api/cli/go"
@@ -339,6 +341,57 @@ func TestStart_FullFlow_StartsPortForwarding(t *testing.T) {
 	}
 	if forwards[0].Port != 8080 || forwards[1].Port != 18789 {
 		t.Errorf("Unexpected forward ports: %v", forwards)
+	}
+}
+
+func TestStart_PortCollision(t *testing.T) {
+	t.Parallel()
+
+	// Hold a real listener to simulate a port collision
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Failed to listen: %v", err)
+	}
+	defer l.Close()
+	occupiedPort := l.Addr().(*net.TCPAddr).Port
+
+	fakeExec := exec.NewFake()
+	fakeExec.OutputFunc = func(_ context.Context, args ...string) ([]byte, error) {
+		if len(args) >= 2 && args[0] == "sandbox" && args[1] == "list" {
+			return []byte("kdn-test\n"), nil
+		}
+		return []byte{}, nil
+	}
+
+	storageDir := t.TempDir()
+	rt := newWithDeps(fakeExec, "/fake/openshell-gateway", storageDir)
+	rt.globalStorageDir = storageDir
+
+	if err := rt.writeSandboxData("kdn-test", sandboxData{
+		SourcePath: t.TempDir(),
+		Agent:      "openclaw",
+		Ports:      []int{occupiedPort},
+	}); err != nil {
+		t.Fatalf("writeSandboxData() failed: %v", err)
+	}
+
+	if err := rt.states.Set("kdn-test", api.WorkspaceStateStopped); err != nil {
+		t.Fatalf("Failed to set state: %v", err)
+	}
+
+	_, err = rt.Start(context.Background(), "kdn-test")
+	if err == nil {
+		t.Fatal("Expected Start() to fail due to port collision")
+	}
+	if !strings.Contains(err.Error(), "already in use") {
+		t.Errorf("Expected error mentioning 'already in use', got: %v", err)
+	}
+
+	// Verify no forward start calls were made
+	for _, call := range fakeExec.RunCalls {
+		if len(call) >= 2 && call[0] == "forward" && call[1] == "start" {
+			t.Errorf("Expected no forward start calls due to collision, got: %v", call)
+		}
 	}
 }
 

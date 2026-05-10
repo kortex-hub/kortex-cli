@@ -2336,6 +2336,50 @@ func TestBuildForwards(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("includes agent default ports", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{}
+		params := runtime.CreateParams{
+			DefaultPorts: []int{18789},
+		}
+
+		forwards, err := p.buildForwards(params)
+		if err != nil {
+			t.Fatalf("buildForwards() failed: %v", err)
+		}
+		if len(forwards) != 1 {
+			t.Fatalf("Expected 1 forward, got %d", len(forwards))
+		}
+		if forwards[0].Target != 18789 {
+			t.Errorf("Expected Target 18789, got %d", forwards[0].Target)
+		}
+		if forwards[0].Port <= 0 || forwards[0].Port > 65535 {
+			t.Errorf("Port %d is out of valid range", forwards[0].Port)
+		}
+	})
+
+	t.Run("deduplicates default ports with workspace ports", func(t *testing.T) {
+		t.Parallel()
+
+		p := &podmanRuntime{}
+		ports := []int{18789, 3000}
+		params := runtime.CreateParams{
+			DefaultPorts: []int{18789},
+			WorkspaceConfig: &workspace.WorkspaceConfiguration{
+				Ports: &ports,
+			},
+		}
+
+		forwards, err := p.buildForwards(params)
+		if err != nil {
+			t.Fatalf("buildForwards() failed: %v", err)
+		}
+		if len(forwards) != 2 {
+			t.Fatalf("Expected 2 forwards (deduplicated), got %d", len(forwards))
+		}
+	})
 }
 
 func TestCreate_ForwardsInRuntimeInfo(t *testing.T) {

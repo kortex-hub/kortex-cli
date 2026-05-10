@@ -99,6 +99,11 @@ func (r *openshellRuntime) Start(ctx context.Context, id string) (runtime.Runtim
 // otherwise hold them open and cause Run to block indefinitely.
 func (r *openshellRuntime) startPortForwards(ctx context.Context, sandboxName string, ports []int) error {
 	for _, port := range ports {
+		if !runtime.IsPortFree(port) {
+			return fmt.Errorf("port %d is already in use on 127.0.0.1; another workspace may be using it", port)
+		}
+	}
+	for _, port := range ports {
 		if err := r.executor.Run(ctx, nil, nil,
 			"forward", "start", "--background", fmt.Sprintf("%d", port), sandboxName,
 		); err != nil {

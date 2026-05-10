@@ -88,3 +88,10 @@ type Agent interface {
 	// Returns the modified settings map, or an error if modification fails.
 	SetMCPServers(settings map[string]SettingsFile, mcp *workspace.McpConfiguration) (map[string]SettingsFile, error)
 }
+
+// PortProvider is an optional interface that agents can implement to declare
+// container ports that should be automatically forwarded. Agents without port
+// requirements do not need to implement this interface.
+type PortProvider interface {
+	DefaultPorts() []int
+}

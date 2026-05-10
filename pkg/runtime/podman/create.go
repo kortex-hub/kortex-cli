@@ -656,13 +656,14 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 	}, nil
 }
 
-// buildForwards allocates a free host port for each container port in WorkspaceConfig.Ports
-// and returns the resulting WorkspaceForward slice. Returns nil when no ports are configured.
+// buildForwards combines workspace config ports with agent-specific defaults,
+// allocates a free host port for each, and returns the resulting WorkspaceForward slice.
+// Returns nil when no ports are configured and the agent has no default ports.
 func (p *podmanRuntime) buildForwards(params runtime.CreateParams) ([]api.WorkspaceForward, error) {
-	if params.WorkspaceConfig == nil || params.WorkspaceConfig.Ports == nil || len(*params.WorkspaceConfig.Ports) == 0 {
+	containerPorts := runtime.CollectPorts(params)
+	if len(containerPorts) == 0 {
 		return nil, nil
 	}
-	containerPorts := *params.WorkspaceConfig.Ports
 	hostPorts, err := findFreePorts(len(containerPorts))
 	if err != nil {
 		return nil, fmt.Errorf("failed to allocate host ports: %w", err)

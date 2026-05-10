@@ -324,8 +324,12 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 	}
 
 	// Modify agent settings to skip onboarding if agent has implementation
+	var defaultPorts []int
 	if opts.Agent != "" {
 		if agentImpl, err := m.agentRegistry.Get(opts.Agent); err == nil {
+			if pp, ok := agentImpl.(agent.PortProvider); ok {
+				defaultPorts = pp.DefaultPorts()
+			}
 			// Get workspace sources path from runtime before creating instance
 			workspaceSourcesPath := rt.WorkspaceSourcesPath()
 			agentSettings, err = agentImpl.SkipOnboarding(agentSettings, workspaceSourcesPath, approvedKeys)
@@ -382,6 +386,7 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 		WorkspaceConfig:    mergedConfig,
 		WorkspaceConfigDir: inst.GetConfigDir(),
 		Agent:              opts.Agent,
+		DefaultPorts:       defaultPorts,
 		AgentSettings:      agentSettings,
 		OnecliSecrets:      onecliSecrets,
 		SecretEnvVars:      secretEnvVars,

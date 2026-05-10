@@ -83,6 +83,11 @@ type CreateParams struct {
 	// Agent is the agent name for loading agent-specific configuration (required, cannot be empty).
 	Agent string
 
+	// DefaultPorts contains container ports that should be automatically
+	// forwarded for the agent. Populated by the manager from the agent's
+	// DefaultPorts() method. Can be nil.
+	DefaultPorts []int
+
 	// AgentSettings contains the agent settings files to embed into the agent user's
 	// home directory in the workspace image. Keys are relative file paths using
 	// forward slashes (e.g., ".claude/settings.json"), values are SettingsFile
