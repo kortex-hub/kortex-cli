@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
+	goruntime "runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -4191,7 +4191,7 @@ func TestManager_Add_InjectsBuiltInSkills(t *testing.T) {
 	t.Run("returns error when built-in skill extraction fails", func(t *testing.T) {
 		t.Parallel()
 
-		if runtime.GOOS == "windows" {
+		if goruntime.GOOS == "windows" {
 			t.Skip("chmod-based permission tests do not apply on Windows")
 		}
 
