@@ -24,6 +24,7 @@ import (
 	"github.com/goccy/go-yaml"
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	kdnconfig "github.com/openkaiden/kdn/pkg/config"
+	"github.com/openkaiden/kdn/pkg/containerurl"
 )
 
 const (
@@ -39,6 +40,12 @@ const (
 // gooseProviderMapping translates kdn provider IDs to the names Goose expects.
 var gooseProviderMapping = map[string]string{
 	"gemini": "google",
+}
+
+// gooseProviderHostKey maps resolved Goose provider names to the config key
+// used to set the custom host URL.
+var gooseProviderHostKey = map[string]string{
+	"openai": "OPENAI_BASE_URL",
 }
 
 // gooseAgent is the implementation of Agent for Goose.
@@ -115,7 +122,7 @@ func (g *gooseAgent) SetModel(settings map[string]SettingsFile, modelID string) 
 		config = make(map[string]interface{})
 	}
 
-	provider, modelName, _ := kdnconfig.ParseModelID(modelID)
+	provider, modelName, baseURL := kdnconfig.ParseModelID(modelID)
 	config[gooseModelKey] = modelName
 
 	gooseProvider := gooseDefaultProvider
@@ -127,6 +134,16 @@ func (g *gooseAgent) SetModel(settings map[string]SettingsFile, modelID string) 
 		}
 	}
 	config[gooseProviderKey] = gooseProvider
+
+	resolvedURL := baseURL
+	if resolvedURL != "" {
+		resolvedURL = containerurl.RewriteURL(resolvedURL)
+		hostKey := gooseProviderHostKey[gooseProvider]
+		if hostKey == "" {
+			hostKey = "OPENAI_BASE_URL"
+		}
+		config[hostKey] = resolvedURL
+	}
 
 	modifiedContent, err := yaml.Marshal(config)
 	if err != nil {

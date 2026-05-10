@@ -366,6 +366,10 @@ func TestGoose_SetModel_ProviderModelURLFormat(t *testing.T) {
 	if provider, ok := config[gooseProviderKey].(string); !ok || provider != "goose" {
 		t.Errorf("%s = %v, want %q", gooseProviderKey, config[gooseProviderKey], "goose")
 	}
+
+	if host, ok := config["OPENAI_BASE_URL"].(string); !ok || host != "http://host.containers.internal:11434/v1" {
+		t.Errorf("OPENAI_BASE_URL = %v, want %q", config["OPENAI_BASE_URL"], "http://host.containers.internal:11434/v1")
+	}
 }
 
 func TestGoose_SetModel_EmptyProviderDefaultsToOpenAI(t *testing.T) {
@@ -466,6 +470,77 @@ func TestGoose_SetModel_MistralProviderPassesThrough(t *testing.T) {
 
 	if provider, ok := config[gooseProviderKey].(string); !ok || provider != "mistral" {
 		t.Errorf("%s = %v, want %q", gooseProviderKey, config[gooseProviderKey], "mistral")
+	}
+}
+
+func TestGoose_SetModel_OpenAICustomURL(t *testing.T) {
+	t.Parallel()
+
+	agent := NewGoose()
+	settings := make(map[string]SettingsFile)
+
+	result, err := agent.SetModel(settings, "openai::gpt-4::http://custom.com/v1")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := yaml.Unmarshal(result[GooseConfigPath].Content, &config); err != nil {
+		t.Fatalf("Failed to parse result YAML: %v", err)
+	}
+
+	if host, ok := config["OPENAI_BASE_URL"].(string); !ok || host != "http://custom.com/v1" {
+		t.Errorf("OPENAI_BASE_URL = %v, want %q", config["OPENAI_BASE_URL"], "http://custom.com/v1")
+	}
+}
+
+func TestGoose_SetModel_EmptyProviderCustomURL(t *testing.T) {
+	t.Parallel()
+
+	agent := NewGoose()
+	settings := make(map[string]SettingsFile)
+
+	result, err := agent.SetModel(settings, "::model::http://custom.com/v1")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := yaml.Unmarshal(result[GooseConfigPath].Content, &config); err != nil {
+		t.Fatalf("Failed to parse result YAML: %v", err)
+	}
+
+	if provider, ok := config[gooseProviderKey].(string); !ok || provider != "openai" {
+		t.Errorf("%s = %v, want %q", gooseProviderKey, config[gooseProviderKey], "openai")
+	}
+
+	if host, ok := config["OPENAI_BASE_URL"].(string); !ok || host != "http://custom.com/v1" {
+		t.Errorf("OPENAI_BASE_URL = %v, want %q", config["OPENAI_BASE_URL"], "http://custom.com/v1")
+	}
+}
+
+func TestGoose_SetModel_NoURLNoHostKey(t *testing.T) {
+	t.Parallel()
+
+	agent := NewGoose()
+	settings := make(map[string]SettingsFile)
+
+	result, err := agent.SetModel(settings, "openai::gpt-4")
+	if err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	var config map[string]interface{}
+	if err := yaml.Unmarshal(result[GooseConfigPath].Content, &config); err != nil {
+		t.Fatalf("Failed to parse result YAML: %v", err)
+	}
+
+	if _, ok := config["OPENAI_BASE_URL"]; ok {
+		t.Errorf("OPENAI_BASE_URL should not be set, got %v", config["OPENAI_BASE_URL"])
+	}
+
+	if _, ok := config["OLLAMA_HOST"]; ok {
+		t.Errorf("OLLAMA_HOST should not be set, got %v", config["OLLAMA_HOST"])
 	}
 }
 
