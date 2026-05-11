@@ -1716,6 +1716,10 @@ Controls agent-specific packages and installation steps. The Podman runtime prov
   - Must have at least one element
   - Can include flags: `["claude", "--verbose"]`
 
+- `env_vars` (optional) - Environment variables to inject into the container
+  - Key-value pairs set as `-e KEY=VALUE` on the container
+  - Skipped if the key collides with a workspace or OneCLI environment variable
+
 #### Applying Configuration Changes
 
 Configuration changes take effect when you **register a new workspace with `init`**. The Containerfile is generated and the image is built during workspace registration, using the configuration files that exist at that time.

@@ -253,7 +253,7 @@ type containerConfigArgs struct {
 type mountKey struct{ host, target string }
 
 // buildContainerArgs builds the arguments for creating the workspace container inside the pod.
-func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageName string, ccArgs *containerConfigArgs) ([]string, error) {
+func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageName string, ccArgs *containerConfigArgs, agentConfig *config.AgentConfig) ([]string, error) {
 	args := []string{"create", "--pod", params.Name, "--name", params.Name, "--device", "/dev/fuse"}
 
 	// Collect workspace env var names for collision detection
@@ -289,6 +289,11 @@ func (p *podmanRuntime) buildContainerArgs(params runtime.CreateParams, imageNam
 			!onecliEnvNames["NO_PROXY"] && !onecliEnvNames["no_proxy"] {
 			const noProxy = "localhost,127.0.0.1,host.containers.internal"
 			args = append(args, "-e", "NO_PROXY="+noProxy, "-e", "no_proxy="+noProxy)
+		}
+		for k, v := range agentConfig.EnvVars {
+			if !workspaceEnvNames[k] && !onecliEnvNames[k] {
+				args = append(args, "-e", fmt.Sprintf("%s=%s", k, v))
+			}
 		}
 		if ccArgs.caFilePath != "" && ccArgs.caContainerPath != "" {
 			args = append(args, "-v", fmt.Sprintf("%s:%s:ro,Z", ccArgs.caFilePath, ccArgs.caContainerPath))
@@ -607,7 +612,7 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 
 	// Build workspace container args with proxy env vars and CA cert mount from OneCLI
 	stepLogger.Start(fmt.Sprintf("Creating workspace container: %s", params.Name), "Workspace container created")
-	createArgs, err := p.buildContainerArgs(params, imageName, ccArgs)
+	createArgs, err := p.buildContainerArgs(params, imageName, ccArgs, agentConfig)
 	if err != nil {
 		stepLogger.Fail(err)
 		return runtime.RuntimeInfo{}, err
