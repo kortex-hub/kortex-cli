@@ -29,7 +29,7 @@ The Podman runtime configuration allows customization of the base image, install
 - **Config Interface** (`pkg/runtime/podman/config/config.go`): Interface for managing Podman runtime configuration
 - **ImageConfig** (`pkg/runtime/podman/config/types.go`): Base image configuration (Fedora version, packages, sudo binaries, custom RUN commands)
 - **AgentConfig** (`pkg/runtime/podman/config/types.go`): Agent-specific configuration (packages, RUN commands, terminal command)
-- **Defaults** (`pkg/runtime/podman/config/defaults.go`): Default configurations for image and agents (Claude, Goose, Cursor, OpenCode)
+- **Defaults** (`pkg/runtime/podman/config/defaults.go`): Default configurations for image and agents (Claude, Goose, Cursor, OpenCode, OpenClaw)
 
 ## Configuration Storage
 
@@ -40,7 +40,8 @@ Configuration files are stored in the runtime's storage directory:
 ├── image.json      # Base image configuration
 ├── claude.json     # Claude agent configuration
 ├── goose.json      # Goose agent configuration
-└── opencode.json   # OpenCode agent configuration
+├── opencode.json   # OpenCode agent configuration
+└── openclaw.json   # OpenClaw agent configuration
 ```
 
 ## Configuration Files
@@ -64,7 +65,7 @@ Configuration files are stored in the runtime's storage directory:
 
 ### Agent-Specific Configuration
 
-Agent configurations are named `<agent-name>.json`. The Podman runtime provides default configurations for Claude Code, Goose, Cursor, and OpenCode.
+Agent configurations are named `<agent-name>.json`. The Podman runtime provides default configurations for Claude Code, Goose, Cursor, OpenCode, and OpenClaw.
 
 **claude.json - Claude Code Agent:**
 
@@ -102,6 +103,23 @@ Agent configurations are named `<agent-name>.json`. The Podman runtime provides 
     "mkdir -p /home/agent/.config/opencode"
   ],
   "terminal_command": ["opencode"]
+}
+```
+
+**openclaw.json - OpenClaw Agent:**
+
+```json
+{
+  "packages": [],
+  "run_commands": [
+    "curl -fsSL https://openclaw.ai/install-cli.sh | bash",
+    "mkdir -p /home/agent/.local/bin && ln -sf /home/agent/.openclaw/bin/openclaw /home/agent/.local/bin/openclaw"
+  ],
+  "terminal_command": ["sh", "-c", "curl -sf http://127.0.0.1:18789/ >/dev/null 2>&1 || { openclaw gateway run >/dev/null 2>&1 & for i in $(seq 1 30); do curl -sf http://127.0.0.1:18789/ >/dev/null 2>&1 && break; sleep 0.5; done; }; openclaw"],
+  "env_vars": {
+    "OPENCLAW_PROXY_ACTIVE": "1",
+    "NODE_NO_WARNINGS": "1"
+  }
 }
 ```
 
@@ -157,6 +175,7 @@ The config system validates:
   - **Claude Code** - Installs from the official install script at `claude.ai/install.sh`
   - **Goose** - Installs from the official installer at `github.com/block/goose`
   - **OpenCode** - Installs from the official installer at `opencode.ai/install`
+  - **OpenClaw** - Installs from the official installer at `openclaw.ai/install-cli.sh`; the terminal command uses `sh -c` to start the gateway in the background on port 18789 (waiting up to 15s for readiness) then opens the `openclaw` CLI
 
 ## Containerfile Generation
 

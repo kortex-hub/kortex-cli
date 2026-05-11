@@ -15,6 +15,7 @@ kdn is part of the [Kaiden](https://openkaiden.ai/) project — an open platform
 - **Cursor** - AI-powered code editor agent
 - **Goose** - AI agent for development tasks
 - **OpenCode** - Open-source AI coding agent
+- **OpenClaw** - Open-source AI coding agent
 
 **Supported Runtimes**
 
@@ -1537,6 +1538,12 @@ The Podman runtime includes default configurations for the following AI agents:
 - Open-source AI coding agent
 - The installer places the binary in `~/.opencode/bin/`, which is symlinked into `~/.local/bin/` for PATH access
 
+**OpenClaw** - Installed using the official installer from `openclaw.ai/install-cli.sh`:
+- Open-source AI coding agent
+- The installer places Node.js and OpenClaw under `~/.openclaw/`, with the binary symlinked into `~/.local/bin/` for PATH access
+- The default terminal command starts the gateway in the background, polls until it is ready, then launches the CLI — type `talk to agent` to start a chatbot conversation
+- To access the web UI, run `kdn workspace open <workspace>` in a separate session (after starting the workspace with `kdn terminal <workspace>`) and enter `openclaw123` as the gateway token to authenticate
+
 The agent runs within the container environment and has access to the mounted workspace sources and dependencies.
 
 ### Working Directory
@@ -1591,7 +1598,8 @@ $HOME/.kdn/runtimes/podman/config/
 ├── image.json      # Base image configuration
 ├── claude.json     # Claude agent configuration
 ├── goose.json      # Goose agent configuration
-└── opencode.json   # OpenCode agent configuration
+├── opencode.json   # OpenCode agent configuration
+└── openclaw.json   # OpenClaw agent configuration
 ```
 
 Or if using a custom storage directory:
@@ -1655,7 +1663,7 @@ Controls the container's base image, packages, and sudo permissions.
 
 #### Agent Configuration
 
-Controls agent-specific packages and installation steps. The Podman runtime provides default configurations for Claude Code (`claude.json`), Goose (`goose.json`), Cursor (`cursor.json`), and OpenCode (`opencode.json`).
+Controls agent-specific packages and installation steps. The Podman runtime provides default configurations for Claude Code (`claude.json`), Goose (`goose.json`), Cursor (`cursor.json`), OpenCode (`opencode.json`), and OpenClaw (`openclaw.json`).
 
 **Structure (claude.json):**
 
@@ -1699,6 +1707,25 @@ Controls agent-specific packages and installation steps. The Podman runtime prov
   "terminal_command": [
     "opencode"
   ]
+}
+```
+
+**Structure (openclaw.json):**
+
+```json
+{
+  "packages": [],
+  "run_commands": [
+    "curl -fsSL https://openclaw.ai/install-cli.sh | bash",
+    "mkdir -p /home/agent/.local/bin && ln -sf /home/agent/.openclaw/bin/openclaw /home/agent/.local/bin/openclaw"
+  ],
+  "terminal_command": [
+    "openclaw"
+  ],
+  "env_vars": {
+    "OPENCLAW_PROXY_ACTIVE": "1",
+    "NODE_NO_WARNINGS": "1"
+  }
 }
 ```
 
@@ -1937,6 +1964,7 @@ Each skill directory is mounted read-only under the agent's skills directory ins
 | Goose | `~/.agents/skills/<basename>/` |
 | Cursor | `~/.cursor/skills/<basename>/` |
 | OpenCode | `~/.opencode/skills/<basename>/` |
+| OpenClaw | `~/.openclaw/skills/<basename>/` |
 
 For example, a skills path of `/home/user/commit-skill` is mounted at `~/.claude/skills/commit-skill/` for Claude Code, making the skill discoverable by the agent.
 
@@ -3187,7 +3215,7 @@ kdn init /tmp/workspace --runtime podman --agent claude
 
 - **Runtime is required**: You must specify a runtime using either the `--runtime` flag or the `KDN_DEFAULT_RUNTIME` environment variable
 - **Agent is required**: You must specify an agent using either the `--agent` flag or the `KDN_DEFAULT_AGENT` environment variable
-- **Model is optional**: Use `--model` to specify a model ID for the agent. The flag takes precedence over any model defined in the agent's default settings files (`~/.kdn/config/<agent>/`). If not provided, the agent uses its default model or the one configured in settings. All agents support model configuration: Claude (via `.claude/settings.json`), Goose (via `config.yaml`), Cursor (via `.cursor/cli-config.json`), and OpenCode (via `.config/opencode/opencode.json`)
+- **Model is optional**: Use `--model` to specify a model ID for the agent. The flag takes precedence over any model defined in the agent's default settings files (`~/.kdn/config/<agent>/`). If not provided, the agent uses its default model or the one configured in settings. All agents support model configuration: Claude (via `.claude/settings.json`), Goose (via `config.yaml`), Cursor (via `.cursor/cli-config.json`), OpenCode (via `.config/opencode/opencode.json`), and OpenClaw (via `.openclaw/openclaw.json`)
 - **Provider configuration**: The `--model` flag supports a `provider::model` format (e.g. `ollama::gemma4:26b`) that auto-configures the provider endpoint and stores the model ID as `provider/model`. Known providers (`ollama`, `ramalama`) have default base URLs pointing to `host.containers.internal`; unknown providers require the full format `provider::model::baseURL`. Localhost aliases (`localhost`, `127.0.0.1`, `0.0.0.0`, `::1`) in base URLs are automatically converted to `host.containers.internal` for container accessibility
 - **Project auto-detection**: The project identifier is automatically detected from git repository information or source directory path. Use `--project` flag to override with a custom identifier
 - **Auto-start**: Use the `--start` flag or set `KDN_INIT_AUTO_START=1` to automatically start the workspace after registration, combining `init` and `start` into a single operation
@@ -3951,7 +3979,7 @@ The environment where workspaces run. kdn's runtime system is extensible — new
 The isolated execution environment created by the runtime for a workspace. The sandbox contains the mounted project source code, the configured agent, and any injected environment variables, secrets, and mounts. Network access is controlled per workspace: outbound traffic can be fully allowed, restricted to an explicit list of hosts, or denied entirely — preventing the agent from reaching unintended external services. Depending on the runtime, the sandbox is implemented as a container (Podman) or a VM-based environment (OpenShell).
 
 ### Agent
-An AI assistant that can perform tasks autonomously. In kdn, agents are the different AI tools (Claude Code, Cursor, Goose, OpenCode) that can be launched and configured.
+An AI assistant that can perform tasks autonomously. In kdn, agents are the different AI tools (Claude Code, Cursor, Goose, OpenCode, OpenClaw) that can be launched and configured.
 
 ### LLM (Large Language Model)
 The underlying AI model that powers the agents. Examples include Claude (by Anthropic), Gemini (by Google), GPT (by OpenAI), and open-source models such as Llama (by Meta), Gemma (by Google), and Granite (by IBM).
