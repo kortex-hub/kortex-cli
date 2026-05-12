@@ -92,10 +92,19 @@ func (o *openCodeAgent) SetModel(settings map[string]SettingsFile, modelID strin
 		} else {
 			resolvedURL = containerurl.RewriteURL(resolvedURL)
 		}
-		config["model"] = provider + "/" + modelName
 		realOpenAI := isRealOpenAI(provider, resolvedURL)
+		if provider == "openai" && !realOpenAI {
+			provider = "custom"
+		}
+		config["model"] = provider + "/" + modelName
 		if (!nativeProviders[provider] && !realOpenAI) || (resolvedURL != "" && !realOpenAI) {
-			if err := configureProvider(config, provider, modelName, resolvedURL); err != nil {
+			providerName := provider
+			if provider == "custom" && resolvedURL != "" {
+				if parsed, err := url.Parse(resolvedURL); err == nil && parsed.Hostname() != "" {
+					providerName = parsed.Hostname()
+				}
+			}
+			if err := configureProvider(config, provider, providerName, modelName, resolvedURL); err != nil {
 				return nil, err
 			}
 		}
@@ -138,7 +147,8 @@ var vertexAIProviders = map[string]bool{
 }
 
 // configureProvider adds a provider block with the given base URL and registers the model.
-func configureProvider(config map[string]interface{}, provider, modelName, baseURL string) error {
+// providerName is used as the display name in the provider entry.
+func configureProvider(config map[string]interface{}, provider, providerName, modelName, baseURL string) error {
 	providers, _ := config["provider"].(map[string]interface{})
 	if providers == nil {
 		providers = make(map[string]interface{})
@@ -148,10 +158,10 @@ func configureProvider(config map[string]interface{}, provider, modelName, baseU
 	providerEntry, _ := providers[provider].(map[string]interface{})
 	if providerEntry == nil {
 		providerEntry = make(map[string]interface{})
-		if !nativeProviders[provider] && !vertexAIProviders[provider] {
-			providerEntry["name"] = provider
-			providerEntry["npm"] = "@ai-sdk/openai-compatible"
-		}
+	}
+	if !nativeProviders[provider] && !vertexAIProviders[provider] {
+		providerEntry["name"] = providerName
+		providerEntry["npm"] = "@ai-sdk/openai-compatible"
 	}
 	if baseURL != "" {
 		options, _ := providerEntry["options"].(map[string]interface{})
