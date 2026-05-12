@@ -239,6 +239,11 @@ func TestIsNotFoundError(t *testing.T) {
 			expected: true,
 		},
 		{
+			name:     "no such pod error",
+			err:      fmt.Errorf("Error: no such pod \"test1\""),
+			expected: true,
+		},
+		{
 			name:     "no such object error",
 			err:      fmt.Errorf("Error: no such object: abc123"),
 			expected: true,

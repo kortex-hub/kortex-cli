@@ -55,6 +55,10 @@ func (p *podmanRuntime) Stop(ctx context.Context, id string) error {
 	output, err := p.executor.Output(ctx, l.Stderr(),
 		"pod", "inspect", "--format", "{{range .Containers}}{{.Name}}\n{{end}}", podName)
 	if err != nil {
+		if isNotFoundError(err) {
+			// Pod was removed outside of kdn (e.g., manually deleted). Nothing to stop.
+			return nil
+		}
 		return fmt.Errorf("failed to inspect pod %s: %w", podName, err)
 	}
 	containerNames := strings.Fields(string(output))
