@@ -16,4 +16,4 @@ package openshell
 
 // DefaultVersion is the default OpenShell release tag used to download binaries.
 // Override at runtime with the --openshell-version flag on kdn init.
-const DefaultVersion = "v0.0.37"
+const DefaultVersion = "v0.0.39"
