@@ -421,8 +421,15 @@ func (m *manager) Add(ctx context.Context, opts AddOptions) (Instance, error) {
 		CreatedAt: m.now(),
 	}
 
-	instances = append(instances, instanceWithID)
-	if err := m.saveInstances(instances); err != nil {
+	// Re-read under the file lock and append, so a concurrent kdn process
+	// that added an instance between our initial load and now is not lost.
+	if err := m.withStorageLock(func() error {
+		current, err := m.loadInstances()
+		if err != nil {
+			return err
+		}
+		return m.saveInstances(append(current, instanceWithID))
+	}); err != nil {
 		return nil, err
 	}
 
@@ -441,12 +448,10 @@ func (m *manager) Start(ctx context.Context, id string) error {
 
 	// Find the instance
 	var instanceToStart Instance
-	var index int
 	found := false
-	for i, instance := range instances {
+	for _, instance := range instances {
 		if instance.GetID() == id {
 			instanceToStart = instance
-			index = i
 			found = true
 			break
 		}
@@ -505,8 +510,19 @@ func (m *manager) Start(ctx context.Context, id string) error {
 		StartedAt: startedAt,
 	}
 
-	instances[index] = updatedInstance
-	return m.saveInstances(instances)
+	return m.withStorageLock(func() error {
+		current, err := m.loadInstances()
+		if err != nil {
+			return err
+		}
+		for i, inst := range current {
+			if inst.GetID() == id {
+				current[i] = updatedInstance
+				break
+			}
+		}
+		return m.saveInstances(current)
+	})
 }
 
 // Stop stops a runtime instance by ID.
@@ -521,12 +537,10 @@ func (m *manager) Stop(ctx context.Context, id string) error {
 
 	// Find the instance
 	var instanceToStop Instance
-	var index int
 	found := false
-	for i, instance := range instances {
+	for _, instance := range instances {
 		if instance.GetID() == id {
 			instanceToStop = instance
-			index = i
 			found = true
 			break
 		}
@@ -595,8 +609,19 @@ func (m *manager) Stop(ctx context.Context, id string) error {
 		// StartedAt is intentionally zero on stop: the instance is no longer running
 	}
 
-	instances[index] = updatedInstance
-	return m.saveInstances(instances)
+	return m.withStorageLock(func() error {
+		current, err := m.loadInstances()
+		if err != nil {
+			return err
+		}
+		for i, inst := range current {
+			if inst.GetID() == id {
+				current[i] = updatedInstance
+				break
+			}
+		}
+		return m.saveInstances(current)
+	})
 }
 
 // Terminal starts an interactive terminal session in a running instance.
@@ -719,46 +744,59 @@ func (m *manager) Get(nameOrID string) (Instance, error) {
 // Before removing from storage, it removes the runtime instance.
 // If runtime removal fails, the instance is NOT removed from storage and an error is returned.
 func (m *manager) Delete(ctx context.Context, id string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
+	// Step 1: read the runtime info needed for cleanup without holding the write
+	// lock, so that other goroutines can proceed while we look up the instance.
+	m.mu.RLock()
 	instances, err := m.loadInstances()
+	m.mu.RUnlock()
 	if err != nil {
 		return err
 	}
 
-	// Find the instance to delete
 	var instanceToDelete Instance
-	found := false
-	filtered := make([]Instance, 0, len(instances))
-	for _, instance := range instances {
-		if instance.GetID() != id {
-			filtered = append(filtered, instance)
-		} else {
-			instanceToDelete = instance
-			found = true
+	for _, inst := range instances {
+		if inst.GetID() == id {
+			instanceToDelete = inst
+			break
 		}
 	}
-
-	if !found {
+	if instanceToDelete == nil {
 		return ErrInstanceNotFound
 	}
 
-	// Runtime cleanup
+	// Step 2: runtime cleanup outside any lock — this can be slow.
+	// If it fails we return early and leave the storage entry intact.
 	runtimeInfo := instanceToDelete.GetRuntimeData()
 	if runtimeInfo.Type != "" && runtimeInfo.InstanceID != "" {
 		rt, err := m.runtimeRegistry.Get(runtimeInfo.Type)
 		if err != nil {
 			return fmt.Errorf("failed to get runtime: %w", err)
 		}
-		// Remove runtime instance (must succeed before removing from storage)
 		if err := rt.Remove(ctx, runtimeInfo.InstanceID); err != nil {
 			return fmt.Errorf("failed to remove runtime instance: %w", err)
 		}
 	}
 
-	// Remove from manager storage
-	return m.saveInstances(filtered)
+	// Step 3: re-read, filter, and save under the write lock + file lock.
+	// No slow operations between load and save — the window is minimal.
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return m.withStorageLock(func() error {
+		instances, err = m.loadInstances()
+		if err != nil {
+			return err
+		}
+
+		filtered := make([]Instance, 0, len(instances))
+		for _, inst := range instances {
+			if inst.GetID() != id {
+				filtered = append(filtered, inst)
+			}
+		}
+
+		return m.saveInstances(filtered)
+	})
 }
 
 // Reconcile removes instances with inaccessible directories
@@ -767,29 +805,28 @@ func (m *manager) Reconcile() ([]string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	instances, err := m.loadInstances()
-	if err != nil {
-		return nil, err
-	}
-
-	removed := []string{}
-	accessible := make([]Instance, 0, len(instances))
-
-	for _, instance := range instances {
-		if instance.IsAccessible() {
-			accessible = append(accessible, instance)
-		} else {
-			removed = append(removed, instance.GetID())
+	var removed []string
+	err := m.withStorageLock(func() error {
+		instances, err := m.loadInstances()
+		if err != nil {
+			return err
 		}
-	}
 
-	if len(removed) > 0 {
-		if err := m.saveInstances(accessible); err != nil {
-			return nil, err
+		accessible := make([]Instance, 0, len(instances))
+		for _, instance := range instances {
+			if instance.IsAccessible() {
+				accessible = append(accessible, instance)
+			} else {
+				removed = append(removed, instance.GetID())
+			}
 		}
-	}
 
-	return removed, nil
+		if len(removed) > 0 {
+			return m.saveInstances(accessible)
+		}
+		return nil
+	})
+	return removed, err
 }
 
 // GetDashboardURL returns the dashboard URL for a workspace instance by name or ID.
@@ -944,34 +981,55 @@ func (m *manager) mergeConfigurations(projectID string, workspaceConfig *workspa
 // timestamp using the injected clock, and writes the result back to disk so
 // subsequent loads see the authoritative value.
 func (m *manager) migrateTimestamps() error {
-	instances, err := m.loadInstances()
-	if err != nil {
-		return err
-	}
-
-	migrated := false
-	for i, inst := range instances {
-		if inst.GetCreatedAt().IsZero() {
-			data := inst.Dump()
-			data.CreatedAt = m.now()
-			updated, err := m.factory(data)
-			if err != nil {
-				return err
-			}
-			instances[i] = updated
-			migrated = true
+	return m.withStorageLock(func() error {
+		instances, err := m.loadInstances()
+		if err != nil {
+			return err
 		}
-	}
 
-	if migrated {
-		return m.saveInstances(instances)
-	}
-	return nil
+		migrated := false
+		for i, inst := range instances {
+			if inst.GetCreatedAt().IsZero() {
+				data := inst.Dump()
+				data.CreatedAt = m.now()
+				updated, err := m.factory(data)
+				if err != nil {
+					return err
+				}
+				instances[i] = updated
+				migrated = true
+			}
+		}
+
+		if migrated {
+			return m.saveInstances(instances)
+		}
+		return nil
+	})
 }
 
-// loadInstances reads instances from the storage file
+// withStorageLock acquires a cross-process exclusive lock on the storage lock
+// file, runs fn, then releases the lock. It serialises concurrent writes from
+// independent kdn processes sharing the same storage directory.
+// The in-process sync.RWMutex must be held by the caller for goroutine safety.
+func (m *manager) withStorageLock(fn func() error) error {
+	lockPath := m.storageFile + ".lock"
+	f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return fmt.Errorf("failed to open storage lock file: %w", err)
+	}
+	defer f.Close()
+
+	if err := lockFileExclusive(f); err != nil {
+		return fmt.Errorf("failed to acquire storage lock: %w", err)
+	}
+	defer unlockFile(f) //nolint:errcheck
+
+	return fn()
+}
+
+// loadInstances reads instances from the storage file.
 func (m *manager) loadInstances() ([]Instance, error) {
-	// If file doesn't exist, return empty list
 	if _, err := os.Stat(m.storageFile); os.IsNotExist(err) {
 		return []Instance{}, nil
 	}
@@ -981,21 +1039,18 @@ func (m *manager) loadInstances() ([]Instance, error) {
 		return nil, err
 	}
 
-	// Empty file case
 	if len(data) == 0 {
 		return []Instance{}, nil
 	}
 
-	// Unmarshal into InstanceData slice
 	var instancesData []InstanceData
 	if err := json.Unmarshal(data, &instancesData); err != nil {
 		return nil, err
 	}
 
-	// Convert to Instance slice using the factory
 	instances := make([]Instance, len(instancesData))
-	for i, data := range instancesData {
-		inst, err := m.factory(data)
+	for i, d := range instancesData {
+		inst, err := m.factory(d)
 		if err != nil {
 			return nil, err
 		}
@@ -1005,9 +1060,10 @@ func (m *manager) loadInstances() ([]Instance, error) {
 	return instances, nil
 }
 
-// saveInstances writes instances to the storage file
+// saveInstances marshals instances and writes them to the storage file.
+// The write strategy is platform-specific (see savefile_unix.go and
+// savefile_windows.go); callers must hold withStorageLock.
 func (m *manager) saveInstances(instances []Instance) error {
-	// Convert to InstanceData slice for marshaling
 	instancesData := make([]InstanceData, len(instances))
 	for i, inst := range instances {
 		instancesData[i] = inst.Dump()
@@ -1018,7 +1074,7 @@ func (m *manager) saveInstances(instances []Instance) error {
 		return err
 	}
 
-	return os.WriteFile(m.storageFile, data, 0644)
+	return writeStorageFile(m.storageFile, data)
 }
 
 // readAgentSettings reads all files from {storageDir}/config/{agentName}/ into a map.

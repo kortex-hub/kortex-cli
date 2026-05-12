@@ -1964,6 +1964,84 @@ func TestManager_ConcurrentAccess(t *testing.T) {
 			t.Errorf("After concurrent reads, List() returned %d instances, want 5", len(instances))
 		}
 	})
+
+	t.Run("concurrent deletes via single manager leave no ghost instances", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		instanceTmpDir := t.TempDir()
+
+		mgr, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+
+		numInstances := 5
+		ids := make([]string, 0, numInstances)
+		for i := range numInstances {
+			sourceDir := filepath.Join(instanceTmpDir, "source", string(rune('a'+i)))
+			configDir := filepath.Join(instanceTmpDir, "config", string(rune('a'+i)))
+			inst := newFakeInstance(newFakeInstanceParams{SourceDir: sourceDir, ConfigDir: configDir, Accessible: true})
+			added, err := mgr.Add(context.Background(), AddOptions{Instance: inst, RuntimeType: "fake"})
+			if err != nil {
+				t.Fatalf("Add failed: %v", err)
+			}
+			ids = append(ids, added.GetID())
+		}
+
+		var wg sync.WaitGroup
+		for _, id := range ids {
+			wg.Add(1)
+			go func(id string) {
+				defer wg.Done()
+				_ = mgr.Delete(context.Background(), id)
+			}(id)
+		}
+		wg.Wait()
+
+		remaining, _ := mgr.List()
+		if len(remaining) != 0 {
+			t.Errorf("After concurrent deletes (single manager), List() returned %d instances, want 0", len(remaining))
+		}
+	})
+
+	t.Run("concurrent deletes across independent managers leave no ghost instances", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		instanceTmpDir := t.TempDir()
+
+		// Use one manager to populate instances.
+		mgr, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+
+		numInstances := 5
+		ids := make([]string, 0, numInstances)
+		for i := range numInstances {
+			sourceDir := filepath.Join(instanceTmpDir, "source", string(rune('a'+i)))
+			configDir := filepath.Join(instanceTmpDir, "config", string(rune('a'+i)))
+			inst := newFakeInstance(newFakeInstanceParams{SourceDir: sourceDir, ConfigDir: configDir, Accessible: true})
+			added, err := mgr.Add(context.Background(), AddOptions{Instance: inst, RuntimeType: "fake"})
+			if err != nil {
+				t.Fatalf("Add failed: %v", err)
+			}
+			ids = append(ids, added.GetID())
+		}
+
+		// Each goroutine creates its own independent manager, simulating a
+		// separate kdn process sharing the same storage directory.
+		var wg sync.WaitGroup
+		for _, id := range ids {
+			wg.Add(1)
+			go func(id string) {
+				defer wg.Done()
+				localMgr, _ := newManagerWithFactory(tmpDir, fakeInstanceFactory, newFakeGenerator(), newTestRegistry(tmpDir), agent.NewRegistry(), secretservice.NewRegistry(), credential.NewRegistry(), secret.NewStore(tmpDir), newFakeProjectDetector(), time.Now)
+				_ = localMgr.Delete(context.Background(), id)
+			}(id)
+		}
+		wg.Wait()
+
+		remaining, _ := mgr.List()
+		if len(remaining) != 0 {
+			t.Errorf("After concurrent deletes (independent managers), List() returned %d instances, want 0", len(remaining))
+		}
+	})
 }
 
 func TestSanitizeName(t *testing.T) {
