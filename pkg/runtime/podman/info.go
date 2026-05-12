@@ -62,6 +62,9 @@ func (p *podmanRuntime) getContainerInfo(ctx context.Context, id string) (runtim
 	l := logger.FromContext(ctx)
 	output, err := p.executor.Output(ctx, l.Stderr(), "inspect", "--format", "{{.Id}}|{{.State.Status}}|{{.ImageName}}", id)
 	if err != nil {
+		if isNotFoundError(err) {
+			return runtime.RuntimeInfo{}, runtime.ErrInstanceNotFound
+		}
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to inspect container: %w", err)
 	}
 

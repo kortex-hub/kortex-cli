@@ -119,9 +119,9 @@ func TestInfo_InspectFailure(t *testing.T) {
 	containerID := "abc123"
 	fakeExec := exec.NewFake()
 
-	// Set up OutputFunc to return an error
+	// Set up OutputFunc to return a generic (non-not-found) error
 	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
-		return nil, fmt.Errorf("container not found")
+		return nil, fmt.Errorf("connection refused")
 	}
 
 	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
@@ -130,9 +130,34 @@ func TestInfo_InspectFailure(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected error when inspect fails, got nil")
 	}
+	if errors.Is(err, runtime.ErrInstanceNotFound) {
+		t.Errorf("Expected generic error, got ErrInstanceNotFound for non-not-found failure")
+	}
 
 	// Verify Output was called
 	fakeExec.AssertOutputCalledWith(t, "inspect", "--format", "{{.Id}}|{{.State.Status}}|{{.ImageName}}", containerID)
+}
+
+func TestInfo_ContainerNotFound(t *testing.T) {
+	t.Parallel()
+
+	containerID := "abc123"
+	fakeExec := exec.NewFake()
+
+	// Simulate "podman inspect" failing with a "no such container" error (as Podman does).
+	fakeExec.OutputFunc = func(ctx context.Context, args ...string) ([]byte, error) {
+		return nil, fmt.Errorf("exit status 125\nPodman stderr:\nError: no such container: %s", containerID)
+	}
+
+	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+
+	_, err := p.Info(context.Background(), containerID)
+	if err == nil {
+		t.Fatal("Expected error when container not found, got nil")
+	}
+	if !errors.Is(err, runtime.ErrInstanceNotFound) {
+		t.Errorf("Expected ErrInstanceNotFound, got: %v", err)
+	}
 }
 
 func TestInfo_MalformedOutput(t *testing.T) {

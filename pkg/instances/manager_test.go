@@ -3817,6 +3817,94 @@ func TestManager_Stop_RejectsInvalidState(t *testing.T) {
 	}
 }
 
+func TestManager_Stop_OrphanedInstance(t *testing.T) {
+	t.Parallel()
+
+	// orphanedInstanceRuntime simulates a runtime whose resources have disappeared (e.g., a
+	// workspace from a different Podman machine): Stop() is a no-op, Info() returns ErrInstanceNotFound.
+	storageDir := t.TempDir()
+	manager, err := NewManager(storageDir)
+	if err != nil {
+		t.Fatalf("Failed to create manager: %v", err)
+	}
+
+	orphaned := &orphanedInstanceRuntime{}
+	if err := manager.RegisterRuntime(orphaned); err != nil {
+		t.Fatalf("Failed to register orphaned runtime: %v", err)
+	}
+
+	instanceTmpDir := t.TempDir()
+	sourceDir := filepath.Join(instanceTmpDir, "source")
+	configDir := filepath.Join(instanceTmpDir, "config")
+	if err := os.MkdirAll(sourceDir, 0755); err != nil {
+		t.Fatalf("Failed to create source directory: %v", err)
+	}
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("Failed to create config directory: %v", err)
+	}
+
+	inst, err := NewInstance(NewInstanceParams{SourceDir: sourceDir, ConfigDir: configDir})
+	if err != nil {
+		t.Fatalf("Failed to create instance: %v", err)
+	}
+
+	added, err := manager.Add(context.Background(), AddOptions{
+		Instance:    inst,
+		RuntimeType: orphaned.Type(),
+		Agent:       "test-agent",
+	})
+	if err != nil {
+		t.Fatalf("Failed to add instance: %v", err)
+	}
+
+	if err := manager.Start(context.Background(), added.GetID()); err != nil {
+		t.Fatalf("Failed to start instance: %v", err)
+	}
+
+	// Stop should succeed even though Info() returns ErrInstanceNotFound.
+	err = manager.Stop(context.Background(), added.GetID())
+	if err != nil {
+		t.Fatalf("Stop() expected nil for orphaned instance, got: %v", err)
+	}
+
+	// State should be updated to "stopped".
+	updated, err := manager.Get(added.GetID())
+	if err != nil {
+		t.Fatalf("Get() failed: %v", err)
+	}
+	if updated.GetRuntimeData().State != api.WorkspaceStateStopped {
+		t.Errorf("After Stop, state = %v, want %v", updated.GetRuntimeData().State, api.WorkspaceStateStopped)
+	}
+}
+
+// orphanedInstanceRuntime simulates a runtime whose resources have disappeared.
+// Stop() is a no-op, Info() returns ErrInstanceNotFound.
+type orphanedInstanceRuntime struct{}
+
+func (r *orphanedInstanceRuntime) Type() string                 { return "orphaned-runtime" }
+func (r *orphanedInstanceRuntime) DisplayName() string          { return "orphaned-runtime" }
+func (r *orphanedInstanceRuntime) Description() string          { return "orphaned runtime for testing" }
+func (r *orphanedInstanceRuntime) Local() bool                  { return true }
+func (r *orphanedInstanceRuntime) WorkspaceSourcesPath() string { return "/workspace/sources" }
+
+func (r *orphanedInstanceRuntime) Create(_ context.Context, _ runtime.CreateParams) (runtime.RuntimeInfo, error) {
+	return runtime.RuntimeInfo{ID: "orphaned-id", State: api.WorkspaceStateStopped, Info: map[string]string{}}, nil
+}
+
+func (r *orphanedInstanceRuntime) Start(_ context.Context, id string) (runtime.RuntimeInfo, error) {
+	return runtime.RuntimeInfo{ID: id, State: api.WorkspaceStateRunning, Info: map[string]string{}}, nil
+}
+
+func (r *orphanedInstanceRuntime) Stop(_ context.Context, _ string) error { return nil }
+
+func (r *orphanedInstanceRuntime) Remove(_ context.Context, _ string) error { return nil }
+
+func (r *orphanedInstanceRuntime) Info(_ context.Context, id string) (runtime.RuntimeInfo, error) {
+	return runtime.RuntimeInfo{}, fmt.Errorf("%w: %s", runtime.ErrInstanceNotFound, id)
+}
+
+var _ runtime.Runtime = (*orphanedInstanceRuntime)(nil)
+
 // spyRuntime is a test double for runtime.Runtime that captures the params passed to Create.
 type spyRuntime struct {
 	wrapped          runtime.Runtime

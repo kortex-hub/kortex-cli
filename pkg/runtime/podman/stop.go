@@ -16,7 +16,9 @@ package podman
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/openkaiden/kdn/pkg/logger"
@@ -36,6 +38,11 @@ func (p *podmanRuntime) Stop(ctx context.Context, id string) error {
 	// Resolve the pod name from the stored mapping
 	podName, err := p.readPodName(id)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			// Pod name file is missing — the workspace has no live Podman resources
+			// (e.g., it was created on a different Podman machine). Nothing to stop.
+			return nil
+		}
 		return fmt.Errorf("failed to resolve pod name: %w", err)
 	}
 

@@ -556,7 +556,13 @@ func (m *manager) Stop(ctx context.Context, id string) error {
 	// Get updated runtime info
 	runtimeInfo, err := rt.Info(ctx, runtimeData.InstanceID)
 	if err != nil {
-		return fmt.Errorf("failed to get runtime info: %w", err)
+		if errors.Is(err, runtime.ErrInstanceNotFound) {
+			// The runtime instance is gone (e.g., orphaned workspace from a different Podman
+			// machine). Treat it as stopped so the workspace can be removed.
+			runtimeInfo = runtime.RuntimeInfo{State: api.WorkspaceStateStopped}
+		} else {
+			return fmt.Errorf("failed to get runtime info: %w", err)
+		}
 	}
 
 	// Validate state at boundary

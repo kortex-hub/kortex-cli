@@ -223,3 +223,26 @@ func TestStop_StepLogger_FailOnContainerStop(t *testing.T) {
 		t.Fatalf("Expected 1 Fail() call, got %d", len(fakeLogger.failCalls))
 	}
 }
+
+func TestStop_OrphanedWorkspace_MissingPodNameFile(t *testing.T) {
+	t.Parallel()
+
+	containerID := "abc123"
+	fakeExec := exec.NewFake()
+
+	// Do NOT set up pod files — simulate an orphaned workspace from a different machine.
+	p := newWithDeps(&fakeSystem{}, fakeExec).(*podmanRuntime)
+
+	err := p.Stop(context.Background(), containerID)
+	if err != nil {
+		t.Fatalf("Stop() expected nil for orphaned workspace (missing pod name file), got: %v", err)
+	}
+
+	// Verify no podman commands were issued.
+	if len(fakeExec.OutputCalls) != 0 {
+		t.Errorf("Expected no Output calls for orphaned workspace, got: %v", fakeExec.OutputCalls)
+	}
+	if len(fakeExec.RunCalls) != 0 {
+		t.Errorf("Expected no Run calls for orphaned workspace, got: %v", fakeExec.RunCalls)
+	}
+}
