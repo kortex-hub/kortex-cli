@@ -586,7 +586,7 @@ func TestOpenCode_SetModel(t *testing.T) {
 		}
 	})
 
-	t.Run("openai provider with custom baseURL configures openai-compatible", func(t *testing.T) {
+	t.Run("openai provider with custom baseURL uses custom provider with hostname", func(t *testing.T) {
 		t.Parallel()
 
 		agent := NewOpenCode()
@@ -602,18 +602,21 @@ func TestOpenCode_SetModel(t *testing.T) {
 			t.Fatalf("Failed to parse result JSON: %v", err)
 		}
 
-		if config["model"] != "openai/gpt-4o" {
-			t.Errorf("model = %v, want %q", config["model"], "openai/gpt-4o")
+		if config["model"] != "custom/gpt-4o" {
+			t.Errorf("model = %v, want %q", config["model"], "custom/gpt-4o")
 		}
 
 		providers := config["provider"].(map[string]interface{})
-		openai := providers["openai"].(map[string]interface{})
+		custom := providers["custom"].(map[string]interface{})
 
-		if openai["npm"] != "@ai-sdk/openai-compatible" {
-			t.Errorf("npm = %v, want %q", openai["npm"], "@ai-sdk/openai-compatible")
+		if custom["npm"] != "@ai-sdk/openai-compatible" {
+			t.Errorf("npm = %v, want %q", custom["npm"], "@ai-sdk/openai-compatible")
+		}
+		if custom["name"] != "my-proxy.example.com" {
+			t.Errorf("name = %v, want %q", custom["name"], "my-proxy.example.com")
 		}
 
-		options := openai["options"].(map[string]interface{})
+		options := custom["options"].(map[string]interface{})
 		if got := options["baseURL"].(string); got != "https://my-proxy.example.com/v1" {
 			t.Errorf("baseURL = %q, want %q", got, "https://my-proxy.example.com/v1")
 		}
