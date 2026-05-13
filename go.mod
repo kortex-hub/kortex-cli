@@ -4,6 +4,7 @@ go 1.26.1
 
 require (
 	github.com/charmbracelet/huh v1.0.0
+	github.com/charmbracelet/x/ansi v0.9.3
 	github.com/devfile/alizer v1.9.6
 	github.com/fatih/color v1.19.0
 	github.com/goccy/go-yaml v1.19.2
@@ -14,6 +15,7 @@ require (
 	github.com/spf13/pflag v1.0.10
 	github.com/yarlson/pin v0.9.1
 	github.com/zalando/go-keyring v0.2.8
+	golang.org/x/sys v0.42.0
 )
 
 require (
@@ -24,7 +26,6 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.6 // indirect
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
 	github.com/charmbracelet/lipgloss v1.1.0 // indirect
-	github.com/charmbracelet/x/ansi v0.9.3 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
 	github.com/charmbracelet/x/exp/strings v0.0.0-20240722160745-212f7b056ed0 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
@@ -58,7 +59,6 @@ require (
 	go.uber.org/zap v1.27.1 // indirect
 	golang.org/x/mod v0.33.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

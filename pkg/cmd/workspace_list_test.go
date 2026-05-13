@@ -380,6 +380,80 @@ func TestWorkspaceListCmd_E2E(t *testing.T) {
 		}
 	})
 
+	t.Run("name and short ID appear on separate lines", func(t *testing.T) {
+		t.Parallel()
+
+		storageDir := t.TempDir()
+		sourcesDir := t.TempDir()
+
+		manager, err := instances.NewManager(storageDir)
+		if err != nil {
+			t.Fatalf("Failed to create manager: %v", err)
+		}
+
+		instance, err := instances.NewInstance(instances.NewInstanceParams{
+			SourceDir: sourcesDir,
+			ConfigDir: filepath.Join(sourcesDir, ".kaiden"),
+			Name:      "my-workspace",
+		})
+		if err != nil {
+			t.Fatalf("Failed to create instance: %v", err)
+		}
+
+		if err := manager.RegisterRuntime(fake.New()); err != nil {
+			t.Fatalf("Failed to register fake runtime: %v", err)
+		}
+
+		addedInstance, err := manager.Add(context.Background(), instances.AddOptions{Instance: instance, RuntimeType: "fake"})
+		if err != nil {
+			t.Fatalf("Failed to add instance: %v", err)
+		}
+
+		rootCmd := NewRootCmd()
+		rootCmd.SetArgs([]string{"workspace", "list", "--storage", storageDir})
+
+		var output bytes.Buffer
+		rootCmd.SetOut(&output)
+
+		if err := rootCmd.Execute(); err != nil {
+			t.Fatalf("Expected no error, got %v", err)
+		}
+
+		shortID := addedInstance.GetID()[:12]
+		lines := strings.Split(output.String(), "\n")
+
+		var nameLine, idLine int = -1, -1
+		for i, line := range lines {
+			// Strip ANSI escape sequences for comparison
+			stripped := strings.Map(func(r rune) rune {
+				if r < 32 && r != '\t' {
+					return -1
+				}
+				return r
+			}, line)
+			if strings.Contains(stripped, addedInstance.GetName()) {
+				nameLine = i
+			}
+			if strings.Contains(stripped, shortID) {
+				idLine = i
+			}
+		}
+
+		if nameLine == -1 {
+			t.Errorf("Name %q not found in output:\n%s", addedInstance.GetName(), output.String())
+		}
+		if idLine == -1 {
+			t.Errorf("Short ID %q not found in output:\n%s", shortID, output.String())
+		}
+		if nameLine != -1 && idLine != -1 && nameLine == idLine {
+			t.Errorf("Expected name and short ID on different lines, both on line %d:\n%s", nameLine, output.String())
+		}
+		if nameLine != -1 && idLine != -1 && idLine != nameLine+1 {
+			t.Errorf("Expected short ID on the line immediately after name (lines %d and %d), got lines %d and %d:\n%s",
+				nameLine, nameLine+1, nameLine, idLine, output.String())
+		}
+	})
+
 	t.Run("list command alias works", func(t *testing.T) {
 		t.Parallel()
 
@@ -551,7 +625,7 @@ func TestWorkspaceListCmd_E2E(t *testing.T) {
 func TestWorkspaceListCmd_Model(t *testing.T) {
 	t.Parallel()
 
-	t.Run("table header shows AGENT and MODEL columns", func(t *testing.T) {
+	t.Run("table header shows combined AGENT/MODEL column", func(t *testing.T) {
 		t.Parallel()
 
 		storageDir := t.TempDir()
@@ -590,14 +664,8 @@ func TestWorkspaceListCmd_Model(t *testing.T) {
 		}
 
 		result := output.String()
-		if !strings.Contains(result, "AGENT") {
-			t.Errorf("Expected table header 'AGENT', got: %s", result)
-		}
-		if !strings.Contains(result, "MODEL") {
-			t.Errorf("Expected table header 'MODEL', got: %s", result)
-		}
-		if strings.Contains(result, "AGENT/MODEL") {
-			t.Errorf("Expected separate AGENT and MODEL headers, got combined header: %s", result)
+		if !strings.Contains(result, "AGENT/MODEL") {
+			t.Errorf("Expected combined table header 'AGENT/MODEL', got: %s", result)
 		}
 	})
 
@@ -952,7 +1020,7 @@ func TestWorkspaceListCmd_Timestamps(t *testing.T) {
 	})
 }
 
-func TestFormatState(t *testing.T) {
+func TestFormatStateWord(t *testing.T) {
 	t.Parallel()
 
 	t.Run("returns stopped for stopped instance", func(t *testing.T) {
@@ -969,12 +1037,12 @@ func TestFormatState(t *testing.T) {
 			},
 		}
 		inst, _ := instances.NewInstanceFromData(data)
-		if got := formatState(inst); got != "stopped" {
+		if got := formatStateWord(inst); got != "stopped" {
 			t.Errorf("Expected 'stopped', got %q", got)
 		}
 	})
 
-	t.Run("returns running for running instance with no start time", func(t *testing.T) {
+	t.Run("returns running for running instance", func(t *testing.T) {
 		t.Parallel()
 
 		sourceDir := t.TempDir()
@@ -988,12 +1056,54 @@ func TestFormatState(t *testing.T) {
 			},
 		}
 		inst, _ := instances.NewInstanceFromData(data)
-		if got := formatState(inst); got != "running" {
+		if got := formatStateWord(inst); got != "running" {
 			t.Errorf("Expected 'running', got %q", got)
 		}
 	})
+}
 
-	t.Run("returns running for Xs when started less than a minute ago", func(t *testing.T) {
+func TestFormatStateDuration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns empty for stopped instance", func(t *testing.T) {
+		t.Parallel()
+
+		sourceDir := t.TempDir()
+		configDir := t.TempDir()
+		data := instances.InstanceData{
+			ID:    "id1",
+			Name:  "ws",
+			Paths: instances.InstancePaths{Source: sourceDir, Configuration: configDir},
+			Runtime: instances.RuntimeData{
+				State: api.WorkspaceStateStopped,
+			},
+		}
+		inst, _ := instances.NewInstanceFromData(data)
+		if got := formatStateDuration(inst); got != "" {
+			t.Errorf("Expected empty string, got %q", got)
+		}
+	})
+
+	t.Run("returns empty for running instance with no start time", func(t *testing.T) {
+		t.Parallel()
+
+		sourceDir := t.TempDir()
+		configDir := t.TempDir()
+		data := instances.InstanceData{
+			ID:    "id2",
+			Name:  "ws",
+			Paths: instances.InstancePaths{Source: sourceDir, Configuration: configDir},
+			Runtime: instances.RuntimeData{
+				State: api.WorkspaceStateRunning,
+			},
+		}
+		inst, _ := instances.NewInstanceFromData(data)
+		if got := formatStateDuration(inst); got != "" {
+			t.Errorf("Expected empty string, got %q", got)
+		}
+	})
+
+	t.Run("returns for Xs when started less than a minute ago", func(t *testing.T) {
 		t.Parallel()
 
 		sourceDir := t.TempDir()
@@ -1008,13 +1118,13 @@ func TestFormatState(t *testing.T) {
 			},
 		}
 		inst, _ := instances.NewInstanceFromData(data)
-		got := formatState(inst)
-		if !strings.HasPrefix(got, "running for ") || !strings.HasSuffix(got, "s") {
-			t.Errorf("Expected 'running for Xs', got %q", got)
+		got := formatStateDuration(inst)
+		if !strings.HasPrefix(got, "for ") || !strings.HasSuffix(got, "s") {
+			t.Errorf("Expected 'for Xs', got %q", got)
 		}
 	})
 
-	t.Run("returns running for Xmin when started between 1 and 60 minutes ago", func(t *testing.T) {
+	t.Run("returns for Xmin when started between 1 and 60 minutes ago", func(t *testing.T) {
 		t.Parallel()
 
 		sourceDir := t.TempDir()
@@ -1029,13 +1139,13 @@ func TestFormatState(t *testing.T) {
 			},
 		}
 		inst, _ := instances.NewInstanceFromData(data)
-		got := formatState(inst)
-		if got != "running for 5min" {
-			t.Errorf("Expected 'running for 5min', got %q", got)
+		got := formatStateDuration(inst)
+		if got != "for 5min" {
+			t.Errorf("Expected 'for 5min', got %q", got)
 		}
 	})
 
-	t.Run("returns running for h:mmh when started over 1 hour ago", func(t *testing.T) {
+	t.Run("returns for h:mmh when started over 1 hour ago", func(t *testing.T) {
 		t.Parallel()
 
 		sourceDir := t.TempDir()
@@ -1050,9 +1160,9 @@ func TestFormatState(t *testing.T) {
 			},
 		}
 		inst, _ := instances.NewInstanceFromData(data)
-		got := formatState(inst)
-		if got != "running for 2:15h" {
-			t.Errorf("Expected 'running for 2:15h', got %q", got)
+		got := formatStateDuration(inst)
+		if got != "for 2:15h" {
+			t.Errorf("Expected 'for 2:15h', got %q", got)
 		}
 	})
 }

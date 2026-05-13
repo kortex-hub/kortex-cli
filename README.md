@@ -3260,14 +3260,16 @@ kdn workspace list
 ```
 Output:
 ```text
-NAME             SHORT ID      PROJECT                              SOURCES                              AGENT    MODEL                          STATE
-myproject        a1b2c3d4e5f6  /absolute/path/to/myproject          /absolute/path/to/myproject          claude   claude-sonnet-4-20250514       running for 5min
-another-project  f6e5d4c3b2a1  /absolute/path/to/another-project    /absolute/path/to/another-project    goose                                   stopped
+NAME/SHORT ID    PROJECT/SOURCES                       AGENT/MODEL                    RUNTIME  STATE
+myproject        /absolute/path/to/myproject           claude                         podman   running
+a1b2c3d4e5f6     /absolute/path/to/myproject           claude-sonnet-4-20250514                for 5min
+another-project  /absolute/path/to/another-project     goose                          podman   stopped
+f6e5d4c3b2a1     /absolute/path/to/another-project
 ```
 
-The `AGENT` and `MODEL` columns are displayed separately. When no model is set, the `MODEL` column is empty.
+Each workspace is shown on two lines: the first line shows the name, project, agent, runtime, and state; the second line shows the short ID, sources path, model, and running duration (if applicable). When no model is set, the model field on the second line is empty.
 
-The `STATE` column shows a human-readable duration for running workspaces: `running for Xs` (under 1 minute), `running for Xmin` (under 1 hour), or `running for H:MMh` (1 hour or more). Stopped, errored, or unknown workspaces show their state name directly.
+The `STATE` column shows `running` or `stopped` on the first line. For running workspaces, the duration appears on the second line: `for Xs` (under 1 minute), `for Xmin` (under 1 hour), or `for H:MMh` (1 hour or more).
 
 **Use the short aliases:**
 ```bash

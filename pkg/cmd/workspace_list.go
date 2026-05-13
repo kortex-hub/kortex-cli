@@ -27,6 +27,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/fatih/color"
 	api "github.com/openkaiden/kdn-api/cli/go"
 	"github.com/openkaiden/kdn/pkg/instances"
@@ -48,27 +49,31 @@ func truncateID(id string, n int) string {
 	return id[:n]
 }
 
-// formatState returns a human-readable state string.
-// For running instances with a known start time it shows "running for X".
-func formatState(instance instances.Instance) string {
-	state := instance.GetRuntimeData().State
-	if state != api.WorkspaceStateRunning {
-		return string(state)
+// formatStateWord returns the state string for the first display line (e.g. "running", "stopped").
+func formatStateWord(instance instances.Instance) string {
+	return string(instance.GetRuntimeData().State)
+}
+
+// formatStateDuration returns the running duration for the second display line (e.g. "for 3:25h"),
+// or an empty string when the instance is not running or has no recorded start time.
+func formatStateDuration(instance instances.Instance) string {
+	if instance.GetRuntimeData().State != api.WorkspaceStateRunning {
+		return ""
 	}
 	startedAt := instance.GetStartedAt()
 	if startedAt.IsZero() {
-		return string(state)
+		return ""
 	}
 	d := time.Since(startedAt)
 	switch {
 	case d < time.Minute:
-		return fmt.Sprintf("running for %ds", int(d.Seconds()))
+		return fmt.Sprintf("for %ds", int(d.Seconds()))
 	case d < time.Hour:
-		return fmt.Sprintf("running for %dmin", int(d.Minutes()))
+		return fmt.Sprintf("for %dmin", int(d.Minutes()))
 	default:
 		h := int(d.Hours())
 		m := int(d.Minutes()) % 60
-		return fmt.Sprintf("running for %d:%02dh", h, m)
+		return fmt.Sprintf("for %d:%02dh", h, m)
 	}
 }
 
@@ -167,24 +172,25 @@ func (w *workspaceListCmd) displayTable(cmd *cobra.Command, instancesList []inst
 
 	// Create table with headers and formatters
 	headerFmt := color.New(color.FgGreen, color.Underline).SprintfFunc()
-	columnFmt := color.New(color.FgYellow).SprintfFunc()
+	nameFmt := color.New(color.FgYellow).SprintfFunc()
 
-	tbl := table.New("NAME", "SHORT ID", "PROJECT", "SOURCES", "AGENT", "MODEL", "RUNTIME", "STATE")
+	tbl := table.New("NAME/SHORT ID", "PROJECT/SOURCES", "AGENT/MODEL", "RUNTIME", "STATE")
 	tbl.WithWriter(out)
-	tbl.WithHeaderFormatter(headerFmt).WithFirstColumnFormatter(columnFmt)
+	tbl.WithHeaderFormatter(headerFmt)
+	tbl.WithWidthFunc(ansi.StringWidth)
 
-	// Add each instance as a row
+	// Add each instance as two rows: name/project/agent/runtime/state then shortID/sources/model//duration
 	for _, instance := range instancesList {
 		shortID := truncateID(instance.GetID(), 12)
-		name := instance.GetName()
+		name := nameFmt("%s", instance.GetName())
 		project := instance.GetProject()
 		sources := compactPath(instance.GetSourceDir())
 		agent := instance.GetAgent()
 		model := displayModelID(instance.GetModel())
 		runtime := instance.GetRuntimeData().Type
-		state := formatState(instance)
 
-		tbl.AddRow(name, shortID, project, sources, agent, model, runtime, state)
+		tbl.AddRow(name, project, agent, runtime, formatStateWord(instance))
+		tbl.AddRow(shortID, sources, model, "", formatStateDuration(instance))
 	}
 
 	// Print the table
