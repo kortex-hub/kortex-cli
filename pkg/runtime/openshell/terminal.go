@@ -32,12 +32,10 @@ func (r *openshellRuntime) Terminal(ctx context.Context, instanceID string, _ st
 		return err
 	}
 
-	if len(command) == 0 {
-		args := []string{"sandbox", "connect", instanceID}
-		return r.executor.RunInteractive(ctx, args...)
+	shellCmd := "bash"
+	if len(command) > 0 {
+		shellCmd = strings.Join(command, " ")
 	}
-
-	shellCmd := strings.Join(command, " ")
 	wrappedCmd := fmt.Sprintf("source %s/.kdn-env 2>/dev/null; cd %s 2>/dev/null; exec %s", containerHome, containerWorkspaceSources, shellCmd)
 
 	args := []string{

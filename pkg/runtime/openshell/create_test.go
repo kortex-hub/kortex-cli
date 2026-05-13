@@ -328,8 +328,8 @@ func TestWriteEnvFile_UsesSandboxUpload(t *testing.T) {
 		t.Fatalf("writeEnvFile() failed: %v", err)
 	}
 
-	if len(fakeExec.RunCalls) != 1 {
-		t.Fatalf("Expected 1 Run call, got %d", len(fakeExec.RunCalls))
+	if len(fakeExec.RunCalls) != 2 {
+		t.Fatalf("Expected 2 Run calls (upload + bashrc), got %d", len(fakeExec.RunCalls))
 	}
 
 	call := fakeExec.RunCalls[0]
@@ -340,6 +340,11 @@ func TestWriteEnvFile_UsesSandboxUpload(t *testing.T) {
 	expectedEnvDest := "/sandbox/.kdn-env"
 	if call[4] != expectedEnvDest {
 		t.Errorf("Expected destination %q, got %q", expectedEnvDest, call[4])
+	}
+
+	bashrcCall := fakeExec.RunCalls[1]
+	if bashrcCall[0] != "sandbox" || bashrcCall[1] != "exec" {
+		t.Errorf("Expected sandbox exec for bashrc, got %v", bashrcCall[:2])
 	}
 }
 
@@ -368,8 +373,8 @@ func TestWriteEnvFile_WorkspaceConfigEnvVars(t *testing.T) {
 		t.Fatalf("writeEnvFile() failed: %v", err)
 	}
 
-	if len(fakeExec.RunCalls) != 1 {
-		t.Fatalf("Expected 1 Run call, got %d", len(fakeExec.RunCalls))
+	if len(fakeExec.RunCalls) != 2 {
+		t.Fatalf("Expected 2 Run calls (upload + bashrc), got %d", len(fakeExec.RunCalls))
 	}
 }
 
