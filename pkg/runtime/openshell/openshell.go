@@ -23,6 +23,7 @@ import (
 
 	workspace "github.com/openkaiden/kdn-api/workspace-configuration/go"
 	"github.com/openkaiden/kdn/pkg/containerurl"
+	"github.com/openkaiden/kdn/pkg/credential"
 	"github.com/openkaiden/kdn/pkg/runtime"
 	"github.com/openkaiden/kdn/pkg/runtime/openshell/exec"
 	"github.com/openkaiden/kdn/pkg/secret"
@@ -49,6 +50,7 @@ type openshellRuntime struct {
 	binariesErr           error
 	secretStore           secret.Store
 	secretServiceRegistry secretservice.Registry
+	credentialRegistry    credential.Registry
 	version               string
 }
 
@@ -75,6 +77,9 @@ var _ runtime.HostResolver = (*openshellRuntime)(nil)
 
 // Ensure openshellRuntime implements runtime.ConfigTransformer at compile time.
 var _ runtime.ConfigTransformer = (*openshellRuntime)(nil)
+
+// Ensure openshellRuntime implements runtime.CredentialRegistryAware at compile time.
+var _ runtime.CredentialRegistryAware = (*openshellRuntime)(nil)
 
 // New creates a new OpenShell Gateway runtime instance.
 func New() runtime.Runtime {
@@ -137,6 +142,11 @@ func (r *openshellRuntime) Flags() []runtime.FlagDef {
 // SetSecretServiceRegistry implements runtime.SecretServiceRegistryAware.
 func (r *openshellRuntime) SetSecretServiceRegistry(reg secretservice.Registry) {
 	r.secretServiceRegistry = reg
+}
+
+// SetCredentialRegistry implements runtime.CredentialRegistryAware.
+func (r *openshellRuntime) SetCredentialRegistry(reg credential.Registry) {
+	r.credentialRegistry = reg
 }
 
 // Initialize implements runtime.StorageAware.

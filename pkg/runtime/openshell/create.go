@@ -68,6 +68,16 @@ func (r *openshellRuntime) Create(ctx context.Context, params runtime.CreatePara
 	// Collect ports from workspace config and agent defaults
 	ports := collectPorts(params)
 
+	// Intercept file-based credentials (e.g. gcloud ADC) before sandbox
+	// creation. Detected credential mounts are removed from the config and
+	// the real file is uploaded into the sandbox after it is created.
+	step.Start("Detecting credentials", "Credential detection complete")
+	uploadCredentialsFn, err := r.interceptCredentials(ctx, params)
+	if err != nil {
+		step.Fail(err)
+		return runtime.RuntimeInfo{}, fmt.Errorf("failed to intercept credentials: %w", err)
+	}
+
 	// Provision OpenShell providers for workspace secrets before sandbox creation,
 	// because providers must be attached via --provider flags at create time.
 	step.Start("Provisioning secret providers", "Secret providers provisioned")
@@ -91,6 +101,15 @@ func (r *openshellRuntime) Create(ctx context.Context, params runtime.CreatePara
 	); err != nil {
 		step.Fail(err)
 		return runtime.RuntimeInfo{}, fmt.Errorf("failed to upload sources: %w", err)
+	}
+
+	// Upload credential files into the sandbox (after creation)
+	if uploadCredentialsFn != nil {
+		step.Start("Uploading credential files", "Credential files uploaded")
+		if err := uploadCredentialsFn(ctx, name); err != nil {
+			step.Fail(err)
+			return runtime.RuntimeInfo{}, fmt.Errorf("failed to upload credential files: %w", err)
+		}
 	}
 
 	// Upload agent settings
@@ -297,8 +316,17 @@ func (r *openshellRuntime) writeEnvFile(ctx context.Context, name string, params
 
 	destPath := path.Join(containerHome, ".kdn-env")
 	l := logger.FromContext(ctx)
-	return r.executor.Run(ctx, l.Stdout(), l.Stderr(),
+	if err := r.executor.Run(ctx, l.Stdout(), l.Stderr(),
 		"sandbox", "upload", name, tmpPath, destPath,
+	); err != nil {
+		return err
+	}
+
+	// Append source line to .bashrc so env vars are available in any shell
+	// session (e.g. openshell connect), not only kdn terminal.
+	return r.executor.Run(ctx, l.Stdout(), l.Stderr(),
+		"sandbox", "exec", "--name", name, "--no-tty", "--",
+		"sh", "-c", fmt.Sprintf(`grep -q '.kdn-env' %s/.bashrc 2>/dev/null || echo '. %s/.kdn-env' >> %s/.bashrc`, containerHome, containerHome, containerHome),
 	)
 }
 

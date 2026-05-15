@@ -49,18 +49,20 @@ func TestTerminal_DefaultCommand(t *testing.T) {
 
 	args := fakeExec.RunInteractiveCalls[0]
 
-	// Should use sandbox connect for interactive terminal
-	if args[0] != "sandbox" || args[1] != "connect" {
-		t.Errorf("Expected 'sandbox connect', got %v", args[:2])
+	// Should use sandbox exec (not connect) so .kdn-env is sourced
+	if args[0] != "sandbox" || args[1] != "exec" {
+		t.Errorf("Expected 'sandbox exec', got %v", args[:2])
+	}
+	if args[2] != "--name" || args[3] != "kdn-test" {
+		t.Errorf("Expected '--name kdn-test', got %v", args[2:4])
 	}
 
-	// Instance ID should be a positional argument
-	if args[2] != "kdn-test" {
-		t.Errorf("Expected instance ID 'kdn-test', got %s", args[2])
+	lastArg := args[len(args)-1]
+	if !strings.Contains(lastArg, "source /sandbox/.kdn-env") {
+		t.Errorf("Expected env sourcing, got %q", lastArg)
 	}
-
-	if len(args) != 3 {
-		t.Errorf("Expected 3 args, got %d: %v", len(args), args)
+	if !strings.Contains(lastArg, "exec bash") {
+		t.Errorf("Expected default 'exec bash' command, got %q", lastArg)
 	}
 }
 
