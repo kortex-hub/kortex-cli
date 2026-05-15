@@ -221,6 +221,21 @@ When a workspace has `network.mode = deny`, the Podman runtime enforces outbound
 
 **For the full design, use:** `/working-with-onecli`
 
+### Provider Connection System
+
+The provider connection system stores named, typed LLM connections (e.g. `anthropic`, `vertexai`) persistently. Secret-kind parameters are stored in the shared secret store under a namespaced key (`<providerName>/<paramName>`) so they appear in `kdn secret list` with the correct type and description.
+
+**Key Components:**
+- **`ProviderService` interface** (`pkg/providerservice/providerservice.go`): Describes a provider type — `Name()`, `Params()`. Each `ProviderParam` carries `Name`, `Kind` (`plain`, `secret`, `credential`), `Required`, `Description`, and `SecretType` (the secret service type used when storing the param; only meaningful for `Kind=secret`; valid values are registered secret service names such as `"anthropic"`)
+- **Registry** (`pkg/providerservice/registry.go`): Thread-safe ordered list of `ProviderService` instances
+- **JSON-driven registration** (`pkg/providerservicesetup/register.go` + `providerservices.json`): All provider types and their params are declared in `providerservices.json`; `register.go` parses the file and registers each service. Adding a new provider type only requires a new JSON entry — no Go code change
+- **`provider.Store` interface** (`pkg/provider/store.go`): `Create`, `List`, `Get`, `Remove`. The store writes provider records to `<storageDir>/providers/providers.json` and delegates secret-kind params to the shared `secret.Store` (`<storageDir>/secrets.json`)
+- **CLI commands** (`pkg/cmd/provider_*.go`): `provider create`, `provider list`, `provider remove` — follow the standard `preRun`/`run` split pattern with JSON output support
+
+**Secret storage:** When a provider is created, each `secret`-kind param is stored in the shared secret store as `<providerName>/<paramName>` with type `p.SecretType` and description `"<paramName> for <providerName> provider"`. This makes provider secrets visible alongside user secrets in `kdn secret list`.
+
+**Dynamic `Long` description:** `buildProviderCreateUsage()` generates the usage synopsis for `provider create` from `ListServices()` at startup — types in alphabetical order, required params first (alphabetical), then optional params (alphabetical). Adding a new provider type to `providerservices.json` automatically updates the help text.
+
 ### Secret Service System
 
 The secret service system provides a pluggable architecture for managing secret service definitions that describe how secrets are applied to workspace requests.

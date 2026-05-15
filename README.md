@@ -2887,6 +2887,170 @@ kdn secret rm my-github-token
 - Workspaces that reference the removed secret by name will fail to start until a new secret with the same name is created
 - **JSON error handling**: When `--output json` is used, errors are written to stdout (not stderr) in JSON format, and the CLI exits with code 1. Always check the exit code to determine success/failure
 
+## Provider Commands
+
+Provider connections are named, typed LLM connections (e.g. `anthropic`, `vertexai`) that kdn stores persistently. Secret-kind parameters (such as API tokens) are kept in the shared secret store under a namespaced key (`<provider>/<param>`) and appear in `kdn secret list`.
+
+**Workflow:**
+1. Create a connection: `kdn provider create my-anthropic --type anthropic --token sk-ant-xxx`
+2. List connections: `kdn provider list`
+3. Remove a connection: `kdn provider remove my-anthropic`
+
+### `provider create` - Create a New Provider Connection
+
+Creates a named LLM provider connection and stores its parameters. Secret-kind parameters are stored in the shared secret store.
+
+#### Usage
+
+```bash
+kdn provider create <name> --type <type> [flags]
+```
+
+#### Arguments
+
+- `name` - Name for the provider connection (must be unique)
+
+#### Flags
+
+- `--type <type>` - Provider type (`anthropic`, `vertexai`)
+- `--token <secret>` - API token (anthropic)
+- `--url <url>` - API base URL override (anthropic, optional)
+- `--project <project>` - GCP project ID (vertexai)
+- `--region <region>` - GCP region (vertexai)
+- `--credentials <path>` - Path to GCP credentials file (vertexai, optional)
+- `--output, -o <format>` - Output format (supported: `json`)
+- `--storage <path>` - Storage directory for kdn data (default: `$HOME/.kdn`)
+
+#### Examples
+
+**Create an Anthropic provider connection:**
+```bash
+kdn provider create my-anthropic --type anthropic --token sk-ant-mytoken
+```
+Output:
+```text
+Provider "my-anthropic" created successfully
+```
+
+**Create a Vertex AI provider connection:**
+```bash
+kdn provider create my-vertexai --type vertexai --project my-project --region us-central1
+```
+
+**Create with JSON output:**
+```bash
+kdn provider create my-anthropic --type anthropic --token sk-ant-mytoken --output json
+```
+Output:
+```json
+{
+  "name": "my-anthropic"
+}
+```
+
+#### Notes
+
+- Secret-kind parameters (e.g. `--token`) are stored in the shared secret store under `<name>/<param>` and appear in `kdn secret list`
+- **JSON error handling**: When `--output json` is used, errors are written to stdout (not stderr) in JSON format, and the CLI exits with code 1
+
+### `provider list` - List Provider Connections
+
+Lists all configured LLM provider connections. Secret-kind parameter values are masked as `<secret>` in table output; the reference name is shown in JSON output.
+
+#### Usage
+
+```bash
+kdn provider list [flags]
+```
+
+#### Flags
+
+- `--output, -o <format>` - Output format (supported: `json`)
+- `--storage <path>` - Storage directory for kdn data (default: `$HOME/.kdn`)
+
+#### Examples
+
+**List all provider connections:**
+```bash
+kdn provider list
+```
+Output:
+```text
+NAME           TYPE       PARAMS
+my-anthropic   anthropic  token=<secret>
+my-vertexai    vertexai   project=my-project, region=us-central1
+```
+
+**List with JSON output:**
+```bash
+kdn provider list --output json
+```
+Output:
+```json
+{
+  "items": [
+    {
+      "name": "my-anthropic",
+      "type": "anthropic",
+      "params": [
+        {"name": "token", "value": "my-anthropic/token"}
+      ]
+    }
+  ]
+}
+```
+
+#### Notes
+
+- Secret param `value` in JSON output is the secret reference name (e.g. `my-anthropic/token`), not the actual secret value
+- **JSON error handling**: When `--output json` is used, errors are written to stdout (not stderr) in JSON format, and the CLI exits with code 1
+
+### `provider remove` - Remove a Provider Connection
+
+Removes a provider connection and its associated secrets from the store.
+
+#### Usage
+
+```bash
+kdn provider remove <name> [flags]
+kdn provider rm <name> [flags]
+```
+
+#### Arguments
+
+- `name` - Name of the provider connection to remove
+
+#### Flags
+
+- `--output, -o <format>` - Output format (supported: `json`)
+- `--storage <path>` - Storage directory for kdn data (default: `$HOME/.kdn`)
+
+#### Examples
+
+**Remove a provider connection:**
+```bash
+kdn provider remove my-anthropic
+```
+Output:
+```text
+Provider "my-anthropic" removed successfully
+```
+
+**Remove with JSON output:**
+```bash
+kdn provider remove my-anthropic --output json
+```
+Output:
+```json
+{
+  "name": "my-anthropic"
+}
+```
+
+#### Notes
+
+- **JSON error handling**: When `--output json` is used, errors are written to stdout (not stderr) in JSON format, and the CLI exits with code 1
+
 ## Commands
 
 ### `info` - Display Information About kdn
