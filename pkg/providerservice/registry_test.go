@@ -184,6 +184,26 @@ func TestRegistry_List(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("returns names in sorted order", func(t *testing.T) {
+		t.Parallel()
+
+		reg := NewRegistry()
+
+		for _, name := range []string{"zebra", "alpha", "mango"} {
+			if err := reg.Register(&fakeProviderService{name: name}); err != nil {
+				t.Fatalf("Register(%q) error = %v", name, err)
+			}
+		}
+
+		names := reg.List()
+		expected := []string{"alpha", "mango", "zebra"}
+		for i, want := range expected {
+			if names[i] != want {
+				t.Errorf("names[%d] = %q, want %q", i, names[i], want)
+			}
+		}
+	})
 }
 
 func TestRegistry_ConcurrentAccess(t *testing.T) {

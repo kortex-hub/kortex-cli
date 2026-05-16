@@ -77,10 +77,12 @@ func NewProviderService(name, description string, params []ProviderParam) Provid
 	return &providerService{
 		name:        name,
 		description: description,
-		params:      params,
+		params:      append([]ProviderParam(nil), params...),
 	}
 }
 
-func (p *providerService) Name() string            { return p.name }
-func (p *providerService) Description() string     { return p.description }
-func (p *providerService) Params() []ProviderParam { return p.params }
+func (p *providerService) Name() string        { return p.name }
+func (p *providerService) Description() string { return p.description }
+func (p *providerService) Params() []ProviderParam {
+	return append([]ProviderParam(nil), p.params...)
+}

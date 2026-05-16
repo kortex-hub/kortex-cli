@@ -21,6 +21,7 @@ package providerservice
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 )
 
@@ -101,5 +102,6 @@ func (r *registry) List() []string {
 	for name := range r.services {
 		names = append(names, name)
 	}
+	sort.Strings(names)
 	return names
 }

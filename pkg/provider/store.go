@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 
 	"github.com/openkaiden/kdn/pkg/providerservice"
 	"github.com/openkaiden/kdn/pkg/secret"
@@ -34,6 +35,7 @@ const providersFileName = "providers.json"
 
 // store is the unexported implementation of Store.
 type store struct {
+	mu          sync.Mutex
 	storageDir  string
 	secretStore secret.Store
 }
@@ -73,6 +75,9 @@ type providersFile struct {
 // The duplicate check is performed before writing to the secret store so that an
 // existing entry is never overwritten when the name is already taken.
 func (s *store) Create(params CreateParams) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	pf, err := s.loadProvidersFile()
 	if err != nil {
 		return err
@@ -161,6 +166,9 @@ func (s *store) Get(name string) (ListItem, map[string]string, error) {
 // Remove deletes all secret param values and removes the provider metadata.
 // Secret params that are already missing from the secret store are skipped.
 func (s *store) Remove(name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	pf, err := s.loadProvidersFile()
 	if err != nil {
 		return err

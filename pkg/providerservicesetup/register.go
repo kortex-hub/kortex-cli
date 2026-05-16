@@ -60,18 +60,46 @@ var availableProviderServices = mustLoadProviderServices()
 // mustLoadProviderServices loads provider service definitions from the embedded JSON and returns
 // factory functions for each. It panics on error since embedded data corruption is a build defect.
 func mustLoadProviderServices() []providerServiceFactory {
-	factories, err := loadProviderServices()
+	factories, err := loadProviderServices(providerServicesJSON)
 	if err != nil {
 		panic(fmt.Sprintf("failed to load embedded provider services: %v", err))
 	}
 	return factories
 }
 
-// loadProviderServices parses the embedded JSON and returns a factory function for each definition.
-func loadProviderServices() ([]providerServiceFactory, error) {
+// validProviderParamKinds is the set of accepted ProviderParamKind values.
+var validProviderParamKinds = map[providerservice.ProviderParamKind]bool{
+	providerservice.ProviderParamKindSecret:     true,
+	providerservice.ProviderParamKindCredential: true,
+	providerservice.ProviderParamKindURL:        true,
+	providerservice.ProviderParamKindText:       true,
+}
+
+// loadProviderServices parses the given JSON bytes and returns a factory function for each definition.
+func loadProviderServices(data []byte) ([]providerServiceFactory, error) {
 	var definitions []providerServiceDefinition
-	if err := json.Unmarshal(providerServicesJSON, &definitions); err != nil {
+	if err := json.Unmarshal(data, &definitions); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal provider services JSON: %w", err)
+	}
+
+	for _, def := range definitions {
+		if def.Name == "" {
+			return nil, fmt.Errorf("provider service definition has empty name")
+		}
+		for _, p := range def.Params {
+			if p.Name == "" {
+				return nil, fmt.Errorf("provider %q: param has empty name", def.Name)
+			}
+			if !validProviderParamKinds[p.Kind] {
+				return nil, fmt.Errorf("provider %q: param %q has invalid kind %q", def.Name, p.Name, p.Kind)
+			}
+			if p.Kind == providerservice.ProviderParamKindSecret && p.SecretType == "" {
+				return nil, fmt.Errorf("provider %q: secret param %q must have a non-empty secret_type", def.Name, p.Name)
+			}
+			if p.Kind != providerservice.ProviderParamKindSecret && p.SecretType != "" {
+				return nil, fmt.Errorf("provider %q: non-secret param %q must not have a secret_type", def.Name, p.Name)
+			}
+		}
 	}
 
 	factories := make([]providerServiceFactory, 0, len(definitions))
@@ -98,6 +126,9 @@ func loadProviderServices() ([]providerServiceFactory, error) {
 // RegisterAll registers all available provider service implementations to the given registrar.
 // Returns an error if any provider service fails to register.
 func RegisterAll(registrar ProviderServiceRegistrar) error {
+	if registrar == nil {
+		return fmt.Errorf("provider service registrar cannot be nil")
+	}
 	return registerAllWithFactories(registrar, availableProviderServices)
 }
 
@@ -132,6 +163,9 @@ func listAvailableWithFactories(factories []providerServiceFactory) []string {
 
 // registerAllWithFactories registers provider services from the given factories to the registrar.
 func registerAllWithFactories(registrar ProviderServiceRegistrar, factories []providerServiceFactory) error {
+	if registrar == nil {
+		return fmt.Errorf("provider service registrar cannot be nil")
+	}
 	for _, factory := range factories {
 		svc := factory()
 		if svc == nil {

@@ -110,7 +110,7 @@ func TestListServices(t *testing.T) {
 func TestLoadProviderServices(t *testing.T) {
 	t.Parallel()
 
-	factories, err := loadProviderServices()
+	factories, err := loadProviderServices(providerServicesJSON)
 	if err != nil {
 		t.Fatalf("loadProviderServices() error = %v", err)
 	}
@@ -226,6 +226,60 @@ func TestRegisterAllWithFactories_StopsOnError(t *testing.T) {
 	err := registerAllWithFactories(registrar, factories)
 	if err == nil {
 		t.Error("registerAllWithFactories() should return error when registration fails")
+	}
+}
+
+func TestRegisterAll_NilRegistrar(t *testing.T) {
+	t.Parallel()
+
+	err := RegisterAll(nil)
+	if err == nil {
+		t.Error("RegisterAll(nil) should return error")
+	}
+}
+
+func TestRegisterAllWithFactories_NilRegistrar(t *testing.T) {
+	t.Parallel()
+
+	err := registerAllWithFactories(nil, nil)
+	if err == nil {
+		t.Error("registerAllWithFactories(nil, ...) should return error")
+	}
+}
+
+func TestLoadProviderServices_ValidatesEmptyName(t *testing.T) {
+	t.Parallel()
+
+	_, err := loadProviderServices([]byte(`[{"name":"","description":"test","params":[]}]`))
+	if err == nil {
+		t.Error("loadProviderServices() should return error for empty provider name")
+	}
+}
+
+func TestLoadProviderServices_ValidatesParamKind(t *testing.T) {
+	t.Parallel()
+
+	_, err := loadProviderServices([]byte(`[{"name":"test","params":[{"name":"p","kind":"invalid"}]}]`))
+	if err == nil {
+		t.Error("loadProviderServices() should return error for invalid param kind")
+	}
+}
+
+func TestLoadProviderServices_ValidatesSecretParamHasSecretType(t *testing.T) {
+	t.Parallel()
+
+	_, err := loadProviderServices([]byte(`[{"name":"test","params":[{"name":"token","kind":"secret","secret_type":""}]}]`))
+	if err == nil {
+		t.Error("loadProviderServices() should return error when secret param has no secret_type")
+	}
+}
+
+func TestLoadProviderServices_ValidatesNonSecretParamHasNoSecretType(t *testing.T) {
+	t.Parallel()
+
+	_, err := loadProviderServices([]byte(`[{"name":"test","params":[{"name":"url","kind":"url","secret_type":"something"}]}]`))
+	if err == nil {
+		t.Error("loadProviderServices() should return error when non-secret param has secret_type")
 	}
 }
 
