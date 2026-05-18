@@ -1249,6 +1249,12 @@ Exit code: `1` (error)
    - Success responses have specific fields (e.g., `id`, `items`, `name`, `paths`)
    - Error responses always have an `error` field
 
+5. **Use `--url`** with `open` and `dashboard` to get the URL without launching a browser — useful for scripts that need to capture or transform the URL:
+   ```bash
+   url=$(kdn open my-project --url)
+   curl "$url/api/health"
+   ```
+
 **Example script pattern:**
 
 ```bash
@@ -3799,6 +3805,7 @@ kdn dashboard NAME|ID [flags]
 
 #### Flags
 
+- `--url` - Print the URL without opening the browser
 - `--storage <path>` - Storage directory for kdn data (default: `$HOME/.kdn`)
 
 #### Examples
@@ -3813,6 +3820,12 @@ Output: `http://localhost:8888` (URL printed; browser opened automatically)
 ```bash
 kdn workspace dashboard my-project
 ```
+
+**Print the URL without opening the browser:**
+```bash
+kdn workspace dashboard my-project --url
+```
+Output: `http://localhost:8888` (URL printed; browser **not** opened)
 
 **Use the short alias:**
 ```bash
@@ -3868,6 +3881,7 @@ kdn open NAME|ID [PORT] [flags]
 
 #### Flags
 
+- `--url` - Print the URL without opening the browser
 - `--storage <path>` - Storage directory for kdn data (default: `$HOME/.kdn`)
 
 #### Examples
@@ -3883,6 +3897,12 @@ Output: `http://127.0.0.1:54321` (URL printed; browser opened automatically)
 kdn workspace open my-project 8080
 kdn open my-project 8080
 ```
+
+**Print the URL without opening the browser:**
+```bash
+kdn workspace open my-project --url
+```
+Output: `http://127.0.0.1:54321` (URL printed; browser **not** opened)
 
 #### Error Handling
 
