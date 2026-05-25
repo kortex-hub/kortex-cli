@@ -327,7 +327,14 @@ func buildNftScript(agentUID int, hostGW string) string {
 	var parts []string
 
 	// Ensure nftables is installed before applying rules.
-	parts = append(parts, "command -v nft >/dev/null 2>&1 || dnf install -y nftables >/dev/null 2>&1")
+	// Note: nftables and CA certificates are pre-installed in the workspace image during build,
+	// and the network-guard container uses that image. This dnf install is a defensive fallback
+	// for edge cases (e.g., manual removal or non-standard images) and should never run during normal operation.
+	parts = append(parts, "command -v nft >/dev/null 2>&1 || dnf install -y nftables")
+
+	// Verify nft is available after installation attempt
+	// If this fails, it may indicate enterprise proxy/SSL/certificate issues or network connectivity problems
+	parts = append(parts, "command -v nft >/dev/null 2>&1 || { echo 'nftables not available - check proxy settings, certificate trust, or network connectivity'; exit 1; }")
 
 	// IPv4 rules — default accept, block agent UID (except loopback + host gateway)
 	parts = append(parts,

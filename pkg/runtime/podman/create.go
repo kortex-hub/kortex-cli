@@ -53,6 +53,7 @@ type podTemplateData struct {
 	AgentUID           int
 	BaseImageRegistry  string
 	BaseImageVersion   string
+	WorkspaceImage     string // The built workspace image with nftables pre-installed
 	SourcePath         string
 	ProjectID          string
 	Agent              string
@@ -92,7 +93,8 @@ func (p *podmanRuntime) createInstanceDirectory(name string) (string, error) {
 // so they can be embedded in the image via a COPY instruction.
 // If featureInfos is non-empty, the features have already been downloaded to instanceDir/features/
 // and the Containerfile will include instructions to install them.
-func (p *podmanRuntime) createContainerfile(instanceDir string, imageConfig *config.ImageConfig, agentConfig *config.AgentConfig, settings map[string]agent.SettingsFile, featureInfos []featureInstallInfo) error {
+// If certsCopied is true, the Containerfile will include instructions to install system CA certificates.
+func (p *podmanRuntime) createContainerfile(instanceDir string, imageConfig *config.ImageConfig, agentConfig *config.AgentConfig, settings map[string]agent.SettingsFile, featureInfos []featureInstallInfo, certsCopied bool) error {
 	// Generate sudoers content
 	sudoersContent := generateSudoers(imageConfig.Sudo)
 	sudoersPath := filepath.Join(instanceDir, "sudoers")
@@ -122,13 +124,95 @@ func (p *podmanRuntime) createContainerfile(instanceDir string, imageConfig *con
 	}
 
 	// Generate Containerfile content
-	containerfileContent := generateContainerfile(imageConfig, agentConfig, len(settings) > 0, featureInfos)
+	containerfileContent := generateContainerfile(imageConfig, agentConfig, len(settings) > 0, featureInfos, certsCopied)
 	containerfilePath := filepath.Join(instanceDir, "Containerfile")
 	if err := os.WriteFile(containerfilePath, []byte(containerfileContent), 0644); err != nil {
 		return fmt.Errorf("failed to write Containerfile: %w", err)
 	}
 
 	return nil
+}
+
+// findSystemCACertificates attempts to read system CA certificates from common locations.
+// Returns the certificate content and true if found, or nil and false otherwise.
+func findSystemCACertificates(certPaths []string) ([]byte, bool) {
+	var certContent []byte
+
+	// Get the system CA certificates from the location pointed by SSL_CERT_FILE if it's set
+	if caBundlePath := os.Getenv("SSL_CERT_FILE"); caBundlePath != "" {
+		if abs, err := filepath.Abs(caBundlePath); err == nil {
+			caBundlePath = abs
+		}
+		// Skip directories
+		if info, err := os.Stat(caBundlePath); err == nil && !info.IsDir() {
+			if content, err := os.ReadFile(caBundlePath); err == nil && len(content) > 0 {
+				certContent = content
+			}
+		}
+	}
+
+	if len(certContent) == 0 {
+		for _, path := range certPaths {
+			if abs, err := filepath.Abs(path); err == nil {
+				path = abs
+			}
+			// Skip directories to avoid reading random files
+			if info, err := os.Stat(path); err == nil && info.IsDir() {
+				continue
+			}
+			if content, err := os.ReadFile(path); err == nil && len(content) > 0 {
+				certContent = content
+				break
+			}
+		}
+	}
+
+	if len(certContent) == 0 {
+		return nil, false
+	}
+	return certContent, true
+}
+
+// systemCACertPaths lists common system CA bundle locations across Linux distributions.
+var systemCACertPaths = []string{
+	// Debian / Ubuntu / Gentoo
+	"/etc/ssl/certs/ca-certificates.crt",
+	// Fedora / RHEL 6
+	"/etc/pki/tls/certs/ca-bundle.crt",
+	// Fedora / RHEL 7+ / CentOS / Rocky / Alma
+	"/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem",
+	// OpenSUSE
+	"/etc/ssl/ca-bundle.pem",
+	// SUSE / older distributions
+	"/etc/ssl/certs/ca-bundle.crt",
+	// Alpine Linux
+	"/etc/ssl/cert.pem",
+	// Arch Linux
+	"/etc/ca-certificates/extracted/tls-ca-bundle.pem",
+}
+
+// copySystemCACertificates copies system CA certificates to the build context for
+// enterprise proxy support (enables trusting self-signed certs during build).
+// certPaths is the ordered list of candidate paths; pass systemCACertPaths for production
+// or a custom list in tests. Returns true if certificates were copied, false otherwise.
+func (p *podmanRuntime) copySystemCACertificates(instanceDir string, certPaths []string) (bool, error) {
+	certContent, found := findSystemCACertificates(certPaths)
+	if !found {
+		return false, nil
+	}
+
+	// Create certs directory in build context
+	certsDir := filepath.Join(instanceDir, "certs")
+	if err := os.MkdirAll(certsDir, 0755); err != nil {
+		return false, fmt.Errorf("failed to create certs directory: %w", err)
+	}
+
+	certPath := filepath.Join(certsDir, "system-ca.crt")
+	if err := os.WriteFile(certPath, certContent, 0644); err != nil {
+		return false, fmt.Errorf("failed to write system CA certificates: %w", err)
+	}
+
+	return true, nil
 }
 
 // prepareFeatures downloads, orders, and merges options for devcontainer features declared in params.
@@ -474,9 +558,17 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		}
 	}
 
+	// Copy system CA certificates to build context for enterprise proxy support
+	// This must happen before Containerfile generation so we know whether to include COPY instructions
+	certsCopied, err := p.copySystemCACertificates(instanceDir, systemCACertPaths)
+	if err != nil {
+		stepLogger.Fail(err)
+		return runtime.RuntimeInfo{}, err
+	}
+
 	// Create Containerfile
 	stepLogger.Start("Generating Containerfile", "Containerfile generated")
-	if err := p.createContainerfile(instanceDir, imageConfig, agentConfig, params.AgentSettings, featureInfos); err != nil {
+	if err := p.createContainerfile(instanceDir, imageConfig, agentConfig, params.AgentSettings, featureInfos, certsCopied); err != nil {
 		stepLogger.Fail(err)
 		return runtime.RuntimeInfo{}, err
 	}
@@ -517,6 +609,7 @@ func (p *podmanRuntime) Create(ctx context.Context, params runtime.CreateParams)
 		AgentUID:           p.system.Getuid(),
 		BaseImageRegistry:  constants.BaseImageRegistry,
 		BaseImageVersion:   imageConfig.Version,
+		WorkspaceImage:     imageName, // Use the built workspace image with nftables pre-installed
 		SourcePath:         params.SourcePath,
 		ProjectID:          params.ProjectID,
 		Agent:              params.Agent,

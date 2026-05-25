@@ -63,9 +63,10 @@ func TestGetURL_ReturnsCorrectPort(t *testing.T) {
 
 	const customPort = 31337
 	data := podTemplateData{
-		Name:          "port-test",
-		OnecliWebPort: customPort,
-		OnecliVersion: defaultOnecliVersion,
+		Name:           "port-test",
+		OnecliWebPort:  customPort,
+		OnecliVersion:  defaultOnecliVersion,
+		WorkspaceImage: "kdn-port-test",
 	}
 	if err := p.writePodFiles(containerID, data); err != nil {
 		t.Fatalf("writePodFiles() failed: %v", err)

@@ -62,7 +62,7 @@ spec:
           mountPath: /app:Z
 
     - name: network-guard
-      image: {{.BaseImageRegistry}}:{{.BaseImageVersion}}
+      image: {{.WorkspaceImage}}
       securityContext:
         capabilities:
           add: ["NET_ADMIN"]
