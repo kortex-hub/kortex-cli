@@ -452,6 +452,7 @@ func setupPodFilesWithSource(t *testing.T, p *podmanRuntime, containerID, worksp
 		AgentUID:           1000,
 		BaseImageRegistry:  "registry.fedoraproject.org/fedora",
 		BaseImageVersion:   "latest",
+		WorkspaceImage:     "kdn-" + workspaceName,
 		SourcePath:         sourceDir,
 		ApprovalHandlerDir: approvalDir,
 	}

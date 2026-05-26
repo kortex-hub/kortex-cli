@@ -15,6 +15,7 @@
 package podman
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -178,6 +179,112 @@ func TestCreateInstanceDirectory(t *testing.T) {
 	})
 }
 
+func TestCopySystemCACertificates(t *testing.T) {
+	t.Parallel()
+
+	t.Run("copies certificates when cert file found", func(t *testing.T) {
+		t.Parallel()
+
+		instanceDir := t.TempDir()
+		p := &podmanRuntime{}
+
+		// Create a temporary CA certificate file to inject
+		tempCertPath := filepath.Join(t.TempDir(), "ca-bundle.crt")
+		wantContent := []byte("-----BEGIN CERTIFICATE-----\ntest cert content\n-----END CERTIFICATE-----")
+		if err := os.WriteFile(tempCertPath, wantContent, 0644); err != nil {
+			t.Fatalf("Failed to create temp cert file: %v", err)
+		}
+
+		certsCopied, err := p.copySystemCACertificates(instanceDir, []string{tempCertPath})
+		if err != nil {
+			t.Fatalf("copySystemCACertificates() failed: %v", err)
+		}
+		if !certsCopied {
+			t.Error("Expected certsCopied to be true when cert file exists")
+		}
+
+		// Verify the file was written with the correct content
+		certPath := filepath.Join(instanceDir, "certs", "system-ca.crt")
+		gotContent, err := os.ReadFile(certPath)
+		if err != nil {
+			t.Fatalf("Failed to read copied cert file: %v", err)
+		}
+		if !bytes.Equal(gotContent, wantContent) {
+			t.Error("Expected written cert content to match original")
+		}
+	})
+
+	t.Run("returns false when no certificates found", func(t *testing.T) {
+		t.Parallel()
+
+		instanceDir := t.TempDir()
+		p := &podmanRuntime{}
+
+		certsCopied, err := p.copySystemCACertificates(instanceDir, []string{"/nonexistent/path/cert.crt"})
+		if err != nil {
+			t.Fatalf("copySystemCACertificates() failed: %v", err)
+		}
+		if certsCopied {
+			t.Error("Expected certsCopied to be false when no certs found")
+		}
+		// Verify no certs directory was created
+		if _, err := os.Stat(filepath.Join(instanceDir, "certs")); !os.IsNotExist(err) {
+			t.Error("Expected certs directory to not exist when no certs were copied")
+		}
+	})
+
+	t.Run("skips directories in cert paths", func(t *testing.T) {
+		t.Parallel()
+
+		instanceDir := t.TempDir()
+		p := &podmanRuntime{}
+
+		// Pass a directory as a cert path — should be skipped gracefully
+		certsCopied, err := p.copySystemCACertificates(instanceDir, []string{t.TempDir()})
+		if err != nil {
+			t.Fatalf("copySystemCACertificates() failed: %v", err)
+		}
+		if certsCopied {
+			t.Error("Expected certsCopied to be false when only directories given")
+		}
+	})
+}
+
+func TestFindSystemCACertificates(t *testing.T) {
+	// Not parallel: subtests share SSL_CERT_FILE isolation via t.Setenv.
+	t.Setenv("SSL_CERT_FILE", "")
+
+	t.Run("returns content from first readable file", func(t *testing.T) {
+		wantContent := []byte("-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----")
+		certPath := filepath.Join(t.TempDir(), "ca.crt")
+		if err := os.WriteFile(certPath, wantContent, 0644); err != nil {
+			t.Fatalf("Failed to write cert file: %v", err)
+		}
+
+		got, found := findSystemCACertificates([]string{"/nonexistent", certPath})
+		if !found {
+			t.Error("Expected to find certificate")
+		}
+		if !bytes.Equal(got, wantContent) {
+			t.Error("Expected cert content to match")
+		}
+	})
+
+	t.Run("returns false when all paths missing", func(t *testing.T) {
+		_, found := findSystemCACertificates([]string{"/nonexistent/a.crt", "/nonexistent/b.pem"})
+		if found {
+			t.Error("Expected to not find certificate")
+		}
+	})
+
+	t.Run("skips directory entries", func(t *testing.T) {
+		_, found := findSystemCACertificates([]string{t.TempDir()})
+		if found {
+			t.Error("Expected to not find certificate when path is a directory")
+		}
+	})
+}
+
 func TestCreateContainerfile(t *testing.T) {
 	t.Parallel()
 
@@ -201,7 +308,7 @@ func TestCreateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"claude"},
 		}
 
-		err := p.createContainerfile(instanceDir, imageConfig, agentConfig, nil, nil)
+		err := p.createContainerfile(instanceDir, imageConfig, agentConfig, nil, nil, false)
 		if err != nil {
 			t.Fatalf("createContainerfile() failed: %v", err)
 		}
@@ -252,7 +359,7 @@ func TestCreateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"custom-agent"},
 		}
 
-		err := p.createContainerfile(instanceDir, imageConfig, agentConfig, nil, nil)
+		err := p.createContainerfile(instanceDir, imageConfig, agentConfig, nil, nil, false)
 		if err != nil {
 			t.Fatalf("createContainerfile() failed: %v", err)
 		}
@@ -318,7 +425,7 @@ func TestCreateContainerfile(t *testing.T) {
 			".gitconfig":            {Content: []byte("[user]\n\tname = Agent\n")},
 		}
 
-		err := p.createContainerfile(instanceDir, imageConfig, agentConfig, settings, nil)
+		err := p.createContainerfile(instanceDir, imageConfig, agentConfig, settings, nil, false)
 		if err != nil {
 			t.Fatalf("createContainerfile() failed: %v", err)
 		}
@@ -378,7 +485,7 @@ func TestCreateContainerfile(t *testing.T) {
 			TerminalCommand: []string{"claude"},
 		}
 
-		err := p.createContainerfile(instanceDir, imageConfig, agentConfig, nil, nil)
+		err := p.createContainerfile(instanceDir, imageConfig, agentConfig, nil, nil, false)
 		if err != nil {
 			t.Fatalf("createContainerfile() failed: %v", err)
 		}
@@ -2221,6 +2328,7 @@ func TestRenderPodYAML_Ports(t *testing.T) {
 			AgentUID:           1000,
 			BaseImageRegistry:  "registry.example.com/base",
 			BaseImageVersion:   "latest",
+			WorkspaceImage:     "kdn-port-workspace",
 			SourcePath:         "/workspace/sources",
 			ApprovalHandlerDir: "/tmp/approval",
 			Forwards: []api.WorkspaceForward{
@@ -2262,6 +2370,7 @@ func TestRenderPodYAML_Ports(t *testing.T) {
 			AgentUID:           1000,
 			BaseImageRegistry:  "registry.example.com/base",
 			BaseImageVersion:   "latest",
+			WorkspaceImage:     "kdn-no-port-workspace",
 			SourcePath:         "/workspace/sources",
 			ApprovalHandlerDir: "/tmp/approval",
 		}

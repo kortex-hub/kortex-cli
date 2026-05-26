@@ -86,7 +86,7 @@ func generateSudoers(sudoBinaries []string) string {
 // that install scripts can chown files, write to /home/agent, and su to the target user.
 // _REMOTE_USER and _REMOTE_USER_HOME are exported before the feature block so install
 // scripts can resolve the target user by name. USER agent:agent is set after all features.
-func generateContainerfile(imageConfig *config.ImageConfig, agentConfig *config.AgentConfig, hasAgentSettings bool, featureInfos []featureInstallInfo) string {
+func generateContainerfile(imageConfig *config.ImageConfig, agentConfig *config.AgentConfig, hasAgentSettings bool, featureInfos []featureInstallInfo, certsCopied bool) string {
 	if imageConfig == nil {
 		return ""
 	}
@@ -107,9 +107,22 @@ func generateContainerfile(imageConfig *config.ImageConfig, agentConfig *config.
 	lines = append(lines, "ARG GID=1000")
 	lines = append(lines, "")
 
+	// Copy and install system CA certificates for enterprise proxy support.
+	// This enables containers to trust self-signed certificates from corporate proxies
+	// like Netskope during package installation (dnf install, curl, etc.).
+	// Only add COPY instructions when certificates are actually available in the build context.
+	if certsCopied {
+		lines = append(lines, "COPY certs/system-ca.crt /tmp/system-ca.crt")
+		lines = append(lines, "RUN cp /tmp/system-ca.crt /etc/pki/ca-trust/source/anchors/system-ca.crt && update-ca-trust")
+		lines = append(lines, "")
+	}
+
 	// Merge packages from image and agent configs
 	allPackages := append([]string{}, imageConfig.Packages...)
 	allPackages = append(allPackages, agentConfig.Packages...)
+
+	// Always install nftables for network guard firewall functionality
+	allPackages = append(allPackages, "nftables")
 
 	// Install packages if any
 	if len(allPackages) > 0 {

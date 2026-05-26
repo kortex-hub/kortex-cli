@@ -105,6 +105,7 @@ func setupPodFiles(t *testing.T, p *podmanRuntime, containerID, workspaceName st
 		AgentUID:           1000,
 		BaseImageRegistry:  "registry.fedoraproject.org/fedora",
 		BaseImageVersion:   "latest",
+		WorkspaceImage:     "kdn-" + workspaceName,
 		ApprovalHandlerDir: approvalDir,
 	}
 	if err := p.writePodFiles(containerID, data); err != nil {

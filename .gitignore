@@ -27,3 +27,6 @@ website/site/
 website/docs/*.md
 
 install.sh
+
+# Kaiden workspace configuration
+.kaiden/
